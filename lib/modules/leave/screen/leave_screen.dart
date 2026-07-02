@@ -20,14 +20,11 @@ class LeaveScreen extends StatefulWidget {
   State<LeaveScreen> createState() => _LeaveScreenState();
 }
 
-class _LeaveScreenState extends State<LeaveScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _LeaveScreenState extends State<LeaveScreen> {
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthController>();
       if (auth.user != null) {
@@ -38,49 +35,42 @@ class _LeaveScreenState extends State<LeaveScreen>
   }
 
   @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: CustomAppBar(
-        title: 'Leave Management',
-        showBack: Navigator.of(context).canPop(),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-            onPressed: () {
-              final auth = context.read<AuthController>();
-              if (auth.user != null) {
-                context.read<LeaveController>().fetchLeaves(auth.user!.employeeId);
-              }
-            },
-          ),
-        ],
-        leading: Navigator.of(context).canPop()
-            ? null
-            : const SizedBox.shrink(),
-      ),
-      body: Column(
-        children: [
-          _buildTabBar(),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: const [
-                LeaveStatusScreen(),
-                LeaveBalanceScreen(),
-                LeaveApplyScreen(),
-                LeaveEncashmentScreen(),
-                LeaveCalendarScreen(),
-              ],
+    return DefaultTabController(
+      length: 5,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: CustomAppBar(
+          title: 'Leave Management',
+          showBack: Navigator.of(context).canPop(),
+          // actions: [
+          //   IconButton(
+          //     icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+          //     onPressed: () {
+          //       final auth = context.read<AuthController>();
+          //       if (auth.user != null) {
+          //         context.read<LeaveController>().fetchLeaves(auth.user!.employeeId);
+          //       }
+          //     },
+          //   ),
+          // ],
+        ),
+        body: Column(
+          children: [
+            _buildTabBar(),
+            const Expanded(
+              child: TabBarView(
+                children: [
+                  LeaveStatusScreen(),
+                  LeaveBalanceScreen(),
+                  LeaveApplyScreen(),
+                  LeaveEncashmentScreen(),
+                  LeaveCalendarScreen(),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -89,7 +79,6 @@ class _LeaveScreenState extends State<LeaveScreen>
     return Container(
       color: AppColors.backgroundSecondary,
       child: TabBar(
-        controller: _tabController,
         isScrollable: true,
         tabAlignment: TabAlignment.start,
         indicator: BoxDecoration(

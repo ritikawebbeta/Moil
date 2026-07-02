@@ -70,20 +70,22 @@ class EmployeeManagementApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MOIL EMS - Employee Management System',
+      title: 'MOIL LMS - Leave Management System',
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
       initialRoute: '/login',
       routes: {
+        '/': (_) => const LoginScreen(),
         '/login': (_) => const LoginScreen(),
-        '/dashboard': (_) => const BottomNavBarScreen(),
-        '/leave': (_) => const LeaveScreen(),
-        '/tour': (_) => const TourScreen(),
-        '/payslip': (_) => const PayslipScreen(),
-        '/holiday': (_) => const HolidayScreen(),
-        '/profile': (_) => const ProfileScreen(),
-        '/notifications': (_) => const NotificationsScreen(),
-        '/approval': (_) => const ApprovalScreen(),
+        '/dashboard': (_) => const AuthGuard(child: BottomNavBarScreen()),
+        '/leave': (_) => const AuthGuard(child: BottomNavBarScreen()),
+        '/tour': (_) => const AuthGuard(child: BottomNavBarScreen()),
+        '/directory': (_) => const AuthGuard(child: BottomNavBarScreen()),
+        '/payslips': (_) => const AuthGuard(child: BottomNavBarScreen()),
+        '/holidays': (_) => const AuthGuard(child: BottomNavBarScreen()),
+        '/profile': (_) => const AuthGuard(child: BottomNavBarScreen()),
+        '/notifications': (_) => const AuthGuard(child: NotificationsScreen()),
+        '/approvals': (_) => const AuthGuard(child: BottomNavBarScreen()),
       },
     );
   }
@@ -150,5 +152,33 @@ class EmployeeManagementApp extends StatelessWidget {
         elevation: 0,
       ),
     );
+  }
+}
+
+class AuthGuard extends StatelessWidget {
+  final Widget child;
+  const AuthGuard({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    if (auth.status == AuthStatus.initial || auth.status == AuthStatus.loading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    if (!auth.isAuthenticated) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacementNamed(context, '/login');
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    return child;
   }
 }

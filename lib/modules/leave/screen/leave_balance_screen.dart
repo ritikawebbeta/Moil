@@ -19,11 +19,9 @@ class LeaveBalanceScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              _buildBalanceCards(controller),
+              // _buildBalanceCards(controller),
               const SizedBox(height: 16),
               _buildTimeAccountsTable(controller),
-              const SizedBox(height: 16),
-              _buildLeaveUsageChart(controller),
             ],
           ),
         );
@@ -31,101 +29,99 @@ class LeaveBalanceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBalanceCards(LeaveController controller) {
-    if (controller.balances.isEmpty) {
-      return const SizedBox.shrink();
-    }
+  // Widget _buildBalanceCards(LeaveController controller) {
+  //   if (controller.balances.isEmpty) {
+  //     return const SizedBox.shrink();
+  //   }
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.45,
-      ),
-      itemCount: controller.balances.length,
-      itemBuilder: (context, index) {
-        final balance = controller.balances[index];
-        final color = _getLeaveColor(balance.timeAccount);
-        final used = balance.entitlement - balance.entitlementMinusPlanned;
-        final progress = balance.entitlement > 0 ? used / balance.entitlement : 0.0;
+  //   final filteredBalances = controller.balances.where((b) {
+  //     final name = b.timeAccount.toLowerCase();
+  //     return name != 'earned leave' && name != 'casual leave';
+  //   }).toList();
 
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.cardBg,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: color.withOpacity(0.25)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      balance.timeAccount,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '${balance.entitlementMinusPlanned.toStringAsFixed(0)} d',
-                      style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: (1 - progress).clamp(0, 1),
-                  backgroundColor: color.withOpacity(0.1),
-                  valueColor: AlwaysStoppedAnimation<Color>(color),
-                  minHeight: 6,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Used: ${used.toStringAsFixed(1)}',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w500),
-                  ),
-                  Text(
-                    'Total: ${balance.entitlement.toStringAsFixed(1)}',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  //   if (filteredBalances.isEmpty) {
+  //     return const SizedBox.shrink();
+  //   }
+
+  //   return GridView.builder(
+  //     shrinkWrap: true,
+  //     physics: const NeverScrollableScrollPhysics(),
+  //     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+  //       crossAxisCount: 2,
+  //       crossAxisSpacing: 12,
+  //       mainAxisSpacing: 12,
+  //       childAspectRatio: 1.6,
+  //     ),
+  //     itemCount: filteredBalances.length,
+  //     itemBuilder: (context, index) {
+  //       final balance = filteredBalances[index];
+  //       final color = _getLeaveColor(balance.timeAccount);
+  //       final used = balance.entitlement - balance.entitlementMinusPlanned;
+
+  //       return Container(
+  //         padding: const EdgeInsets.all(14),
+  //         decoration: BoxDecoration(
+  //           color: AppColors.cardBg,
+  //           borderRadius: BorderRadius.circular(14),
+  //           border: Border.all(color: color.withOpacity(0.25)),
+  //           boxShadow: [
+  //             BoxShadow(
+  //               color: Colors.black.withOpacity(0.02),
+  //               blurRadius: 10,
+  //               offset: const Offset(0, 2),
+  //             ),
+  //           ],
+  //         ),
+  //         child: Column(
+  //           crossAxisAlignment: CrossAxisAlignment.start,
+  //           children: [
+  //             Row(
+  //               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //               children: [
+  //                 Expanded(
+  //                   child: Text(
+  //                     balance.timeAccount,
+  //                     style: TextStyle(
+  //                       color: color,
+  //                       fontSize: 12,
+  //                       fontWeight: FontWeight.w700,
+  //                     ),
+  //                     overflow: TextOverflow.ellipsis,
+  //                   ),
+  //                 ),
+  //                 Container(
+  //                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+  //                   decoration: BoxDecoration(
+  //                     color: color.withOpacity(0.08),
+  //                     borderRadius: BorderRadius.circular(4),
+  //                   ),
+  //                   child: Text(
+  //                     '${balance.entitlementMinusPlanned.toStringAsFixed(0)} d',
+  //                     style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //             const Spacer(),
+  //             Row(
+  //               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //               children: [
+  //                 Text(
+  //                   'Used: ${used.toStringAsFixed(1)}',
+  //                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w500),
+  //                 ),
+  //                 Text(
+  //                   'Total: ${balance.entitlement.toStringAsFixed(1)}',
+  //                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w500),
+  //                 ),
+  //               ],
+  //             ),
+  //           ],
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
 
   Color _getLeaveColor(String type) {
     switch (type.toLowerCase()) {
@@ -143,10 +139,15 @@ class LeaveBalanceScreen extends StatelessWidget {
   }
 
   Widget _buildTimeAccountsTable(LeaveController controller) {
+    final filteredBalances = controller.balances.where((b) {
+      final name = b.timeAccount.toLowerCase();
+      return name != 'earned leave' && name != 'casual leave';
+    }).toList();
+
     return GlassCard(
       padding: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SectionHeader(
             title: 'Time Accounts',
@@ -174,16 +175,16 @@ class LeaveBalanceScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1, color: AppColors.cardBorder),
                 // Rows
-                if (controller.balances.isEmpty)
+                if (filteredBalances.isEmpty)
                   const SizedBox(
-                    width: 740,
+                     width: 740,
                     height: 80,
                     child: Center(
-                      child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
+                      child: Text('No records found', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                     ),
                   )
                 else
-                  ...controller.balances.asMap().entries.map((entry) {
+                  ...filteredBalances.asMap().entries.map((entry) {
                     final i = entry.key;
                     final b = entry.value;
                     final color = _getLeaveColor(b.timeAccount);
@@ -251,73 +252,6 @@ class LeaveBalanceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLeaveUsageChart(LeaveController controller) {
-    if (controller.balances.isEmpty) return const SizedBox.shrink();
-
-    return GlassCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Leave Balance Summary',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ...controller.balances.map((b) {
-            final color = _getLeaveColor(b.timeAccount);
-            final progress = b.entitlement > 0 ? (b.entitlementMinusPlanned / b.entitlement).clamp(0.0, 1.0) : 0.0;
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            b.timeAccount,
-                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        '${b.entitlementMinusPlanned.toStringAsFixed(1)} / ${b.entitlement.toStringAsFixed(1)} Days',
-                        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: color.withOpacity(0.08),
-                      valueColor: AlwaysStoppedAnimation<Color>(color),
-                      minHeight: 8,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
 }
 
 class _FilterRow extends StatelessWidget {

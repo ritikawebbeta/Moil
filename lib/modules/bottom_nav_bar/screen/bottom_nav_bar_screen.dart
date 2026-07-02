@@ -46,6 +46,39 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
         context.read<LeaveController>().fetchLeaves(auth.user!.employeeId);
         context.read<LeaveController>().fetchBalances(auth.user!.employeeId);
       }
+
+      // Auto-select tab index based on route name on startup/refresh
+      final routeName = ModalRoute.of(context)?.settings.name;
+      if (routeName != null) {
+        final controller = context.read<BottomNavBarController>();
+        switch (routeName) {
+          case '/dashboard':
+            controller.setSelectedIndex(0);
+            break;
+          case '/leave':
+            controller.setSelectedIndex(1);
+            break;
+          case '/tour':
+            controller.setSelectedIndex(2);
+            break;
+          case '/profile':
+            controller.setSelectedIndex(3);
+            break;
+          case '/directory':
+            controller.setSelectedIndex(4);
+            break;
+          case '/paysips':
+          case '/payslips':
+            controller.setSelectedIndex(5);
+            break;
+          case '/holidays':
+            controller.setSelectedIndex(6);
+            break;
+          case '/approvals':
+            controller.setSelectedIndex(7);
+            break;
+        }
+      }
     });
   }
 
@@ -67,7 +100,7 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
             ],
           ),
           content: const Text(
-            'Are you sure you want to log out of MOIL EMS?',
+            'Are you sure you want to log out of MOIL LMS?',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
           actions: [
@@ -133,13 +166,13 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
 
     final menuItems = [
       _SidebarItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard_rounded, label: 'Dashboard', index: 0),
-      _SidebarItem(icon: Icons.event_note_outlined, activeIcon: Icons.event_note_rounded, label: 'Leave Screen', index: 1),
-      _SidebarItem(icon: Icons.flight_takeoff_outlined, activeIcon: Icons.flight_takeoff_rounded, label: 'Tour Screen', index: 2),
-      _SidebarItem(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'My Profile', index: 3),
+      _SidebarItem(icon: Icons.event_note_outlined, activeIcon: Icons.event_note_rounded, label: 'Leave request', index: 1),
+      _SidebarItem(icon: Icons.flight_takeoff_outlined, activeIcon: Icons.flight_takeoff_rounded, label: 'Tour request', index: 2),
       if (!isEmployee) _SidebarItem(icon: Icons.people_outline_rounded, activeIcon: Icons.people_rounded, label: 'Employee Directory', index: 4),
       _SidebarItem(icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, label: 'Payslips', index: 5),
       _SidebarItem(icon: Icons.celebration_outlined, activeIcon: Icons.celebration_rounded, label: 'Holiday Calendar', index: 6),
       if (!isEmployee) _SidebarItem(icon: Icons.approval_rounded, activeIcon: Icons.approval_rounded, label: 'Pending Approvals', index: 7),
+      _SidebarItem(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'My Profile', index: 3),
     ];
 
     return Container(
@@ -200,7 +233,7 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'MOIL EMS',
+                              'MOIL LMS',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,

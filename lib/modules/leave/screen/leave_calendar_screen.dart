@@ -9,6 +9,7 @@ import '../../../utils/app_colors.dart';
 import '../controller/leave_controller.dart';
 import '../../../widgets/app_widgets.dart';
 import '../../../model/leave_model.dart';
+import '../../auth/controller/auth_controller.dart';
 
 class LeaveCalendarScreen extends StatefulWidget {
   const LeaveCalendarScreen({super.key});
@@ -45,6 +46,13 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthController>().user;
+    final isRO = user?.role == 'RO' || user?.role == 'RO1';
+
+    if (!isRO) {
+      return _buildPersonalCalendar();
+    }
+
     return Column(
       children: [
         _buildSubTabBar(),
@@ -95,7 +103,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                 padding: EdgeInsets.zero,
                 child: TableCalendar(
                   firstDay: DateTime(2024),
-                  lastDay: DateTime(2028),
+                  lastDay: DateTime(DateTime.now().year + 5),
                   focusedDay: _focusedDay,
                   selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                   calendarFormat: _calendarFormat,

@@ -3,8 +3,8 @@
 class StringsUtils {
   StringsUtils._();
 
-  static const String appName = 'EMS';
-  static const String appFullName = 'Employee Management System';
+  static const String appName = 'LMS';
+  static const String appFullName = 'Leave Management System';
 
   // Auth
   static const String login = 'Login';
@@ -14,7 +14,7 @@ class StringsUtils {
   static const String forgotPassword = 'Forgot Password?';
   static const String changePassword = 'Change Password';
   static const String welcome = 'Welcome Back!';
-  static const String loginSubtitle = 'Sign in to your EMS account';
+  static const String loginSubtitle = 'Sign in to your LMS account';
 
   // Navigation
   static const String dashboard = 'Dashboard';

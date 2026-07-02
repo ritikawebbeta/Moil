@@ -3,7 +3,7 @@
 class AppConfig {
   AppConfig._();
 
-  static const String appName = 'MOIL EMS';
+  static const String appName = 'MOIL LMS';
   static const String appVersion = '1.0.0';
   
   // API Configurations

@@ -42,15 +42,15 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
       appBar: CustomAppBar(
         title: 'Employee Directory',
         showBack: Navigator.of(context).canPop(),
-        actions: [
-          IconButton(
-            icon: Icon(_isTableView ? Icons.grid_view_rounded : Icons.table_chart_rounded),
-            tooltip: _isTableView ? 'Switch to Card List' : 'Switch to Table View',
-            color: AppColors.primary,
-            onPressed: () => setState(() => _isTableView = !_isTableView),
-          ),
-          const SizedBox(width: 8),
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: Icon(_isTableView ? Icons.grid_view_rounded : Icons.table_chart_rounded),
+        //     tooltip: _isTableView ? 'Switch to Card List' : 'Switch to Table View',
+        //     color: AppColors.primary,
+        //     onPressed: () => setState(() => _isTableView = !_isTableView),
+        //   ),
+        //   const SizedBox(width: 8),
+        // ],
       ),
       body: Column(
         children: [

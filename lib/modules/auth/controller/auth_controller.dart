@@ -1,6 +1,8 @@
 // lib/modules/auth/controller/auth_controller.dart
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../model/user_model.dart';
 
 import '../../profile/controller/profile_controller.dart';
@@ -12,10 +14,31 @@ class AuthController extends ChangeNotifier {
   UserModel? _user;
   String? _errorMessage;
 
+  AuthController() {
+    _loadUser();
+  }
+
   AuthStatus get status => _status;
   UserModel? get user => _user;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
+
+  Future<void> _loadUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJsonStr = prefs.getString('auth_user');
+      if (userJsonStr != null) {
+        final Map<String, dynamic> userMap = jsonDecode(userJsonStr);
+        _user = UserModel.fromJson(userMap);
+        _status = AuthStatus.authenticated;
+      } else {
+        _status = AuthStatus.unauthenticated;
+      }
+    } catch (e) {
+      _status = AuthStatus.unauthenticated;
+    }
+    notifyListeners();
+  }
 
   Future<bool> login(String employeeId, String password) async {
     _status = AuthStatus.loading;
@@ -75,6 +98,10 @@ class AuthController extends ChangeNotifier {
         permissions: ['leave.view', 'leave.apply', 'tour.view', 'tour.apply', 'payslip.view', 'holiday.view'],
       );
       _status = AuthStatus.authenticated;
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('auth_user', jsonEncode(_user!.toJson()));
+      
       notifyListeners();
       return true;
     } catch (e) {
@@ -88,6 +115,8 @@ class AuthController extends ChangeNotifier {
   Future<void> logout() async {
     _status = AuthStatus.unauthenticated;
     _user = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_user');
     notifyListeners();
   }
 

@@ -1,5 +1,6 @@
 // lib/modules/auth/screen/login_screen.dart
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../utils/app_colors.dart';
@@ -19,7 +20,7 @@ class MoilLogoPainter extends CustomPainter {
     // Draw upper dome (semi-circle)
     final double r = size.width * 0.38;
     final center = Offset(size.width / 2, size.height * 0.4);
-    
+
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: r),
       3.14159,
@@ -90,8 +91,25 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
-         _employeeIdController.text = "283" ;
-      _passwordController.text = "1000225";
+    if (kDebugMode) {
+      //RO
+      // _employeeIdController.text = "283";
+      // _passwordController.text = "1000225";
+      // EMP1
+      //  _employeeIdController.text = "422";
+      // _passwordController.text = "1000317";
+      // RO1
+       _employeeIdController.text = "16194";
+      _passwordController.text = "1009522";
+
+//       283	1000225	RO
+// 422	1000317	Emp1
+// 431	1000326	Emp2
+// 446	1000341	RO
+// 491	1000386	Emp1
+// 540	1000435	Emp2
+// 16194	1009522	RO1
+    }
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -154,8 +172,10 @@ class _LoginScreenState extends State<LoginScreen>
                     children: [
                       const SizedBox(height: 20),
                       _buildLogo(),
-                      const SizedBox(height: 36),
-                      _buildLoginCard(),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: _buildLoginCard(),
+                      ),
                       const SizedBox(height: 24),
                       _buildFooter(),
                     ],
@@ -195,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         const SizedBox(height: 16),
         const Text(
-          'मॉयल · MOIL',
+          'मॉयल · MOIL LMS',
           style: TextStyle(
             color: AppColors.primary,
             fontSize: 22,
@@ -205,7 +225,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         const SizedBox(height: 6),
         const Text(
-          'Employee Management System',
+          'Leave Management System',
           style: TextStyle(
             color: AppColors.textSecondary,
             fontSize: 13,
@@ -247,10 +267,12 @@ class _LoginScreenState extends State<LoginScreen>
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: const InputDecoration(
                 labelText: StringsUtils.employeeId,
-                prefixIcon: Icon(Icons.badge_outlined, color: AppColors.primary),
+                prefixIcon:
+                    Icon(Icons.badge_outlined, color: AppColors.primary),
                 hintText: 'Enter your Employee ID',
               ),
-              validator: (v) => v == null || v.isEmpty ? 'Employee ID is required' : null,
+              validator: (v) =>
+                  v == null || v.isEmpty ? 'Employee ID is required' : null,
             ),
             const SizedBox(height: 16),
             // Password
@@ -260,17 +282,22 @@ class _LoginScreenState extends State<LoginScreen>
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 labelText: StringsUtils.password,
-                prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.primary),
+                prefixIcon: const Icon(Icons.lock_outline_rounded,
+                    color: AppColors.primary),
                 hintText: 'Enter your password',
                 suffixIcon: IconButton(
                   icon: Icon(
-                    _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                    _obscurePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
                     color: AppColors.textSecondary,
                   ),
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
                 ),
               ),
-              validator: (v) => v == null || v.isEmpty ? 'Password is required' : null,
+              validator: (v) =>
+                  v == null || v.isEmpty ? 'Password is required' : null,
             ),
             const SizedBox(height: 8),
             Align(
@@ -279,7 +306,10 @@ class _LoginScreenState extends State<LoginScreen>
                 onPressed: () {},
                 child: const Text(
                   StringsUtils.forgotPassword,
-                  style: TextStyle(color: AppColors.primary, fontSize: 13, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -294,16 +324,19 @@ class _LoginScreenState extends State<LoginScreen>
                     decoration: BoxDecoration(
                       color: AppColors.error.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                      border:
+                          Border.all(color: AppColors.error.withOpacity(0.3)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: AppColors.error, size: 18),
+                        const Icon(Icons.error_outline,
+                            color: AppColors.error, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             auth.errorMessage!,
-                            style: const TextStyle(color: AppColors.error, fontSize: 13),
+                            style: const TextStyle(
+                                color: AppColors.error, fontSize: 13),
                           ),
                         ),
                       ],

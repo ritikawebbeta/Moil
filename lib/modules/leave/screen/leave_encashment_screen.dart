@@ -16,8 +16,8 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
 
   // Step 1 Controllers
   final _employeeCodeSearchCtrl = TextEditingController(text: '00000000');
-  String _selectedYear = '2030';
-  final List<String> _calendarYears = List.generate(31, (index) => (2000 + index).toString());
+  String _selectedYear = DateTime.now().year.toString();
+  final List<String> _calendarYears = List.generate((DateTime.now().year + 10) - 2000 + 1, (index) => (2000 + index).toString());
 
   // Step 2 Controllers & Fields
   final _daysToEncashCtrl = TextEditingController(text: '00000');

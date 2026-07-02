@@ -48,8 +48,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: CustomAppBar(
         title: 'My Profile',
         showBack: Navigator.of(context).canPop(),
-        leading:
-            Navigator.of(context).canPop() ? null : const SizedBox.shrink(),
       ),
       body: Consumer2<ProfileController, AuthController>(
         builder: (context, profileController, authController, _) {
@@ -136,18 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: const TextStyle(
                   color: AppColors.textSecondary, fontSize: 13)),
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text('Active Employee',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600)),
-          ),
+         
         ],
       ),
     );
@@ -354,7 +341,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   content: const Text(
-                    'Are you sure you want to log out of MOIL EMS?',
+                    'Are you sure you want to log out of MOIL LMS?',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                   actions: [
@@ -411,7 +398,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
+      builder: (_) => Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
         padding: EdgeInsets.fromLTRB(
             24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
         child: Column(
@@ -462,6 +453,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
           ],
+        ),
+          ),
         ),
       ),
     );

@@ -50,12 +50,7 @@ class _ApprovalScreenState extends State<ApprovalScreen>
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: AppColors.warning.withOpacity(0.2)),
             ),
-            child: const Center(
-              child: Text(
-                'HOD Role',
-                style: TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.w700),
-              ),
-            ),
+           
           ),
         ],
       ),
@@ -78,7 +73,7 @@ class _ApprovalScreenState extends State<ApprovalScreen>
               tabs: const [
                 Tab(text: 'Leave Approvals'),
                 Tab(text: 'Tour Approvals'),
-                Tab(text: 'System Approvals'),
+                // Tab(text: 'System Approvals'),
               ],
             ),
           ),
@@ -514,22 +509,22 @@ class _SystemApprovalList extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.error.withOpacity(0.2)),
-                    ),
-                    child: const Text('Password Change Required',
-                        style: TextStyle(color: AppColors.error, fontSize: 11, fontWeight: FontWeight.w600)),
-                  ),
-                  const Spacer(),
-                  const StatusBadge(status: 'Pending'),
-                ],
-              ),
+              // Row(
+              //   children: [
+              //     // Container(
+              //     //   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              //     //   decoration: BoxDecoration(
+              //     //     color: AppColors.error.withOpacity(0.08),
+              //     //     borderRadius: BorderRadius.circular(6),
+              //     //     border: Border.all(color: AppColors.error.withOpacity(0.2)),
+              //     //   ),
+              //     //   child: const Text('Password Change Required',
+              //     //       style: TextStyle(color: AppColors.error, fontSize: 11, fontWeight: FontWeight.w600)),
+              //     // ),
+              //     const Spacer(),
+              //     const StatusBadge(status: 'Pending'),
+              //   ],
+              // ),
               const SizedBox(height: 12),
               const InfoRow(label: 'Employee', value: 'Nitin Kajarekar (283)'),
               const InfoRow(label: 'Reason', value: 'Compulsory system reset requirement'),

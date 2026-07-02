@@ -11,10 +11,33 @@ class LeaveController extends ChangeNotifier {
   List<LeaveBalanceModel> _balances = [];
   String? _errorMessage;
 
+  DateTime _showFrom = DateTime(2026, 2, 1);
+  String _selectedTimeAccount = 'All Types';
+  DateTime _timeAccountShowFrom = DateTime(2026, 1, 1);
+
   LeaveStatus get status => _status;
   List<LeaveModel> get leaves => _leaves;
   List<LeaveBalanceModel> get balances => _balances;
   String? get errorMessage => _errorMessage;
+
+  DateTime get showFrom => _showFrom;
+  String get selectedTimeAccount => _selectedTimeAccount;
+  DateTime get timeAccountShowFrom => _timeAccountShowFrom;
+
+  void updateShowFrom(DateTime val) {
+    _showFrom = val;
+    notifyListeners();
+  }
+
+  void updateSelectedTimeAccount(String val) {
+    _selectedTimeAccount = val;
+    notifyListeners();
+  }
+
+  void updateTimeAccountShowFrom(DateTime val) {
+    _timeAccountShowFrom = val;
+    notifyListeners();
+  }
 
   Future<void> fetchLeaves(String employeeId) async {
     _status = LeaveStatus.loading;

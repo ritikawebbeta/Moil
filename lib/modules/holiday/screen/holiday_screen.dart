@@ -50,7 +50,7 @@ class _HolidayScreenState extends State<HolidayScreen> {
                 dividerColor: AppColors.cardBorder,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 tabs: const [
-                  Tab(text: 'Compulsory Holidays'),
+                  Tab(text: 'Holidays'),
                   Tab(text: 'Optional Leaves'),
                 ],
               ),

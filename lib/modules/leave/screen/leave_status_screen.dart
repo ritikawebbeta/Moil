@@ -17,7 +17,6 @@ class LeaveStatusScreen extends StatefulWidget {
 }
 
 class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
-  DateTime _showFrom = DateTime(2026, 2, 1);
 
   @override
   Widget build(BuildContext context) {
@@ -37,8 +36,6 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
               _buildLeaveDataOverview(controller),
               const SizedBox(height: 16),
               _buildTimeAccountsOverview(controller),
-              const SizedBox(height: 16),
-              _buildLeaveApprovalPrint(),
             ],
           ),
         );
@@ -51,7 +48,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
     return GlassCard(
       padding: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Section Header
           SectionHeader(
@@ -60,7 +57,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
             trailing: _buildNewButton(),
           ),
           // Filter Row
-          _buildFilterRow(),
+          _buildFilterRow(controller),
           // Data Table
           _buildLeaveTable(controller),
         ],
@@ -96,7 +93,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
     );
   }
 
-  Widget _buildFilterRow() {
+  Widget _buildFilterRow(LeaveController controller) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
@@ -111,7 +108,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: _pickDate,
+            onTap: () => _pickDate(controller),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
@@ -126,7 +123,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                       color: AppColors.primary, size: 14),
                   const SizedBox(width: 6),
                   Text(
-                    DateFormat('dd/MM/yyyy').format(_showFrom),
+                    DateFormat('dd/MM/yyyy').format(controller.showFrom),
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 12,
@@ -144,12 +141,12 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
     );
   }
 
-  Future<void> _pickDate() async {
+  Future<void> _pickDate(LeaveController controller) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _showFrom,
+      initialDate: controller.showFrom,
       firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      lastDate: DateTime(DateTime.now().year + 10),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -164,127 +161,132 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
         );
       },
     );
-    if (picked != null) setState(() => _showFrom = picked);
+    if (picked != null) {
+      controller.updateShowFrom(picked);
+    }
   }
 
   Widget _buildLeaveTable(LeaveController controller) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Table Header
-          Container(
-            color: AppColors.backgroundTertiary,
-            child: Row(
-              children: _tableHeaders
-                  .map((h) => _TableHeaderCell(
-                        text: h,
-                        width: h == 'Actions'
-                            ? 80
-                            : (h == 'Type of Leave' ? 150 : 120),
-                      ))
-                  .toList(),
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.cardBorder),
-          // Table Rows
-          if (controller.leaves.isEmpty)
-            const SizedBox(
-              width: 1190.0,
-              height: 80,
-              child: const Center(
-                child: Text(
-                  'No leave records found',
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-              ),
-            )
-          else
-            ...controller.leaves.asMap().entries.map((e) {
-              return _buildLeaveRow(e.value, e.key.isEven);
-            }),
-        ],
-      ),
-    );
-  }
+    final filteredLeaves = controller.leaves.where((leave) {
+      return !leave.startDate.isBefore(controller.showFrom);
+    }).toList();
 
-  static const List<String> _tableHeaders = [
-    'Actions', 'Type of Leave', 'Start Date', 'Start time',
-    'End Date', 'End time', 'Processor', 'Status', 'Absence hours', 'Used',
-  ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth > 1190 ? constraints.maxWidth : 1190.0;
+        final extraWidth = totalWidth - 1190.0;
+        
+        final actionsWidth = 80.0;
+        final typeWidth = 150.0 + extraWidth * 0.3;
+        final otherWidth = 120.0 + extraWidth * 0.7 / 8;
 
-  Widget _buildLeaveRow(LeaveModel leave, bool isEven) {
-    return Container(
-      color: isEven
-          ? AppColors.background.withOpacity(0.3)
-          : Colors.transparent,
-      child: Column(
-        children: [
-          Row(
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Actions
-              SizedBox(
-                width: 80,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                  child: Row(
-                    children: [
-                      _ActionIcon(
-                        icon: Icons.edit_outlined,
-                        color: AppColors.primary,
-                        onTap: () {},
-                      ),
-                      const SizedBox(width: 4),
-                      _ActionIcon(
-                        icon: Icons.delete_outline_rounded,
-                        color: AppColors.error,
-                        onTap: () {},
-                      ),
-                    ],
-                  ),
+              // Table Header
+              Container(
+                color: AppColors.backgroundTertiary,
+                child: Row(
+                  children: [
+                    _TableHeaderCell(text: 'Actions', width: actionsWidth),
+                    _TableHeaderCell(text: 'Type of Leave', width: typeWidth),
+                    _TableHeaderCell(text: 'Start Date', width: otherWidth),
+                    _TableHeaderCell(text: 'Start time', width: otherWidth),
+                    _TableHeaderCell(text: 'End Date', width: otherWidth),
+                    _TableHeaderCell(text: 'End time', width: otherWidth),
+                    _TableHeaderCell(text: 'Processor', width: otherWidth),
+                    _TableHeaderCell(text: 'Status', width: otherWidth),
+                    _TableHeaderCell(text: 'Absence hours', width: otherWidth),
+                    _TableHeaderCell(text: 'Used', width: otherWidth),
+                  ],
                 ),
               ),
-              // Leave Type
-              _TableCell(
-                child: LeaveTypeBadge(type: leave.leaveType),
-                width: 150,
-              ),
-              // Start Date
-              _TableCell(
-                text: DateFormat('dd/MM/yyyy').format(leave.startDate),
-                width: 120,
-              ),
-              // Start Time
-              _TableCell(text: leave.startTime, width: 120),
-              // End Date
-              _TableCell(
-                text: DateFormat('dd/MM/yyyy').format(leave.endDate),
-                width: 120,
-              ),
-              // End Time
-              _TableCell(text: leave.endTime, width: 120),
-              // Processor
-              _TableCell(text: leave.processor ?? '', width: 120),
-              // Status
-              _TableCell(
-                child: StatusBadge(status: leave.status),
-                width: 120,
-              ),
-              // Absence Hours
-              _TableCell(
-                text: leave.absenceHours != null
-                    ? leave.absenceHours!.toStringAsFixed(2)
-                    : '',
-                width: 120,
-              ),
-              // Used
-              _TableCell(text: leave.used ?? '', width: 120),
+              const Divider(height: 1, color: AppColors.cardBorder),
+              // Table Rows
+              if (filteredLeaves.isEmpty)
+                SizedBox(
+                  width: totalWidth,
+                  height: 80,
+                  child: const Center(
+                    child: Text(
+                      'No leave records found',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ),
+                )
+              else
+                ...filteredLeaves.asMap().entries.map((e) {
+                  final leave = e.value;
+                  final isEven = e.key.isEven;
+                  return Container(
+                    width: totalWidth,
+                    color: isEven
+                        ? AppColors.background.withOpacity(0.3)
+                        : Colors.transparent,
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: actionsWidth,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                                child: Row(
+                                  children: [
+                                    _ActionIcon(
+                                      icon: Icons.edit_outlined,
+                                      color: AppColors.primary,
+                                      onTap: () {},
+                                    ),
+                                    const SizedBox(width: 4),
+                                    _ActionIcon(
+                                      icon: Icons.delete_outline_rounded,
+                                      color: AppColors.error,
+                                      onTap: () {},
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            _TableCell(
+                              child: LeaveTypeBadge(type: leave.leaveType),
+                              width: typeWidth,
+                            ),
+                            _TableCell(
+                              text: DateFormat('dd/MM/yyyy').format(leave.startDate),
+                              width: otherWidth,
+                            ),
+                            _TableCell(text: leave.startTime, width: otherWidth),
+                            _TableCell(
+                              text: DateFormat('dd/MM/yyyy').format(leave.endDate),
+                              width: otherWidth,
+                            ),
+                            _TableCell(text: leave.endTime, width: otherWidth),
+                            _TableCell(text: leave.processor ?? '', width: otherWidth),
+                            _TableCell(
+                              child: StatusBadge(status: leave.status),
+                              width: otherWidth,
+                            ),
+                            _TableCell(
+                              text: leave.absenceHours != null
+                                  ? leave.absenceHours!.toStringAsFixed(2)
+                                  : '',
+                              width: otherWidth,
+                            ),
+                            _TableCell(text: leave.used ?? '', width: otherWidth),
+                          ],
+                        ),
+                        const Divider(height: 1, color: AppColors.cardBorder),
+                      ],
+                    ),
+                  );
+                }),
             ],
           ),
-          const Divider(height: 1, color: AppColors.cardBorder),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -293,7 +295,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
     return GlassCard(
       padding: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SectionHeader(
             title: 'Time Accounts Overview',
@@ -301,6 +303,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
           ),
           // Filter
           Container(
+            width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: const BoxDecoration(
               color: AppColors.backgroundTertiary,
@@ -309,27 +312,37 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text('Time Account', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                   const SizedBox(width: 8),
-                  const _DropdownChip(value: 'All Types', items: ['All Types', 'Earned leave', 'Casual Leave', 'HPL', 'Optional Holiday']),
+                  _DropdownChip(
+                    value: controller.selectedTimeAccount,
+                    items: const ['All Types', 'Earned leave', 'Casual Leave', 'HPL', 'Optional Holiday'],
+                    onChanged: (v) {
+                      controller.updateSelectedTimeAccount(v);
+                    },
+                  ),
                   const SizedBox(width: 16),
                   const Text('Show from', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: AppColors.inputBg,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.inputBorder),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.calendar_today_outlined, color: AppColors.primary, size: 12),
-                        SizedBox(width: 4),
-                        Text('17/06/2026', style: TextStyle(color: AppColors.textPrimary, fontSize: 12)),
-                      ],
+                  GestureDetector(
+                    onTap: () => _pickTimeAccountDate(controller),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.inputBg,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.inputBorder),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.calendar_today_outlined, color: AppColors.primary, size: 12),
+                          const SizedBox(width: 4),
+                          Text(DateFormat('dd/MM/yyyy').format(controller.timeAccountShowFrom), style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -345,99 +358,150 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
     );
   }
 
-  Widget _buildTimeAccountsTable(LeaveController controller) {
-    final headers = ['Time Account', 'Deduction from', 'Deduction to', 'Entitlement', 'Entitlement Minus Planned'];
-    final widths = [160.0, 130.0, 130.0, 130.0, 180.0];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Container(
-            color: AppColors.backgroundTertiary,
-            child: Row(
-              children: List.generate(headers.length, (i) =>
-                _TableHeaderCell(text: headers[i], width: widths[i]),
-              ),
-            ),
+  Future<void> _pickTimeAccountDate(LeaveController controller) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: controller.timeAccountShowFrom,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(DateTime.now().year + 10),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: AppColors.primary,
+            onPrimary: Colors.white,
+            surface: AppColors.cardBg,
+            onSurface: AppColors.textPrimary,
           ),
-          const Divider(height: 1, color: AppColors.cardBorder),
-          // Rows
-          if (controller.balances.isEmpty)
-            SizedBox(
-              width: widths.reduce((a, b) => a + b),
-              height: 60,
-              child: const Center(
-                child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      controller.updateTimeAccountShowFrom(picked);
+    }
+  }
+
+  Widget _buildTimeAccountsTable(LeaveController controller) {
+    final filteredBalances = controller.balances.where((b) {
+      final matchesType = controller.selectedTimeAccount == 'All Types' || b.timeAccount.toLowerCase() == controller.selectedTimeAccount.toLowerCase();
+      final matchesDate = !b.deductionTo.isBefore(controller.timeAccountShowFrom);
+      return matchesType && matchesDate;
+    }).toList();
+
+    final colWidths = [160.0, 130.0, 130.0, 130.0, 180.0];
+    final baseTotal = colWidths.reduce((a, b) => a + b);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth > baseTotal ? constraints.maxWidth : baseTotal;
+        final extraWidth = totalWidth - baseTotal;
+        
+        final col0 = 160.0 + extraWidth * 0.4;
+        final col1 = 130.0 + extraWidth * 0.15;
+        final col2 = 130.0 + extraWidth * 0.15;
+        final col3 = 130.0 + extraWidth * 0.15;
+        final col4 = 180.0 + extraWidth * 0.15;
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Container(
+                color: AppColors.backgroundTertiary,
+                child: Row(
+                  children: [
+                    _TableHeaderCell(text: 'Time Account', width: col0),
+                    _TableHeaderCell(text: 'Deduction from', width: col1),
+                    _TableHeaderCell(text: 'Deduction to', width: col2),
+                    _TableHeaderCell(text: 'Entitlement', width: col3),
+                    _TableHeaderCell(text: 'Entitlement Minus Planned', width: col4),
+                  ],
+                ),
               ),
-            )
-          else
-            ...controller.balances.asMap().entries.map((e) {
-              final b = e.value;
-              final isEven = e.key.isEven;
-              return Column(
-                children: [
-                  Container(
-                    color: isEven ? AppColors.background.withOpacity(0.3) : Colors.transparent,
-                    child: Row(
-                      children: [
-                        _TableCell(text: b.timeAccount, width: 160, bold: true),
-                        _TableCell(text: DateFormat('dd/MM/yyyy').format(b.deductionFrom), width: 130),
-                        _TableCell(text: DateFormat('dd/MM/yyyy').format(b.deductionTo), width: 130),
-                        _TableCell(text: '${b.entitlement.toStringAsFixed(2)} Days', width: 130, valueColor: AppColors.success),
-                        _TableCell(text: '${b.entitlementMinusPlanned.toStringAsFixed(2)} Days', width: 180, valueColor: AppColors.primary),
-                      ],
+              const Divider(height: 1, color: AppColors.cardBorder),
+              // Rows
+              if (filteredBalances.isEmpty)
+                SizedBox(
+                  width: totalWidth,
+                  height: 60,
+                  child: const Center(
+                    child: Text(
+                      'No matching records found',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                     ),
                   ),
-                  const Divider(height: 1, color: AppColors.cardBorder),
-                ],
-              );
-            }),
-        ],
-      ),
+                )
+              else
+                ...filteredBalances.asMap().entries.map((e) {
+                  final b = e.value;
+                  final isEven = e.key.isEven;
+                  return Column(
+                    children: [
+                      Container(
+                        width: totalWidth,
+                        color: isEven ? AppColors.background.withOpacity(0.3) : Colors.transparent,
+                        child: Row(
+                          children: [
+                            _TableCell(
+                              width: col0,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: _getLeaveColor(b.timeAccount),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      b.timeAccount,
+                                      style: TextStyle(
+                                        color: _getLeaveColor(b.timeAccount),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            _TableCell(text: DateFormat('dd/MM/yyyy').format(b.deductionFrom), width: col1),
+                            _TableCell(text: DateFormat('dd/MM/yyyy').format(b.deductionTo), width: col2),
+                            _TableCell(text: '${b.entitlement.toStringAsFixed(2)} Days', width: col3, valueColor: AppColors.success),
+                            _TableCell(text: '${b.entitlementMinusPlanned.toStringAsFixed(2)} Days', width: col4, valueColor: AppColors.primary),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1, color: AppColors.cardBorder),
+                    ],
+                  );
+                }),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  // ─── Leave Approval Print ─────────────────────────────────────────
-  Widget _buildLeaveApprovalPrint() {
-    return GlassCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          SectionHeader(
-            title: 'Leave Approval Print',
-            icon: Icons.print_outlined,
-            trailing: ElevatedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.download_rounded, size: 14),
-              label: const Text('Download PDF', style: TextStyle(fontSize: 12)),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                minimumSize: Size.zero,
-              ),
-            ),
-          ),
-          const SizedBox(height: 60),
-          const Center(
-            child: Column(
-              children: [
-                Icon(Icons.print_disabled_outlined, color: AppColors.textHint, size: 36),
-                SizedBox(height: 8),
-                Text(
-                  'Select a leave record to print approval',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 60),
-        ],
-      ),
-    );
+  Color _getLeaveColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'earned leave':
+        return AppColors.earnedLeave;
+      case 'casual leave':
+        return AppColors.casualLeave;
+      case 'hpl':
+        return AppColors.hpl;
+      case 'optional holiday':
+        return AppColors.optionalHoliday;
+      default:
+        return AppColors.primary;
+    }
   }
 }
 
@@ -559,7 +623,8 @@ class _ApplyButton extends StatelessWidget {
 class _DropdownChip extends StatefulWidget {
   final String value;
   final List<String> items;
-  const _DropdownChip({required this.value, required this.items});
+  final ValueChanged<String>? onChanged;
+  const _DropdownChip({required this.value, required this.items, this.onChanged});
 
   @override
   State<_DropdownChip> createState() => _DropdownChipState();
@@ -572,6 +637,14 @@ class _DropdownChipState extends State<_DropdownChip> {
   void initState() {
     super.initState();
     _selected = widget.value;
+  }
+
+  @override
+  void didUpdateWidget(covariant _DropdownChip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _selected = widget.value;
+    }
   }
 
   @override
@@ -593,7 +666,12 @@ class _DropdownChipState extends State<_DropdownChip> {
         items: widget.items
             .map((i) => DropdownMenuItem(value: i, child: Text(i)))
             .toList(),
-        onChanged: (v) => setState(() => _selected = v!),
+        onChanged: (v) {
+          if (v != null) {
+            setState(() => _selected = v);
+            if (widget.onChanged != null) widget.onChanged!(v);
+          }
+        },
       ),
     );
   }

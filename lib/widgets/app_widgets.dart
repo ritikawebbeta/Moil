@@ -224,6 +224,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       leading: leading ??
           (() {
+            final isMobile = MediaQuery.of(context).size.width < 800;
+            if (!isMobile) return const SizedBox.shrink();
             if (Navigator.of(context).canPop()) {
               return IconButton(
                 icon: const Icon(Icons.arrow_back_ios_rounded, size: 20, color: Colors.white),
@@ -239,7 +241,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 );
               }
             } catch (_) {}
-            return null;
+            return const SizedBox.shrink();
           }()),
       title: Text(
         title,
@@ -532,7 +534,9 @@ class _CompulsoryPasswordChangeDialogState
       child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         backgroundColor: Colors.white,
-        child: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(20.0),
             child: Form(
@@ -653,17 +657,17 @@ class _CompulsoryPasswordChangeDialogState
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                     onPressed: () {
-                      // if (_formKey.currentState!.validate()) {
-                      //   ScaffoldMessenger.of(context).showSnackBar(
-                      //     const SnackBar(
-                      //       content: Text('Password updated successfully!'),
-                      //       backgroundColor: AppColors.success,
-                      //       behavior: SnackBarBehavior.floating,
-                      //     ),
-                      //   );
+                      if (_formKey.currentState!.validate()) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Password updated successfully!'),
+                            backgroundColor: AppColors.success,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
                         Navigator.pop(context);
                         widget.onSuccess();
-                      // }
+                      }
                     },
                     child: const Text(
                       'Update Password',
@@ -673,6 +677,7 @@ class _CompulsoryPasswordChangeDialogState
                 ],
               ),
             ),
+          ),
           ),
         ),
       ),

@@ -16,6 +16,21 @@
   -->
   <base href="$FLUTTER_BASE_HREF">
 
+  <!-- Start Single Page Apps for GitHub Pages Route Hack -->
+  <script type="text/javascript">
+    (function(l) {
+      if (l.search[1] === '/' ) {
+        var decoded = l.search.slice(1).split('&').map(function(s) { 
+          return s.replace(/~and~/g, '&')
+        }).join('?');
+        window.history.replaceState(null, null,
+            l.pathname.slice(0, -1) + decoded + l.hash
+        );
+      }
+    }(window.location));
+  </script>
+  <!-- End Single Page Apps for GitHub Pages Route Hack -->
+
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">
@@ -23,13 +38,13 @@
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="employee_management">
+  <meta name="apple-mobile-web-app-title" content="MOIL LMS">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>employee_management</title>
+  <title>MOIL LMS</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>

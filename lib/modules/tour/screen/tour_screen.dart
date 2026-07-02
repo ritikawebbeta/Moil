@@ -90,7 +90,6 @@ class _TourScreenState extends State<TourScreen>
       appBar: CustomAppBar(
         title: 'Travel Dashboard',
         showBack: Navigator.of(context).canPop(),
-        leading: Navigator.of(context).canPop() ? null : const SizedBox.shrink(),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,72 +425,83 @@ class _AllMyTripsTab extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           // Scrollable SAP spreadsheet Table
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: GlassCard(
-              padding: EdgeInsets.zero,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: DataTable(
-                  headingRowColor: MaterialStateProperty.all(const Color(0xFFE2E8F0)),
-                  dataRowColor: MaterialStateColor.resolveWith((states) => Colors.white),
-                  horizontalMargin: 16,
-                  columnSpacing: 24,
-                  columns: const [
-                    DataColumn(label: Text('Start Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
-                    DataColumn(label: Text('End Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
-                    DataColumn(label: Text('Destination', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
-                    DataColumn(label: Text('Reason', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
-                    DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
-                  ],
-                  rows: tours.map((tour) {
-                    return DataRow(
-                      cells: [
-                        DataCell(Text(DateFormat('dd/MM/yyyy').format(tour.startDate), style: const TextStyle(fontSize: 11))),
-                        DataCell(Text(DateFormat('dd/MM/yyyy').format(tour.endDate), style: const TextStyle(fontSize: 11))),
-                        DataCell(Text(tour.destination, style: const TextStyle(fontSize: 11))),
-                        DataCell(Text(tour.travelPurpose, style: const TextStyle(fontSize: 11))),
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              GestureDetector(
-                                onTap: () => onEditRequest(tour),
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              GestureDetector(
-                                onTap: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (ctx) => _TravelRequisitionDialog(tour: tour),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.success.withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Icon(Icons.print_outlined, size: 14, color: AppColors.success),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final totalWidth = constraints.maxWidth > 800 ? constraints.maxWidth : 800.0;
+              final dynamicSpacing = (totalWidth - 550) / 5;
+              final columnSpacing = dynamicSpacing > 24.0 ? dynamicSpacing : 24.0;
+
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: totalWidth,
+                  child: GlassCard(
+                    padding: EdgeInsets.zero,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: DataTable(
+                        headingRowColor: MaterialStateProperty.all(const Color(0xFFE2E8F0)),
+                        dataRowColor: MaterialStateColor.resolveWith((states) => Colors.white),
+                        horizontalMargin: 16,
+                        columnSpacing: columnSpacing,
+                        columns: const [
+                          DataColumn(label: Text('Start Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
+                          DataColumn(label: Text('End Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
+                          DataColumn(label: Text('Destination', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
+                          DataColumn(label: Text('Reason', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
+                          DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
+                        ],
+                        rows: tours.map((tour) {
+                          return DataRow(
+                            cells: [
+                              DataCell(Text(DateFormat('dd/MM/yyyy').format(tour.startDate), style: const TextStyle(fontSize: 11))),
+                              DataCell(Text(DateFormat('dd/MM/yyyy').format(tour.endDate), style: const TextStyle(fontSize: 11))),
+                              DataCell(Text(tour.destination, style: const TextStyle(fontSize: 11))),
+                              DataCell(Text(tour.travelPurpose, style: const TextStyle(fontSize: 11))),
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () => onEditRequest(tour),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    GestureDetector(
+                                      onTap: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (ctx) => _TravelRequisitionDialog(tour: tour),
+                                        );
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.success.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Icon(Icons.print_outlined, size: 14, color: AppColors.success),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -578,7 +588,7 @@ class _TourCalendarTabState extends State<_TourCalendarTab>
             padding: EdgeInsets.zero,
             child: TableCalendar(
               firstDay: DateTime(2025),
-              lastDay: DateTime(2027),
+              lastDay: DateTime(DateTime.now().year + 5),
               focusedDay: _focusedDay,
               selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
               calendarFormat: _calendarFormat,
@@ -1110,7 +1120,7 @@ class _ApplyTourTabState extends State<_ApplyTourTab> {
       context: context,
       initialDate: _startDate,
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime(2030),
+      lastDate: DateTime(DateTime.now().year + 10),
     );
     if (picked != null) {
       setState(() {
@@ -1139,7 +1149,7 @@ class _ApplyTourTabState extends State<_ApplyTourTab> {
       context: context,
       initialDate: _endDate,
       firstDate: _startDate,
-      lastDate: DateTime(2030),
+      lastDate: DateTime(DateTime.now().year + 10),
     );
     if (picked != null) {
       setState(() {
