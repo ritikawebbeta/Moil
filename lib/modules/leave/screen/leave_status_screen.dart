@@ -68,7 +68,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
   Widget _buildNewButton() {
     return GestureDetector(
       onTap: () {
-        DefaultTabController.of(context).animateTo(2);
+        context.read<LeaveController>().setActiveTabIndex(2);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),

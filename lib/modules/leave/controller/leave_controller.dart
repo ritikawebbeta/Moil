@@ -14,6 +14,7 @@ class LeaveController extends ChangeNotifier {
   DateTime _showFrom = DateTime(2026, 2, 1);
   String _selectedTimeAccount = 'All Types';
   DateTime _timeAccountShowFrom = DateTime(2026, 1, 1);
+  int _activeTabIndex = 0;
 
   LeaveStatus get status => _status;
   List<LeaveModel> get leaves => _leaves;
@@ -23,6 +24,14 @@ class LeaveController extends ChangeNotifier {
   DateTime get showFrom => _showFrom;
   String get selectedTimeAccount => _selectedTimeAccount;
   DateTime get timeAccountShowFrom => _timeAccountShowFrom;
+  int get activeTabIndex => _activeTabIndex;
+
+  void setActiveTabIndex(int index) {
+    if (_activeTabIndex != index) {
+      _activeTabIndex = index;
+      notifyListeners();
+    }
+  }
 
   void updateShowFrom(DateTime val) {
     _showFrom = val;
