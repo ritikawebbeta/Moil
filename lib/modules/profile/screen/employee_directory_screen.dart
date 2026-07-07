@@ -16,6 +16,7 @@ class EmployeeDirectoryScreen extends StatefulWidget {
 
 class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
   bool _isTableView = true; // Default to table view
+  final Set<String> _selectedEmployeeIds = {};
 
   // Filters State
   String _filterId = '';
@@ -52,80 +53,128 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
         //   const SizedBox(width: 8),
         // ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          _buildFilterBar(),
-          Expanded(
-            child: Consumer<ProfileController>(
-              builder: (context, controller, _) {
-                if (controller.isLoading) {
-                  return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-                }
+          Column(
+            children: [
+              _buildFilterBar(),
+              Expanded(
+                child: Consumer<ProfileController>(
+                  builder: (context, controller, _) {
+                    if (controller.isLoading) {
+                      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+                    }
 
-                // 1. Strict Organization Hierarchy Filters
-                final List<Map<String, dynamic>> rawList = ProfileController.rawEmployees.where((m) {
-                  final empNo = m['empNo'];
-                  if (currentUser?.employeeId == '16194') {
-                    return empNo != '16194';
-                  } else if (currentUser?.employeeId == '283') {
-                    return empNo == '422' || empNo == '431';
-                  } else if (currentUser?.employeeId == '446') {
-                    return empNo == '491' || empNo == '540';
-                  }
-                  return false;
-                }).toList();
+                    // 1. Strict Organization Hierarchy Filters
+                    final List<Map<String, dynamic>> rawList = ProfileController.rawEmployees.where((m) {
+                      final empNo = m['empNo'];
+                      if (currentUser?.employeeId == '16194') {
+                        return empNo != '16194';
+                      } else if (currentUser?.employeeId == '283') {
+                        return empNo == '422' || empNo == '431';
+                      } else if (currentUser?.employeeId == '446') {
+                        return empNo == '491' || empNo == '540';
+                      }
+                      return false;
+                    }).toList();
 
-                final List<dynamic> modelList = controller.employees.where((e) {
-                  if (currentUser?.employeeId == '16194') {
-                    return e.employeeId != '16194';
-                  } else if (currentUser?.employeeId == '283') {
-                    return e.employeeId == '422' || e.employeeId == '431';
-                  } else if (currentUser?.employeeId == '446') {
-                    return e.employeeId == '491' || e.employeeId == '540';
-                  }
-                  return false;
-                }).toList();
+                    final List<dynamic> modelList = controller.employees.where((e) {
+                      if (currentUser?.employeeId == '16194') {
+                        return e.employeeId != '16194';
+                      } else if (currentUser?.employeeId == '283') {
+                        return e.employeeId == '422' || e.employeeId == '431';
+                      } else if (currentUser?.employeeId == '446') {
+                        return e.employeeId == '491' || e.employeeId == '540';
+                      }
+                      return false;
+                    }).toList();
 
-                // 2. Real-time Search Field Filters
-                final filteredRaw = rawList.where((m) {
-                  final matchesId = _filterId.isEmpty || (m['empNo'] ?? '').toString().toLowerCase().contains(_filterId.toLowerCase());
-                  final matchesName = _filterName.isEmpty || (m['name'] ?? '').toString().toLowerCase().contains(_filterName.toLowerCase());
-                  final matchesRole = _filterRole.isEmpty || 
-                      (m['position'] ?? '').toString().toLowerCase().contains(_filterRole.toLowerCase()) || 
-                      (m['empRoll'] ?? '').toString().toLowerCase().contains(_filterRole.toLowerCase()) ||
-                      (m['subgroupText'] ?? '').toString().toLowerCase().contains(_filterRole.toLowerCase());
-                  final matchesDept = _filterDept.isEmpty || (m['dept'] ?? '').toString().toLowerCase().contains(_filterDept.toLowerCase());
-                  final matchesStatus = _filterStatus.isEmpty || (m['status'] ?? '').toString().toLowerCase().contains(_filterStatus.toLowerCase());
+                    bool matchMultiTerm(String value, String filter) {
+                      if (filter.isEmpty) return true;
+                      final terms = filter.split(RegExp(r'[,;]')).map((t) => t.trim().toLowerCase()).where((t) => t.isNotEmpty);
+                      if (terms.isEmpty) return true;
+                      final target = value.toLowerCase();
+                      return terms.any((term) => target.contains(term));
+                    }
 
-                  return matchesId && matchesName && matchesRole && matchesDept && matchesStatus;
-                }).toList();
+                    // 2. Real-time Search Field Filters
+                    final filteredRaw = rawList.where((m) {
+                      final matchesId = matchMultiTerm((m['empNo'] ?? '').toString(), _filterId);
+                      final matchesName = matchMultiTerm((m['name'] ?? '').toString(), _filterName);
+                      final matchesRole = _filterRole.isEmpty || 
+                          matchMultiTerm((m['position'] ?? '').toString(), _filterRole) || 
+                          matchMultiTerm((m['empRoll'] ?? '').toString(), _filterRole) ||
+                          matchMultiTerm((m['subgroupText'] ?? '').toString(), _filterRole);
+                      final matchesDept = matchMultiTerm((m['dept'] ?? '').toString(), _filterDept);
+                      final matchesStatus = matchMultiTerm((m['status'] ?? '').toString(), _filterStatus);
 
-                final filteredModels = modelList.where((e) {
-                  final matchesId = _filterId.isEmpty || e.employeeId.toLowerCase().contains(_filterId.toLowerCase());
-                  final matchesName = _filterName.isEmpty || e.name.toLowerCase().contains(_filterName.toLowerCase());
-                  final matchesRole = _filterRole.isEmpty || e.designation.toLowerCase().contains(_filterRole.toLowerCase());
-                  final matchesDept = _filterDept.isEmpty || e.department.toLowerCase().contains(_filterDept.toLowerCase());
-                  final matchesStatus = _filterStatus.isEmpty || 'active'.contains(_filterStatus.toLowerCase());
+                      return matchesId && matchesName && matchesRole && matchesDept && matchesStatus;
+                    }).toList();
 
-                  return matchesId && matchesName && matchesRole && matchesDept && matchesStatus;
-                }).toList();
+                    final filteredModels = modelList.where((e) {
+                      final matchesId = matchMultiTerm(e.employeeId, _filterId);
+                      final matchesName = matchMultiTerm(e.name, _filterName);
+                      final matchesRole = matchMultiTerm(e.designation, _filterRole);
+                      final matchesDept = matchMultiTerm(e.department, _filterDept);
+                      final matchesStatus = matchMultiTerm('active', _filterStatus);
 
-                if (filteredModels.isEmpty) {
-                  return const EmptyState(
-                    icon: Icons.search_off_rounded,
-                    title: 'No Matching Employees',
-                    subtitle: 'Try adjusting your search criteria.',
-                  );
-                }
+                      return matchesId && matchesName && matchesRole && matchesDept && matchesStatus;
+                    }).toList();
 
-                if (_isTableView) {
-                  return _buildTableView(filteredModels, filteredRaw);
-                }
+                    if (filteredModels.isEmpty) {
+                      return const EmptyState(
+                        icon: Icons.search_off_rounded,
+                        title: 'No Matching Employees',
+                        subtitle: 'Try adjusting your search criteria.',
+                      );
+                    }
 
-                return _buildListView(filteredModels);
-              },
-            ),
+                    if (_isTableView) {
+                      return _buildTableView(filteredModels, filteredRaw);
+                    }
+
+                    return _buildListView(filteredModels);
+                  },
+                ),
+              ),
+            ],
           ),
+          if (_selectedEmployeeIds.isNotEmpty)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: Card(
+                color: AppColors.primary,
+                elevation: 6,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.people_rounded, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '${_selectedEmployeeIds.length} employee(s) selected',
+                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(foregroundColor: Colors.white),
+                        icon: const Icon(Icons.clear_rounded, size: 16),
+                        label: const Text('Reset', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        onPressed: () {
+                          setState(() {
+                            _selectedEmployeeIds.clear();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -307,7 +356,7 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                showCheckboxColumn: false,
+                showCheckboxColumn: true,
                 headingRowColor: WidgetStateProperty.all(AppColors.primary.withOpacity(0.06)),
                 headingTextStyle: const TextStyle(
                   fontWeight: FontWeight.bold,
@@ -319,46 +368,45 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                   color: AppColors.textPrimary,
                 ),
                 columns: const [
-                  DataColumn(label: Text('Emp No')),
+                  DataColumn(label: Text('Employee ID')),
                   DataColumn(label: Text('Employee Name')),
-                  DataColumn(label: Text('Status')),
-                  DataColumn(label: Text('Group')),
-                  DataColumn(label: Text('Grade')),
-                  DataColumn(label: Text('Position')),
-                  DataColumn(label: Text('Department')),
-                  DataColumn(label: Text('Basic Pay')),
-                  DataColumn(label: Text('DOB')),
-                  DataColumn(label: Text('Gender')),
-                  DataColumn(label: Text('Mobile')),
+                  DataColumn(label: Text('Mine')),
                 ],
                 rows: filteredRaw.map((m) {
+                  final isSelected = _selectedEmployeeIds.contains(m['empNo']);
                   return DataRow(
-                    onSelectChanged: (_) {
-                      final emp = employees.firstWhere((e) => e.employeeId == m['empNo']);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => EmployeeDetailScreen(employee: emp)),
-                      );
+                    selected: isSelected,
+                    onSelectChanged: (selected) {
+                      setState(() {
+                        if (selected == true) {
+                          _selectedEmployeeIds.add(m['empNo']);
+                        } else {
+                          _selectedEmployeeIds.remove(m['empNo']);
+                        }
+                      });
                     },
                     cells: [
                       DataCell(Text(m['empNo'] ?? '')),
-                      DataCell(Text(m['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600))),
-                      DataCell(Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(4),
+                      DataCell(
+                        GestureDetector(
+                          onTap: () {
+                            final emp = employees.firstWhere((e) => e.employeeId == m['empNo']);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => EmployeeDetailScreen(employee: emp)),
+                            );
+                          },
+                          child: Text(
+                            m['name'] ?? '',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
                         ),
-                        child: Text(m['status'] ?? '', style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 10)),
-                      )),
-                      DataCell(Text(m['group'] ?? '')),
-                      DataCell(Text(m['subgroup'] ?? '')),
-                      DataCell(Text(m['position'] ?? '')),
-                      DataCell(Text(m['dept'] ?? '')),
-                      DataCell(Text('Rs. ${m['basic'] ?? ''}')),
-                      DataCell(Text(m['dob'] ?? '')),
-                      DataCell(Text(m['gender'] ?? '')),
-                      DataCell(Text(m['mobile'] ?? '')),
+                      ),
+                      DataCell(Text(m['subarea'] ?? '')),
                     ],
                   );
                 }).toList(),

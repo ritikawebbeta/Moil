@@ -2,12 +2,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../utils/app_colors.dart';
+import '../../../widgets/app_widgets.dart';
 import '../../notifications/controller/notification_controller.dart';
 import '../../leave/controller/leave_controller.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../controller/bottom_nav_bar_controller.dart';
 import '../../home/screen/home_screen.dart';
 import '../../leave/screen/leave_screen.dart';
+import '../../leave/screen/leave_status_screen.dart';
+import '../../leave/screen/leave_apply_screen.dart';
+import '../../leave/screen/leave_encashment_screen.dart';
+import '../../leave/screen/leave_calendar_screen.dart';
 import '../../tour/screen/tour_screen.dart';
 import '../../profile/screen/profile_screen.dart';
 import '../../profile/screen/employee_directory_screen.dart';
@@ -23,18 +28,8 @@ class BottomNavBarScreen extends StatefulWidget {
 }
 
 class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
-  final List<Widget> _pages = [
-    const HomeScreen(),
-    const LeaveScreen(),
-    const TourScreen(),
-    const ProfileScreen(),
-    const EmployeeDirectoryScreen(),
-    const PayslipScreen(),
-    const HolidayScreen(),
-    const ApprovalScreen(),
-  ];
-
   bool _isSidebarCollapsed = false; // State for web sidebar size
+  bool _isLeaveMenuExpanded = false;
 
   @override
   void initState() {
@@ -141,6 +136,21 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
           selectedIndex = 0;
         }
 
+        final pages = [
+          const HomeScreen(),
+          isWeb ? const LeaveStatusPage() : const LeaveScreen(),
+          const TourScreen(),
+          const ProfileScreen(),
+          const EmployeeDirectoryScreen(),
+          const PayslipScreen(),
+          const HolidayScreen(),
+          const ApprovalScreen(),
+          // Separate Leave pages for Web
+          const LeaveApplyPage(),
+          const LeaveEncashmentPage(),
+          const LeaveCalendarPage(),
+        ];
+
         return Scaffold(
           backgroundColor: AppColors.background,
           body: Row(
@@ -149,7 +159,7 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
               Expanded(
                 child: IndexedStack(
                   index: selectedIndex,
-                  children: _pages,
+                  children: pages,
                 ),
               ),
             ],
@@ -160,20 +170,173 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
     );
   }
 
+  Widget _buildSidebarTile({
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: ListTile(
+        selected: isSelected,
+        onTap: onTap,
+        contentPadding: _isSidebarCollapsed ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 16),
+        title: _isSidebarCollapsed
+            ? Center(
+                child: Icon(
+                  isSelected ? activeIcon : icon,
+                  color: isSelected ? Colors.white : Colors.white70,
+                  size: 20,
+                ),
+              )
+            : Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.white70,
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+        leading: _isSidebarCollapsed
+            ? null
+            : Icon(
+                isSelected ? activeIcon : icon,
+                color: isSelected ? Colors.white : Colors.white70,
+                size: 20,
+              ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        selectedTileColor: Colors.white12,
+        dense: true,
+      ),
+    );
+  }
+
+  Widget _buildSubmenuItem({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: ListTile(
+        onTap: onTap,
+        title: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.white60,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        dense: true,
+        visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
+        hoverColor: Colors.white10,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+    );
+  }
+
+  Widget _buildLeaveSubmenuTile(BottomNavBarController navBarController, int selectedIndex) {
+    final isSelected = selectedIndex == 1 || selectedIndex == 8 || selectedIndex == 9 || selectedIndex == 10;
+
+    if (_isSidebarCollapsed) {
+      return _buildSidebarTile(
+        icon: Icons.event_note_outlined,
+        activeIcon: Icons.event_note_rounded,
+        label: 'Leave request',
+        isSelected: isSelected,
+        onTap: () {
+          navBarController.setSelectedIndex(1);
+        },
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: ListTile(
+            selected: isSelected,
+            onTap: () {
+              setState(() {
+                _isLeaveMenuExpanded = !_isLeaveMenuExpanded;
+              });
+              navBarController.setSelectedIndex(1);
+            },
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            title: Row(
+              children: [
+                const Text(
+                  'Leave request',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  _isLeaveMenuExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                  color: Colors.white54,
+                  size: 16,
+                ),
+              ],
+            ),
+            leading: Icon(
+              isSelected ? Icons.event_note_rounded : Icons.event_note_outlined,
+              color: isSelected ? Colors.white : Colors.white70,
+              size: 20,
+            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            selectedTileColor: Colors.white12,
+            dense: true,
+          ),
+        ),
+        if (_isLeaveMenuExpanded)
+          Padding(
+            padding: const EdgeInsets.only(left: 20, bottom: 8),
+            child: Column(
+              children: [
+                _buildSubmenuItem(
+                  label: 'Leave Status',
+                  isSelected: selectedIndex == 1,
+                  onTap: () {
+                    navBarController.setSelectedIndex(1);
+                  },
+                ),
+                _buildSubmenuItem(
+                  label: 'Quarterly Leave Apply',
+                  isSelected: selectedIndex == 8,
+                  onTap: () {
+                    navBarController.setSelectedIndex(8);
+                  },
+                ),
+                _buildSubmenuItem(
+                  label: 'Leave Encashment',
+                  isSelected: selectedIndex == 9,
+                  onTap: () {
+                    navBarController.setSelectedIndex(9);
+                  },
+                ),
+                _buildSubmenuItem(
+                  label: 'Leave Calendar',
+                  isSelected: selectedIndex == 10,
+                  onTap: () {
+                    navBarController.setSelectedIndex(10);
+                  },
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildSidebar(BottomNavBarController navBarController, int selectedIndex) {
     final user = context.watch<AuthController>().user;
     final isEmployee = user?.role == 'Employee' || (user?.role != 'RO' && user?.role != 'RO1');
-
-    final menuItems = [
-      _SidebarItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard_rounded, label: 'Dashboard', index: 0),
-      _SidebarItem(icon: Icons.event_note_outlined, activeIcon: Icons.event_note_rounded, label: 'Leave request', index: 1),
-      _SidebarItem(icon: Icons.flight_takeoff_outlined, activeIcon: Icons.flight_takeoff_rounded, label: 'Tour request', index: 2),
-      if (!isEmployee) _SidebarItem(icon: Icons.people_outline_rounded, activeIcon: Icons.people_rounded, label: 'Employee Directory', index: 4),
-      _SidebarItem(icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, label: 'Payslips', index: 5),
-      _SidebarItem(icon: Icons.celebration_outlined, activeIcon: Icons.celebration_rounded, label: 'Holiday Calendar', index: 6),
-      if (!isEmployee) _SidebarItem(icon: Icons.approval_rounded, activeIcon: Icons.approval_rounded, label: 'Pending Approvals', index: 7),
-      _SidebarItem(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'My Profile', index: 3),
-    ];
 
     return Container(
       width: _isSidebarCollapsed ? 70 : 250,
@@ -233,7 +396,7 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'MOIL LMS',
+                              'MOIL Limited',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -262,48 +425,62 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
           const SizedBox(height: 16),
           // Sidebar menu items
           Expanded(
-            child: ListView.builder(
+            child: ListView(
               padding: EdgeInsets.symmetric(horizontal: _isSidebarCollapsed ? 6 : 12),
-              itemCount: menuItems.length,
-              itemBuilder: (context, index) {
-                final item = menuItems[index];
-                final isSelected = selectedIndex == item.index;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: ListTile(
-                    selected: isSelected,
-                    onTap: () => navBarController.setSelectedIndex(item.index),
-                    contentPadding: _isSidebarCollapsed ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 16),
-                    title: _isSidebarCollapsed
-                        ? Center(
-                            child: Icon(
-                              isSelected ? item.activeIcon : item.icon,
-                              color: isSelected ? Colors.white : Colors.white70,
-                              size: 20,
-                            ),
-                          )
-                        : Text(
-                            item.label,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : Colors.white70,
-                              fontSize: 13,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            ),
-                          ),
-                    leading: _isSidebarCollapsed
-                        ? null
-                        : Icon(
-                            isSelected ? item.activeIcon : item.icon,
-                            color: isSelected ? Colors.white : Colors.white70,
-                            size: 20,
-                          ),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    selectedTileColor: Colors.white12,
-                    dense: true,
+              children: [
+                _buildSidebarTile(
+                  icon: Icons.dashboard_outlined,
+                  activeIcon: Icons.dashboard_rounded,
+                  label: 'Dashboard',
+                  isSelected: selectedIndex == 0,
+                  onTap: () => navBarController.setSelectedIndex(0),
+                ),
+                _buildLeaveSubmenuTile(navBarController, selectedIndex),
+                _buildSidebarTile(
+                  icon: Icons.flight_takeoff_outlined,
+                  activeIcon: Icons.flight_takeoff_rounded,
+                  label: 'Tour request',
+                  isSelected: selectedIndex == 2,
+                  onTap: () => navBarController.setSelectedIndex(2),
+                ),
+                if (!isEmployee)
+                  _buildSidebarTile(
+                    icon: Icons.people_outline_rounded,
+                    activeIcon: Icons.people_rounded,
+                    label: 'Employee Directory',
+                    isSelected: selectedIndex == 4,
+                    onTap: () => navBarController.setSelectedIndex(4),
                   ),
-                );
-              },
+                _buildSidebarTile(
+                  icon: Icons.receipt_long_outlined,
+                  activeIcon: Icons.receipt_long_rounded,
+                  label: 'Payslips',
+                  isSelected: selectedIndex == 5,
+                  onTap: () => navBarController.setSelectedIndex(5),
+                ),
+                _buildSidebarTile(
+                  icon: Icons.celebration_outlined,
+                  activeIcon: Icons.celebration_rounded,
+                  label: 'Holiday Calendar',
+                  isSelected: selectedIndex == 6,
+                  onTap: () => navBarController.setSelectedIndex(6),
+                ),
+                if (!isEmployee)
+                  _buildSidebarTile(
+                    icon: Icons.approval_rounded,
+                    activeIcon: Icons.approval_rounded,
+                    label: 'Pending Approvals',
+                    isSelected: selectedIndex == 7,
+                    onTap: () => navBarController.setSelectedIndex(7),
+                  ),
+                _buildSidebarTile(
+                  icon: Icons.person_outline_rounded,
+                  activeIcon: Icons.person_rounded,
+                  label: 'My Profile',
+                  isSelected: selectedIndex == 3,
+                  onTap: () => navBarController.setSelectedIndex(3),
+                ),
+              ],
             ),
           ),
           // Logout Button
@@ -423,4 +600,68 @@ class _SidebarItem {
     required this.label,
     required this.index,
   });
+}
+
+class LeaveStatusPage extends StatelessWidget {
+  const LeaveStatusPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: CustomAppBar(
+        title: 'Leave Status',
+        showBack: Navigator.of(context).canPop(),
+      ),
+      body: const LeaveStatusScreen(),
+    );
+  }
+}
+
+class LeaveApplyPage extends StatelessWidget {
+  const LeaveApplyPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: CustomAppBar(
+        title: 'Quarterly Leave Apply',
+        showBack: Navigator.of(context).canPop(),
+      ),
+      body: const LeaveApplyScreen(),
+    );
+  }
+}
+
+class LeaveEncashmentPage extends StatelessWidget {
+  const LeaveEncashmentPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: CustomAppBar(
+        title: 'Leave Encashment',
+        showBack: Navigator.of(context).canPop(),
+      ),
+      body: const LeaveEncashmentScreen(),
+    );
+  }
+}
+
+class LeaveCalendarPage extends StatelessWidget {
+  const LeaveCalendarPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: CustomAppBar(
+        title: 'Leave Calendar',
+        showBack: Navigator.of(context).canPop(),
+      ),
+      body: const LeaveCalendarScreen(),
+    );
+  }
 }

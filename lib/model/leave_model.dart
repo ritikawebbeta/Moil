@@ -16,6 +16,7 @@ class LeaveModel {
   final String? reason;
   final String? remarks;
   final DateTime? appliedOn;
+  final DateTime? approvedOn;
 
   const LeaveModel({
     required this.id,
@@ -33,6 +34,7 @@ class LeaveModel {
     this.reason,
     this.remarks,
     this.appliedOn,
+    this.approvedOn,
   });
 
   factory LeaveModel.fromJson(Map<String, dynamic> json) {
@@ -52,6 +54,7 @@ class LeaveModel {
       reason: json['reason'],
       remarks: json['remarks'],
       appliedOn: json['appliedOn'] != null ? DateTime.parse(json['appliedOn']) : null,
+      approvedOn: json['approvedOn'] != null ? DateTime.parse(json['approvedOn']) : null,
     );
   }
 
@@ -72,6 +75,7 @@ class LeaveModel {
       'reason': reason,
       'remarks': remarks,
       'appliedOn': appliedOn?.toIso8601String(),
+      'approvedOn': approvedOn?.toIso8601String(),
     };
   }
 }

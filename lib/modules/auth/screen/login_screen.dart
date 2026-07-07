@@ -208,7 +208,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         const SizedBox(height: 16),
         const Text(
-          'मॉयल · MOIL LMS',
+          'मॉयल लिमिटेड · MOIL Limited',
           style: TextStyle(
             color: AppColors.primary,
             fontSize: 22,

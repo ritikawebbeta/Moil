@@ -67,6 +67,11 @@ class LeaveController extends ChangeNotifier {
           duration: 'Full-Day',
           status: 'Approved',
           absenceHours: 17.50,
+          used: '1.00 Days',
+          reason: 'Attend financial review audit meeting',
+          remarks: 'Approved. Proceed with travel rules.',
+          appliedOn: DateTime(2026, 5, 10, 10, 30, 0),
+          approvedOn: DateTime(2026, 5, 10, 15, 45, 0),
         ),
         LeaveModel(
           id: '2',
@@ -79,6 +84,11 @@ class LeaveController extends ChangeNotifier {
           duration: 'Full-Day',
           status: 'Approved',
           absenceHours: 17.00,
+          used: '90.00 Days',
+          reason: 'Long term project assignment',
+          remarks: 'Approved by board management.',
+          appliedOn: DateTime(2026, 7, 1, 9, 0, 0),
+          approvedOn: DateTime(2026, 7, 2, 11, 20, 0),
         ),
         LeaveModel(
           id: '3',
@@ -91,6 +101,11 @@ class LeaveController extends ChangeNotifier {
           duration: 'Full-Day',
           status: 'Approved',
           absenceHours: 34.00,
+          used: '4.00 Days',
+          reason: 'Mine safety audit visit',
+          remarks: 'Recommended and approved.',
+          appliedOn: DateTime(2026, 3, 28, 14, 15, 0),
+          approvedOn: DateTime(2026, 3, 29, 10, 0, 0),
         ),
         LeaveModel(
           id: '4',
@@ -104,6 +119,10 @@ class LeaveController extends ChangeNotifier {
           status: 'Approved',
           absenceHours: 4.25,
           used: '0.50 Days',
+          reason: 'Personal urgent work',
+          remarks: 'Granted half day leave.',
+          appliedOn: DateTime(2026, 3, 25, 11, 45, 0),
+          approvedOn: DateTime(2026, 3, 25, 13, 10, 0),
         ),
         LeaveModel(
           id: '5',
@@ -118,6 +137,10 @@ class LeaveController extends ChangeNotifier {
           status: 'Approved',
           absenceHours: 6.45,
           used: '1 Days',
+          reason: 'Family function at Nagpur',
+          remarks: 'Approved. Enjoy family function.',
+          appliedOn: DateTime(2026, 2, 28, 10, 5, 0),
+          approvedOn: DateTime(2026, 3, 1, 16, 30, 0),
         ),
       ];
 

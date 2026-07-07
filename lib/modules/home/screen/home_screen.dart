@@ -1,5 +1,3 @@
-// lib/modules/home/screen/home_screen.dart
-
 import 'package:employee_management/modules/bottom_nav_bar/controller/bottom_nav_bar_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -18,9 +16,29 @@ import '../../approval/screen/approval_screen.dart';
 import '../../profile/screen/profile_screen.dart';
 import '../../profile/screen/employee_directory_screen.dart';
 import '../../../model/leave_model.dart';
+import '../../profile/controller/profile_controller.dart';
+import '../../../model/employee_model.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthController>();
+      if (auth.user != null) {
+        context.read<ProfileController>().fetchEmployeeProfile(auth.user!.employeeId);
+        context.read<LeaveController>().fetchLeaves(auth.user!.employeeId);
+        context.read<LeaveController>().fetchBalances(auth.user!.employeeId);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +49,7 @@ class HomeScreen extends StatelessWidget {
           child: CustomScrollView(
             slivers: [
               SliverToBoxAdapter(child: _buildHeader(context)),
+              SliverToBoxAdapter(child: _buildEmployeeDetailsCard(context)),
               SliverToBoxAdapter(child: _buildQuickStats(context)),
               SliverToBoxAdapter(child: _buildModuleGrid(context)),
               SliverToBoxAdapter(child: _buildRecentLeaves(context)),
@@ -147,6 +166,135 @@ class HomeScreen extends StatelessWidget {
     return 'Good Evening,';
   }
 
+  String _formatDate(String dateStr) {
+    if (dateStr.isEmpty) return 'N/A';
+    try {
+      final clean = dateStr.replaceAll('/', '-');
+      final parsed = DateFormat('dd-MM-yyyy').parse(clean);
+      return DateFormat('dd-MM-yyyy').format(parsed);
+    } catch (_) {
+      final parts = dateStr.split(RegExp(r'[-/]'));
+      if (parts.length == 3) {
+        String day = parts[0].padLeft(2, '0');
+        String month = parts[1].padLeft(2, '0');
+        String year = parts[2];
+        if (day.length > 2) {
+          final temp = day;
+          day = year.padLeft(2, '0');
+          year = temp;
+        }
+        return '$day-$month-$year';
+      }
+      return dateStr;
+    }
+  }
+
+  Widget _buildEmployeeDetailsCard(BuildContext context) {
+    final profileController = context.watch<ProfileController>();
+    final employee = profileController.employee;
+
+    if (profileController.isLoading || employee == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: GlassCard(
+          child: const Center(
+            child: SizedBox(
+              height: 40,
+              width: 40,
+              child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: GlassCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.badge_outlined,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Employee Information',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 20, color: AppColors.cardBorder),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final double itemWidth = constraints.maxWidth > 600
+                    ? (constraints.maxWidth - 32) / 3
+                    : (constraints.maxWidth - 16) / 2;
+
+                return Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: [
+                    _buildInfoDetail('Employee No.', employee.employeeId, itemWidth),
+                    _buildInfoDetail('Present Grade', employee.presentGrade, itemWidth),
+                    _buildInfoDetail('Appointment Type', employee.appointmentType, itemWidth),
+                    _buildInfoDetail('Place of Posting', employee.presentPlaceOfPosting, itemWidth),
+                    _buildInfoDetail('Last Promotion Date', _formatDate(employee.lastPromotionDate), itemWidth),
+                    _buildInfoDetail('Date of Joining', _formatDate(employee.joinDate), itemWidth),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoDetail(String label, String value, double width) {
+    return SizedBox(
+      width: width,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value.isEmpty ? 'N/A' : value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuickStats(BuildContext context) {
     final leaveController = context.watch<LeaveController>();
     final width = MediaQuery.of(context).size.width;
@@ -157,16 +305,26 @@ class HomeScreen extends StatelessWidget {
     double hpl = 107.00;
     double op = 2.00;
 
+    String elDates = '';
+    String clDates = '';
+    String hplDates = '';
+    String opDates = '';
+
     for (var b in leaveController.balances) {
       final name = b.timeAccount.toLowerCase();
+      final dateRange = '${DateFormat('dd/MM/yyyy').format(b.deductionFrom)} to ${DateFormat('dd/MM/yyyy').format(b.deductionTo)}';
       if (name.contains('earned')) {
         el = b.entitlementMinusPlanned;
+        elDates = dateRange;
       } else if (name.contains('casual')) {
         cl = b.entitlementMinusPlanned;
+        clDates = dateRange;
       } else if (name.contains('hpl')) {
         hpl = b.entitlementMinusPlanned;
+        hplDates = dateRange;
       } else if (name.contains('optional')) {
         op = b.entitlementMinusPlanned;
+        opDates = dateRange;
       }
     }
 
@@ -174,28 +332,28 @@ class HomeScreen extends StatelessWidget {
       _StatCard(
         title: 'Earned Leave',
         value: el % 1 == 0 ? '${el.toInt()}' : '$el',
-        subtitle: 'EL Balance',
+        subtitle: elDates.isNotEmpty ? 'EL Balance\n($elDates)' : 'EL Balance',
         icon: Icons.event_available_rounded,
         color: AppColors.primary,
       ),
       _StatCard(
         title: 'Casual Leave',
         value: cl % 1 == 0 ? '${cl.toInt()}' : '$cl',
-        subtitle: 'CL Balance',
+        subtitle: clDates.isNotEmpty ? 'CL Balance\n($clDates)' : 'CL Balance',
         icon: Icons.date_range_rounded,
         color: AppColors.warning,
       ),
       _StatCard(
         title: 'Half Pay Leave',
         value: hpl % 1 == 0 ? '${hpl.toInt()}' : '$hpl',
-        subtitle: 'HPL Balance',
+        subtitle: hplDates.isNotEmpty ? 'HPL Balance\n($hplDates)' : 'HPL Balance',
         icon: Icons.hourglass_bottom_rounded,
         color: AppColors.success,
       ),
       _StatCard(
         title: 'Optional Leave',
         value: op % 1 == 0 ? '${op.toInt()}' : '$op',
-        subtitle: 'OP Balance',
+        subtitle: opDates.isNotEmpty ? 'OP Balance\n($opDates)' : 'OP Balance',
         icon: Icons.celebration_rounded,
         color: const Color(0xFF8B5CF6),
       ),

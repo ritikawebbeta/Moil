@@ -26,7 +26,7 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_onTabChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -82,7 +82,6 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
               controller: _tabController,
               children: const [
                 LeaveStatusScreen(),
-                LeaveBalanceScreen(),
                 LeaveApplyScreen(),
                 LeaveEncashmentScreen(),
                 LeaveCalendarScreen(),
@@ -120,11 +119,10 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
         dividerColor: AppColors.cardBorder,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         tabs: const [
-          Tab(text: 'Status'),
-          Tab(text: 'Balance'),
-          Tab(text: 'Apply'),
-          Tab(text: 'Encashment'),
-          Tab(text: 'Calendar'),
+          Tab(text: 'Leave Status'),
+          Tab(text: 'Quarterly Leave Apply'),
+          Tab(text: 'Leave Encashment'),
+          Tab(text: 'Leave Calendar'),
         ],
       ),
     );

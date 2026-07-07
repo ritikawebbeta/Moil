@@ -1,8 +1,10 @@
-// lib/modules/leave/screen/leave_encashment_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
+import '../../auth/controller/auth_controller.dart';
+import '../../profile/controller/profile_controller.dart';
 
 class LeaveEncashmentScreen extends StatefulWidget {
   const LeaveEncashmentScreen({super.key});
@@ -12,6 +14,7 @@ class LeaveEncashmentScreen extends StatefulWidget {
 }
 
 class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
+  int _serviceDays = 0;
   int _currentStep = 1; // 1 = Employee Search, 2 = Employee Details, 3 = Completed
 
   // Step 1 Controllers
@@ -89,15 +92,41 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
       return;
     }
 
-    // Dynamic generation fallback if not in mocks
+    final profileController = context.read<ProfileController>();
+    if (profileController.employees.isEmpty) {
+      await profileController.fetchAllEmployees();
+    }
+    final empList = profileController.employees;
+    
+    // Find matching employee or fallback
+    final hasMatch = empList.any((e) => e.employeeId == searchCode);
+    final emp = hasMatch 
+        ? empList.firstWhere((e) => e.employeeId == searchCode)
+        : null;
+
     final data = _mockEmployees[searchCode] ?? {
-      'name': 'Mock Employee ($searchCode)',
+      'name': emp?.name ?? 'Mock Employee ($searchCode)',
       'docNo': '${22200 + searchCode.hashCode % 1000}',
       'createdOn': DateFormat('dd/MM/yyyy').format(DateTime.now()),
       'balance': '00120',
       'approver': 'Nitin Pagnis',
       'status': 'NEW',
     };
+
+    DateTime joinDateParsed;
+    if (searchCode == '00000467') {
+      // Mock Vaishali Taksande as new hire (15 days service)
+      joinDateParsed = DateTime.now().subtract(const Duration(days: 15));
+    } else {
+      final joinDateStr = emp?.joinDate ?? '22/06/2018';
+      try {
+        final cleanDoj = joinDateStr.replaceAll('/', '-');
+        joinDateParsed = DateFormat('dd-MM-yyyy').parse(cleanDoj);
+      } catch (_) {
+        joinDateParsed = DateTime.now().subtract(const Duration(days: 365));
+      }
+    }
+    final serviceDays = DateTime.now().difference(joinDateParsed).inDays;
 
     setState(() {
       _employeeCode = searchCode;
@@ -107,6 +136,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
       _leaveBalance = data['balance'];
       _approver = data['approver'];
       _docStatus = data['status'];
+      _serviceDays = serviceDays;
       _daysToEncashCtrl.text = '00000';
       _isSearching = false;
       _currentStep = 2; // Proceed to details form
@@ -114,6 +144,14 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
   }
 
   void _handleSubmit() async {
+    if (_serviceDays <= 30) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Not eligible: Service period is only $_serviceDays days (Up to 30 days is restricted).'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+
     final days = int.tryParse(_daysToEncashCtrl.text) ?? 0;
     if (days <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -127,6 +165,15 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
     if (days > balance) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Requested days exceed current Earned Leave Balance of $balance.'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+
+    final maxEligibleDays = (balance * 0.5).toInt();
+    if (days > maxEligibleDays) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Not eligible: You can only encash up to 50% of your total balance (Max: $maxEligibleDays days).'),
         backgroundColor: AppColors.error,
       ));
       return;
@@ -444,6 +491,29 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
   Widget _buildDetailsForm() {
     return Column(
       children: [
+        if (_serviceDays <= 30)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.error.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppColors.error.withOpacity(0.15)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Not Eligible: Service period is up to 30 days (Current: $_serviceDays days). Leave encashment is not allowed.',
+                    style: const TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
         GlassCard(
           padding: EdgeInsets.zero,
           child: Column(
@@ -578,7 +648,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             ElevatedButton.icon(
-              onPressed: _isSubmitting ? null : _handleSubmit,
+              onPressed: (_isSubmitting || _serviceDays <= 30) ? null : _handleSubmit,
               icon: _isSubmitting
                   ? const SizedBox(
                       width: 12,

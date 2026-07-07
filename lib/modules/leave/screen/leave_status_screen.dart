@@ -4,6 +4,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
 import '../controller/leave_controller.dart';
@@ -17,6 +20,191 @@ class LeaveStatusScreen extends StatefulWidget {
 }
 
 class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
+  DateTime? _tempShowFrom;
+  String? _tempTimeAccount;
+  DateTime? _tempTimeAccountShowFrom;
+
+  Future<void> _printLeavePdf(LeaveModel leave) async {
+    final doc = pw.Document();
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Padding(
+            padding: const pw.EdgeInsets.all(30),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Center(
+                  child: pw.Text(
+                    'MOIL LIMITED',
+                    style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF0F2080)),
+                  ),
+                ),
+                pw.Center(
+                  child: pw.Text(
+                    'LEAVE APPLICATION REQUISITION SHEET',
+                    style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline),
+                  ),
+                ),
+                pw.SizedBox(height: 30),
+                _buildPdfRow('Leave ID:', leave.id),
+                _buildPdfRow('Employee ID:', leave.employeeId),
+                _buildPdfRow('Leave Type:', leave.leaveType),
+                _buildPdfRow('Duration:', leave.duration),
+                _buildPdfRow('Start Date:', DateFormat('dd-MM-yyyy').format(leave.startDate)),
+                _buildPdfRow('End Date:', DateFormat('dd-MM-yyyy').format(leave.endDate)),
+                _buildPdfRow('Absence Hours:', leave.absenceHours?.toStringAsFixed(2) ?? 'N/A'),
+                _buildPdfRow('Used Days:', leave.used ?? 'N/A'),
+                _buildPdfRow('Reason:', leave.reason ?? 'N/A'),
+                _buildPdfRow('Status:', leave.status),
+                _buildPdfRow('Processor:', leave.processor ?? 'N/A'),
+                pw.Divider(height: 20),
+                _buildPdfRow('Applied Time:', leave.appliedOn != null ? DateFormat('dd-MM-yyyy HH:mm').format(leave.appliedOn!) : 'N/A'),
+                _buildPdfRow('Approval Time:', leave.approvedOn != null ? DateFormat('dd-MM-yyyy HH:mm').format(leave.approvedOn!) : 'N/A'),
+                _buildPdfRow('Approver Comments:', leave.remarks ?? 'N/A'),
+                pw.SizedBox(height: 50),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Column(
+                      children: [
+                        pw.Container(width: 120, height: 1, color: PdfColors.black),
+                        pw.SizedBox(height: 5),
+                        pw.Text('Employee Signature', style: const pw.TextStyle(fontSize: 10)),
+                      ],
+                    ),
+                    pw.Column(
+                      children: [
+                        pw.Container(width: 120, height: 1, color: PdfColors.black),
+                        pw.SizedBox(height: 5),
+                        pw.Text('Approving Authority Signature', style: const pw.TextStyle(fontSize: 10)),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => doc.save(),
+      name: 'Leave_Application_${leave.id}.pdf',
+    );
+  }
+
+  pw.Widget _buildPdfRow(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 4),
+      child: pw.Row(
+        children: [
+          pw.SizedBox(width: 150, child: pw.Text(label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11))),
+          pw.Expanded(child: pw.Text(value, style: const pw.TextStyle(fontSize: 11))),
+        ],
+      ),
+    );
+  }
+
+  void _viewLeaveDetails(LeaveModel leave) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Leave Request Details',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    StatusBadge(status: leave.status),
+                  ],
+                ),
+                const Divider(height: 24, color: AppColors.cardBorder),
+                _buildDetailRow('Leave Type', leave.leaveType),
+                _buildDetailRow('Duration', leave.duration),
+                _buildDetailRow(
+                  'Date Range',
+                  '${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)}',
+                ),
+                _buildDetailRow('Used Days / Hours', '${leave.used ?? 'N/A'} (${leave.absenceHours?.toStringAsFixed(2) ?? '0.00'} Hrs)'),
+                _buildDetailRow('Reason', leave.reason ?? 'N/A'),
+                const Divider(height: 24, color: AppColors.cardBorder),
+                _buildDetailRow(
+                  'Applied Time',
+                  leave.appliedOn != null ? DateFormat('dd-MM-yyyy HH:mm:ss').format(leave.appliedOn!) : 'N/A',
+                ),
+                _buildDetailRow(
+                  'Approval Time',
+                  leave.approvedOn != null ? DateFormat('dd-MM-yyyy HH:mm:ss').format(leave.approvedOn!) : 'N/A',
+                ),
+                _buildDetailRow('Approving Authority Remarks', leave.remarks ?? 'No remarks provided'),
+                const SizedBox(height: 16),
+                PrimaryButton(
+                  label: 'Print Requisition Form',
+                  icon: Icons.print_rounded,
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _printLeavePdf(leave);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +215,10 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
             child: CircularProgressIndicator(color: AppColors.primary),
           );
         }
+
+        _tempShowFrom ??= controller.showFrom;
+        _tempTimeAccount ??= controller.selectedTimeAccount;
+        _tempTimeAccountShowFrom ??= controller.timeAccountShowFrom;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -68,7 +260,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
   Widget _buildNewButton() {
     return GestureDetector(
       onTap: () {
-        context.read<LeaveController>().setActiveTabIndex(2);
+        context.read<LeaveController>().setActiveTabIndex(1);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -125,7 +317,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                       color: AppColors.primary, size: 14),
                   const SizedBox(width: 6),
                   Text(
-                    DateFormat('dd/MM/yyyy').format(controller.showFrom),
+                    DateFormat('dd/MM/yyyy').format(_tempShowFrom!),
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 12,
@@ -137,7 +329,9 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          _ApplyButton(onTap: () {}),
+          _ApplyButton(onTap: () {
+            controller.updateShowFrom(_tempShowFrom!);
+          }),
         ],
       ),
     );
@@ -146,7 +340,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
   Future<void> _pickDate(LeaveController controller) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: controller.showFrom,
+      initialDate: _tempShowFrom ?? controller.showFrom,
       firstDate: DateTime(2020),
       lastDate: DateTime(DateTime.now().year + 10),
       builder: (context, child) {
@@ -164,7 +358,9 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
       },
     );
     if (picked != null) {
-      controller.updateShowFrom(picked);
+      setState(() {
+        _tempShowFrom = picked;
+      });
     }
   }
 
@@ -238,15 +434,15 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                                 child: Row(
                                   children: [
                                     _ActionIcon(
-                                      icon: Icons.edit_outlined,
+                                      icon: Icons.visibility_outlined,
                                       color: AppColors.primary,
-                                      onTap: () {},
+                                      onTap: () => _viewLeaveDetails(leave),
                                     ),
-                                    const SizedBox(width: 4),
+                                    const SizedBox(width: 6),
                                     _ActionIcon(
-                                      icon: Icons.delete_outline_rounded,
-                                      color: AppColors.error,
-                                      onTap: () {},
+                                      icon: Icons.print_outlined,
+                                      color: AppColors.primary,
+                                      onTap: () => _printLeavePdf(leave),
                                     ),
                                   ],
                                 ),
@@ -319,10 +515,12 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                   const Text('Time Account', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                   const SizedBox(width: 8),
                   _DropdownChip(
-                    value: controller.selectedTimeAccount,
+                    value: _tempTimeAccount!,
                     items: const ['All Types', 'Earned leave', 'Casual Leave', 'HPL', 'Optional Holiday'],
                     onChanged: (v) {
-                      controller.updateSelectedTimeAccount(v);
+                      setState(() {
+                        _tempTimeAccount = v;
+                      });
                     },
                   ),
                   const SizedBox(width: 16),
@@ -342,13 +540,16 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                         children: [
                           const Icon(Icons.calendar_today_outlined, color: AppColors.primary, size: 12),
                           const SizedBox(width: 4),
-                          Text(DateFormat('dd/MM/yyyy').format(controller.timeAccountShowFrom), style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+                          Text(DateFormat('dd/MM/yyyy').format(_tempTimeAccountShowFrom!), style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _ApplyButton(onTap: () {}),
+                  _ApplyButton(onTap: () {
+                    controller.updateSelectedTimeAccount(_tempTimeAccount!);
+                    controller.updateTimeAccountShowFrom(_tempTimeAccountShowFrom!);
+                  }),
                 ],
               ),
             ),
@@ -363,7 +564,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
   Future<void> _pickTimeAccountDate(LeaveController controller) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: controller.timeAccountShowFrom,
+      initialDate: _tempTimeAccountShowFrom ?? controller.timeAccountShowFrom,
       firstDate: DateTime(2020),
       lastDate: DateTime(DateTime.now().year + 10),
       builder: (context, child) => Theme(
@@ -379,7 +580,9 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
       ),
     );
     if (picked != null) {
-      controller.updateTimeAccountShowFrom(picked);
+      setState(() {
+        _tempTimeAccountShowFrom = picked;
+      });
     }
   }
 

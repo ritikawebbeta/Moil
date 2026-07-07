@@ -1929,8 +1929,6 @@ class _ApplyTourTabState extends State<_ApplyTourTab> {
                 items: const [
                   DropdownMenuItem(value: 'Official Tour', child: Text('Official Tour')),
                   DropdownMenuItem(value: 'Training', child: Text('Training')),
-                  DropdownMenuItem(value: 'Conference', child: Text('Conference')),
-                  DropdownMenuItem(value: 'Client Visit', child: Text('Client Visit')),
                 ],
                 onChanged: (val) {
                   if (val != null) {
