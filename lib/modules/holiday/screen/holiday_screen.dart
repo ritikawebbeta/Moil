@@ -176,6 +176,8 @@ class _HolidayScreenState extends State<HolidayScreen> {
           ...holidays.asMap().entries.map((e) {
             final h = e.value;
             final isEven = e.key.isEven;
+            final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+            final isExpired = h.date.isBefore(today);
             final isUpcoming = h.date.isAfter(DateTime.now());
 
             return Column(
@@ -190,7 +192,9 @@ class _HolidayScreenState extends State<HolidayScreen> {
                         width: 50,
                         height: 56,
                         decoration: BoxDecoration(
-                          color: h.isNational ? AppColors.primary : AppColors.warning,
+                          color: isExpired
+                              ? Colors.grey.shade400
+                              : (h.isNational ? AppColors.primary : AppColors.warning),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Column(
@@ -214,23 +218,35 @@ class _HolidayScreenState extends State<HolidayScreen> {
                           children: [
                             Text(
                               h.name,
-                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                color: isExpired ? Colors.grey.shade500 : AppColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                decoration: isExpired ? TextDecoration.lineThrough : null,
+                              ),
                             ),
                             Text(
                               DateFormat('EEEE, dd MMMM yyyy').format(h.date),
-                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                              style: TextStyle(
+                                color: isExpired ? Colors.grey.shade400 : AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: h.isNational ? AppColors.primary.withOpacity(0.08) : AppColors.warning.withOpacity(0.08),
+                                color: isExpired
+                                    ? Colors.grey.withOpacity(0.08)
+                                    : (h.isNational
+                                        ? AppColors.primary.withOpacity(0.08)
+                                        : AppColors.warning.withOpacity(0.08)),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 h.type,
                                 style: TextStyle(
-                                  color: h.isNational ? AppColors.primary : AppColors.warning,
+                                  color: isExpired ? Colors.grey.shade500 : (h.isNational ? AppColors.primary : AppColors.warning),
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -239,7 +255,7 @@ class _HolidayScreenState extends State<HolidayScreen> {
                           ],
                         ),
                       ),
-                      if (isUpcoming)
+                      if (isUpcoming && !isExpired)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
@@ -250,6 +266,19 @@ class _HolidayScreenState extends State<HolidayScreen> {
                           child: const Text(
                             'Upcoming',
                             style: TextStyle(color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      if (isExpired)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                          ),
+                          child: Text(
+                            'Passed',
+                            style: TextStyle(color: Colors.grey.shade500, fontSize: 10, fontWeight: FontWeight.w600),
                           ),
                         ),
                     ],

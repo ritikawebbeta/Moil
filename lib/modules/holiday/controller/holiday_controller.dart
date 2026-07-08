@@ -6,7 +6,7 @@ import '../../../model/holiday_model.dart';
 class HolidayController extends ChangeNotifier {
   bool _isLoading = false;
   List<HolidayModel> _holidays = [];
-  int _selectedYear = DateTime.now().year;
+  int _selectedYear = 2025;
   int? _selectedMonth;
 
   bool get isLoading => _isLoading;
@@ -26,30 +26,38 @@ class HolidayController extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    await Future.delayed(const Duration(seconds: 1));
+    await Future.delayed(const Duration(milliseconds: 300));
 
     _holidays = [
-      HolidayModel(id: '1', name: 'Republic Day', date: DateTime(2026, 1, 26), type: 'National', isNational: true),
-      HolidayModel(id: '2', name: 'Holi', date: DateTime(2026, 3, 6), type: 'National', isNational: true),
-      HolidayModel(id: '3', name: 'Good Friday', date: DateTime(2026, 4, 3), type: 'National', isNational: true),
-      HolidayModel(id: '4', name: 'Ram Navami', date: DateTime(2026, 4, 26), type: 'National', isNational: true),
-      HolidayModel(id: '5', name: 'Labour Day', date: DateTime(2026, 5, 1), type: 'National', isNational: true),
-      HolidayModel(id: '6', name: 'Independence Day', date: DateTime(2026, 8, 15), type: 'National', isNational: true),
-      HolidayModel(id: '7', name: 'Ganesh Chaturthi', date: DateTime(2026, 8, 22), type: 'Regional', isNational: false),
-      HolidayModel(id: '8', name: 'Gandhi Jayanti', date: DateTime(2026, 10, 2), type: 'National', isNational: true),
-      HolidayModel(id: '9', name: 'Dussehra', date: DateTime(2026, 10, 20), type: 'National', isNational: true),
-      HolidayModel(id: '10', name: 'Diwali', date: DateTime(2026, 11, 8), type: 'National', isNational: true),
-      HolidayModel(id: '11', name: 'Diwali (Laxmi Puja)', date: DateTime(2026, 11, 9), type: 'National', isNational: true),
-      HolidayModel(id: '12', name: 'Christmas', date: DateTime(2026, 12, 25), type: 'National', isNational: true),
-      // Optional Holidays (Restricted)
-      HolidayModel(id: '13', name: 'New Year\'s Day', date: DateTime(2026, 1, 1), type: 'Optional', isNational: false),
-      HolidayModel(id: '14', name: 'Guru Govind Singh Jayanti', date: DateTime(2026, 1, 5), type: 'Optional', isNational: false),
-      HolidayModel(id: '15', name: 'Basant Panchami', date: DateTime(2026, 1, 23), type: 'Optional', isNational: false),
-      HolidayModel(id: '16', name: 'Maha Shivratri', date: DateTime(2026, 2, 15), type: 'Optional', isNational: false),
-      HolidayModel(id: '17', name: 'Easter Monday', date: DateTime(2026, 4, 6), type: 'Optional', isNational: false),
-      HolidayModel(id: '18', name: 'Raksha Bandhan', date: DateTime(2026, 8, 28), type: 'Optional', isNational: false),
-      HolidayModel(id: '19', name: 'Karwa Chauth', date: DateTime(2026, 10, 29), type: 'Optional', isNational: false),
-      HolidayModel(id: '20', name: 'Guru Nanak Jayanti', date: DateTime(2026, 11, 24), type: 'Optional', isNational: false),
+      // 2025 Public Holidays (from previous screenshot)
+      HolidayModel(id: '1', name: 'Republic Day', date: DateTime(2025, 1, 26), type: 'National', isNational: true),
+      HolidayModel(id: '2', name: 'Holi', date: DateTime(2025, 3, 14), type: 'National', isNational: true),
+      HolidayModel(id: '3', name: 'Dr.Babasaheb Ambedkar Jayanti', date: DateTime(2025, 4, 14), type: 'National', isNational: true),
+      HolidayModel(id: '4', name: 'Independence Day', date: DateTime(2025, 8, 15), type: 'National', isNational: true),
+      HolidayModel(id: '5', name: 'Narbodh/Pola', date: DateTime(2025, 8, 24), type: 'Regional', isNational: false),
+      HolidayModel(id: '6', name: 'Mahatma Gandhi Jayanti', date: DateTime(2025, 10, 2), type: 'National', isNational: true),
+      HolidayModel(id: '7', name: 'Diwali', date: DateTime(2025, 10, 20), type: 'National', isNational: true),
+      HolidayModel(id: '8', name: 'Diwali', date: DateTime(2025, 10, 21), type: 'National', isNational: true),
+
+      // 2026 Optional/Restricted Holidays (from the new screenshot)
+      HolidayModel(id: 'opt1', name: 'NEW YEAR\'S DAY', date: DateTime(2026, 1, 1), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt2', name: 'MAKAR SANKRANTI', date: DateTime(2026, 1, 3), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt3', name: 'PONGAL/GURU GOVIND SINGH\'S BIRTHDAY', date: DateTime(2026, 1, 14), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt4', name: 'BASANT PANCHAMI / SRI PANCHAMI', date: DateTime(2026, 1, 23), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt5', name: 'SHIVAJI JAYANTI', date: DateTime(2026, 2, 1), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt6', name: 'GURU RAVIDAS\'S BIRTHDAY', date: DateTime(2026, 2, 12), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt7', name: 'SWAMI DAYANANDA SARASWATI JAYANTI', date: DateTime(2026, 2, 15), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt8', name: 'MAHA SHIVARATRI', date: DateTime(2026, 2, 19), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt9', name: 'HOLIKA DAHAN, DOLYATRA/EASTER SUNDAY', date: DateTime(2026, 3, 3), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt10', name: 'CHAITRA SUKLADI/ GUDI PADAVA/UGADI/ CHETI CHAND', date: DateTime(2026, 3, 19), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt11', name: 'JAMAT-UI-VIDA', date: DateTime(2026, 3, 20), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt12', name: 'RAM NAVMI', date: DateTime(2026, 3, 26), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt13', name: 'EASTER SUNDAY', date: DateTime(2026, 4, 5), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt14', name: 'VAISHAKHI /VISU/MESHADI (TAMIL NEW YEAR\'S DAY)', date: DateTime(2026, 4, 14), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt15', name: 'VAISAKHADI (BENGAL)/ BAHAG BIHU (ASSAM)', date: DateTime(2026, 4, 15), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt16', name: 'BIRTHDAY OF GURU RABINDRANATH TAGORE', date: DateTime(2026, 5, 9), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt17', name: 'RATH YATRA', date: DateTime(2026, 7, 16), type: 'Optional', isNational: false),
+      HolidayModel(id: 'opt18', name: 'PARSI NEW YEAR\'S DAY / NAURAJ', date: DateTime(2026, 8, 15), type: 'Optional', isNational: false),
     ];
 
     _isLoading = false;

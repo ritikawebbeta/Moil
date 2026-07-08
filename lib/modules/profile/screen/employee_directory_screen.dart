@@ -6,6 +6,7 @@ import '../../../widgets/app_widgets.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../controller/profile_controller.dart';
 import 'employee_detail_screen.dart';
+import '../utils/profile_pdf_helper.dart';
 
 class EmployeeDirectoryScreen extends StatefulWidget {
   const EmployeeDirectoryScreen({super.key});
@@ -370,10 +371,22 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                 columns: const [
                   DataColumn(label: Text('Employee ID')),
                   DataColumn(label: Text('Employee Name')),
-                  DataColumn(label: Text('Mine')),
+                  DataColumn(label: Text('Status')),
+                  DataColumn(label: Text('Group')),
+                  DataColumn(label: Text('Grade')),
+                  DataColumn(label: Text('Position')),
+                  DataColumn(label: Text('Department')),
+                  DataColumn(label: Text('Basic Pay')),
+                  DataColumn(label: Text('DOB')),
+                  DataColumn(label: Text('Gender')),
+                  DataColumn(label: Text('Mobile')),
+                  DataColumn(label: Text('Actions')),
                 ],
                 rows: filteredRaw.map((m) {
                   final isSelected = _selectedEmployeeIds.contains(m['empNo']);
+                  final matches = employees.where((e) => e.employeeId == m['empNo']);
+                  final empModel = matches.isNotEmpty ? matches.first : null;
+
                   return DataRow(
                     selected: isSelected,
                     onSelectChanged: (selected) {
@@ -390,11 +403,12 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                       DataCell(
                         GestureDetector(
                           onTap: () {
-                            final emp = employees.firstWhere((e) => e.employeeId == m['empNo']);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => EmployeeDetailScreen(employee: emp)),
-                            );
+                            if (empModel != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => EmployeeDetailScreen(employee: empModel)),
+                              );
+                            }
                           },
                           child: Text(
                             m['name'] ?? '',
@@ -406,7 +420,51 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                           ),
                         ),
                       ),
-                      DataCell(Text(m['subarea'] ?? '')),
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: (m['status'] == 'Active')
+                                ? AppColors.success.withOpacity(0.1)
+                                : AppColors.error.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            m['status'] ?? '',
+                            style: TextStyle(
+                              color: (m['status'] == 'Active')
+                                  ? AppColors.success
+                                  : AppColors.error,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ),
+                      DataCell(Text(m['group'] ?? '')),
+                      DataCell(Text(m['subgroupText'] ?? '')),
+                      DataCell(Text(m['position'] ?? '')),
+                      DataCell(Text(m['dept'] ?? '')),
+                      DataCell(Text('₹${m['basic'] ?? ''}')),
+                      DataCell(Text(m['dob'] ?? '')),
+                      DataCell(Text(m['gender'] ?? '')),
+                      DataCell(Text(m['mobile'] ?? '')),
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.print_outlined, color: AppColors.primary, size: 18),
+                              tooltip: 'Print HRIS Profile',
+                              onPressed: () {
+                                if (empModel != null) {
+                                  ProfilePdfHelper.printEmployeeProfilePdf(empModel);
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   );
                 }).toList(),

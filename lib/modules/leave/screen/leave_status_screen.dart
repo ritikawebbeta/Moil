@@ -371,12 +371,12 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final totalWidth = constraints.maxWidth > 1190 ? constraints.maxWidth : 1190.0;
-        final extraWidth = totalWidth - 1190.0;
+        final totalWidth = constraints.maxWidth > 1430 ? constraints.maxWidth : 1430.0;
+        final extraWidth = totalWidth - 1430.0;
         
         final actionsWidth = 80.0;
-        final typeWidth = 150.0 + extraWidth * 0.3;
-        final otherWidth = 120.0 + extraWidth * 0.7 / 8;
+        final typeWidth = 150.0 + extraWidth * 0.2;
+        final otherWidth = 120.0 + extraWidth * 0.8 / 10;
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -394,6 +394,8 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                     _TableHeaderCell(text: 'Start time', width: otherWidth),
                     _TableHeaderCell(text: 'End Date', width: otherWidth),
                     _TableHeaderCell(text: 'End time', width: otherWidth),
+                    _TableHeaderCell(text: 'Applied Time', width: otherWidth),
+                    _TableHeaderCell(text: 'Approve Time', width: otherWidth),
                     _TableHeaderCell(text: 'Processor', width: otherWidth),
                     _TableHeaderCell(text: 'Status', width: otherWidth),
                     _TableHeaderCell(text: 'Absence hours', width: otherWidth),
@@ -453,15 +455,27 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                               width: typeWidth,
                             ),
                             _TableCell(
-                              text: DateFormat('dd/MM/yyyy').format(leave.startDate),
+                              text: DateFormat('dd-MM-yyyy').format(leave.startDate),
                               width: otherWidth,
                             ),
                             _TableCell(text: leave.startTime, width: otherWidth),
                             _TableCell(
-                              text: DateFormat('dd/MM/yyyy').format(leave.endDate),
+                              text: DateFormat('dd-MM-yyyy').format(leave.endDate),
                               width: otherWidth,
                             ),
                             _TableCell(text: leave.endTime, width: otherWidth),
+                            _TableCell(
+                              text: leave.appliedOn != null
+                                  ? DateFormat('dd-MM-yyyy HH:mm').format(leave.appliedOn!)
+                                  : 'N/A',
+                              width: otherWidth,
+                            ),
+                            _TableCell(
+                              text: leave.approvedOn != null
+                                  ? DateFormat('dd-MM-yyyy HH:mm').format(leave.approvedOn!)
+                                  : 'N/A',
+                              width: otherWidth,
+                            ),
                             _TableCell(text: leave.processor ?? '', width: otherWidth),
                             _TableCell(
                               child: StatusBadge(status: leave.status),

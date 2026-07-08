@@ -85,6 +85,8 @@ class EmployeeModel {
   final String reportingOfficer;
   final String address;
   final String emergencyContact;
+  final List<Map<String, dynamic>> nominees;
+  final List<Map<String, dynamic>> serviceHistory;
 
   const EmployeeModel({
     required this.id,
@@ -117,5 +119,7 @@ class EmployeeModel {
     required this.reportingOfficer,
     required this.address,
     required this.emergencyContact,
+    required this.nominees,
+    required this.serviceHistory,
   });
 }

@@ -1,0 +1,18 @@
+<lint-module
+    format="1"
+    dir="/Users/apple/Flutter WB Project/Moil/android/app"
+    name=":app"
+    type="APP"
+    maven="android:app:unspecified"
+    agpVersion="8.11.1"
+    buildFolder="/Users/apple/Flutter WB Project/Moil/build/app"
+    bootClassPath="/Users/apple/Library/Android/sdk/platforms/android-36/android.jar:/Users/apple/Library/Android/sdk/build-tools/35.0.0/core-lambda-stubs.jar"
+    javaSourceLevel="17"
+    compileTarget="android-36">
+  <lintOptions
+      abortOnError="true"
+      absolutePaths="true"
+      checkReleaseBuilds="true"
+      explainIssues="true"/>
+  <variant name="release"/>
+</lint-module>

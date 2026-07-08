@@ -13,6 +13,7 @@ import '../../leave/screen/leave_status_screen.dart';
 import '../../leave/screen/leave_apply_screen.dart';
 import '../../leave/screen/leave_encashment_screen.dart';
 import '../../leave/screen/leave_calendar_screen.dart';
+import '../../leave/screen/leave_balance_screen.dart';
 import '../../tour/screen/tour_screen.dart';
 import '../../profile/screen/profile_screen.dart';
 import '../../profile/screen/employee_directory_screen.dart';
@@ -149,6 +150,7 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
           const LeaveApplyPage(),
           const LeaveEncashmentPage(),
           const LeaveCalendarPage(),
+          const LeaveQuotaPage(),
         ];
 
         return Scaffold(
@@ -299,7 +301,7 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
             padding: const EdgeInsets.only(left: 20, bottom: 8),
             child: Column(
               children: [
-                _buildSubmenuItem(
+                 _buildSubmenuItem(
                   label: 'Leave Status',
                   isSelected: selectedIndex == 1,
                   onTap: () {
@@ -307,7 +309,14 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
                   },
                 ),
                 _buildSubmenuItem(
-                  label: 'Quarterly Leave Apply',
+                  label: 'Leave Quota',
+                  isSelected: selectedIndex == 11,
+                  onTap: () {
+                    navBarController.setSelectedIndex(11);
+                  },
+                ),
+                _buildSubmenuItem(
+                  label: 'Leave Apply',
                   isSelected: selectedIndex == 8,
                   onTap: () {
                     navBarController.setSelectedIndex(8);
@@ -626,7 +635,7 @@ class LeaveApplyPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: CustomAppBar(
-        title: 'Quarterly Leave Apply',
+        title: 'Leave Apply',
         showBack: Navigator.of(context).canPop(),
       ),
       body: const LeaveApplyScreen(),
@@ -662,6 +671,22 @@ class LeaveCalendarPage extends StatelessWidget {
         showBack: Navigator.of(context).canPop(),
       ),
       body: const LeaveCalendarScreen(),
+    );
+  }
+}
+
+class LeaveQuotaPage extends StatelessWidget {
+  const LeaveQuotaPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: CustomAppBar(
+        title: 'Leave Quota',
+        showBack: Navigator.of(context).canPop(),
+      ),
+      body: const LeaveBalanceScreen(),
     );
   }
 }

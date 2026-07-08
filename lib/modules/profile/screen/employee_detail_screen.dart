@@ -3,6 +3,7 @@ import 'package:employee_management/modules/profile/controller/profile_controlle
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../utils/profile_pdf_helper.dart';
 import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
 import '../../../model/employee_model.dart';
@@ -44,6 +45,16 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       appBar: CustomAppBar(
         title: widget.employee.name,
         showBack: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print_outlined, color: Colors.white),
+            tooltip: 'Print HRIS Profile',
+            onPressed: () {
+              ProfilePdfHelper.printEmployeeProfilePdf(widget.employee);
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Column(
         children: [
@@ -87,19 +98,20 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
   String _formatRawDate(String? raw) {
     if (raw == null || raw.isEmpty || raw == 'N/A') return 'N/A';
     try {
-      final parts = raw.split(RegExp(r'[./-]'));
+      final clean = raw.replaceAll('/', '-');
+      final parts = clean.split('-');
       if (parts.length == 3) {
-        int month = int.parse(parts[0]);
-        int day = int.parse(parts[1]);
+        int day = int.parse(parts[0]);
+        int month = int.parse(parts[1]);
         int year = int.parse(parts[2]);
         if (year < 100) {
           year += (year > 30 ? 1900 : 2000);
         }
         final dt = DateTime(year, month, day);
-        return DateFormat('dd/MM/yyyy').format(dt);
+        return DateFormat('dd-MM-yyyy').format(dt);
       }
     } catch (_) {}
-    return raw;
+    return raw.replaceAll('/', '-');
   }
 
   Widget _buildProfileTab() {
@@ -186,204 +198,716 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       'empRoll': raw['empRoll'] ?? emp.reportingOfficer,
     };
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    final List<Map<String, String>> familyList = [];
+    if (data['spouse'] != 'N/A' && data['spouse'].toString().isNotEmpty) {
+      familyList.add({
+        'name': data['spouse'],
+        'relation': 'Spouse',
+        'dob': data['spouseDob'],
+        'gender': 'Female',
+      });
+    }
+    if (data['father'] != 'N/A' && data['father'].toString().isNotEmpty) {
+      familyList.add({
+        'name': data['father'],
+        'relation': 'Father',
+        'dob': data['fatherDob'],
+        'gender': 'Male',
+      });
+    }
+    if (data['mother'] != 'N/A' && data['mother'].toString().isNotEmpty) {
+      familyList.add({
+        'name': data['mother'],
+        'relation': 'Mother',
+        'dob': data['motherDob'],
+        'gender': 'Female',
+      });
+    }
+    if (data['child1'] != 'N/A' && data['child1'].toString().isNotEmpty) {
+      familyList.add({
+        'name': data['child1'],
+        'relation': 'Child',
+        'dob': data['childDob1'],
+        'gender': 'Female',
+      });
+    }
+    if (data['child2'] != 'N/A' && data['child2'].toString().isNotEmpty) {
+      familyList.add({
+        'name': data['child2'],
+        'relation': 'Child',
+        'dob': data['childDob2'],
+        'gender': 'Male',
+      });
+    }
+
+    Widget cellText(String text, {bool bold = false, TextAlign align = TextAlign.left, Color? bgColor}) {
+      return Container(
+        color: bgColor,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        alignment: align == TextAlign.center ? Alignment.center : Alignment.centerLeft,
+        child: Text(
+          text,
+          textAlign: align,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+            color: Colors.black87,
+          ),
+        ),
+      );
+    }
+
+    Widget sectionHeader(String title) {
+      return Container(
+        width: double.infinity,
+        color: Colors.grey.shade200,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        alignment: Alignment.center,
+        child: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            letterSpacing: 0.5,
+          ),
+        ),
+      );
+    }
+
+    final bool isMobile = MediaQuery.of(context).size.width < 800;
+
+    Widget responsiveTable({required Widget child, double? minWidth}) {
+      if (isMobile) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: minWidth ?? 600,
+            child: child,
+          ),
+        );
+      }
+      return child;
+    }
+
+    Widget buildMainDetailsTable() {
+      if (isMobile) {
+        return Table(
+          border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
+          columnWidths: const {
+            0: FixedColumnWidth(150),
+            1: FlexColumnWidth(),
+          },
+          children: [
+            TableRow(children: [
+              cellText('NAME', bold: true),
+              cellText(': ${data['name']}'),
+            ]),
+            TableRow(children: [
+              cellText('EMP.NO / FORM B', bold: true),
+              cellText(': ${data['empNo'].toString().padLeft(8, '0')}'),
+            ]),
+            TableRow(children: [
+              cellText('FATHER / SPOUSE NAME', bold: true),
+              cellText(': ${data['spouse']}'),
+            ]),
+            TableRow(children: [
+              cellText('BASIC (RS)', bold: true),
+              cellText(': ${data['basic']}'),
+            ]),
+            TableRow(children: [
+              cellText('DESIGNATION', bold: true),
+              cellText(': ${data['position']}'),
+            ]),
+            TableRow(children: [
+              cellText('PRESENT PLACE OF POSTING', bold: true),
+              cellText(': ${data['subarea']}'),
+            ]),
+            TableRow(children: [
+              cellText('DEPARTMENT', bold: true),
+              cellText(': ${data['dept']}'),
+            ]),
+            TableRow(children: [
+              cellText('DATE OF PRESENT POSTING', bold: true),
+              cellText(': ${data['dopp']}'),
+            ]),
+            TableRow(children: [
+              cellText('PRESENT GRADE', bold: true),
+              cellText(': ${data['subgroup']}'),
+            ]),
+            TableRow(children: [
+              cellText('DATE OF RETIREMENT', bold: true),
+              cellText(': ${data['retireDate']}'),
+            ]),
+            TableRow(children: [
+              cellText('DATE OF BIRTH', bold: true),
+              cellText(': ${data['dob']}'),
+            ]),
+            TableRow(children: [
+              cellText('MOBLIE NO', bold: true),
+              cellText(': ${data['mobile']}'),
+            ]),
+            TableRow(children: [
+              cellText('DATE OF JOINING IN MOIL', bold: true),
+              cellText(': ${data['apptDate']}'),
+            ]),
+            TableRow(children: [
+              cellText('E-MAIL', bold: true),
+              cellText(': ${data['email']}'),
+            ]),
+            TableRow(children: [
+              cellText('DATE OF LAST PROMOTION', bold: true),
+              cellText(': ${data['dosl']}'),
+            ]),
+            TableRow(children: [
+              cellText('UAN NO', bold: true),
+              cellText(': ${data['uan']}'),
+            ]),
+            TableRow(children: [
+              cellText('APPOINTMENT TYPE', bold: true),
+              cellText(': ${data['group']}'),
+            ]),
+            TableRow(children: [
+              cellText('PAN NO', bold: true),
+              cellText(': ${data['pan']}'),
+            ]),
+            TableRow(children: [
+              cellText('CATEGORY', bold: true),
+              cellText(': ${data['caste']}'),
+            ]),
+            TableRow(children: [
+              cellText('AADHAR NO', bold: true),
+              cellText(': ${data['aadhar']}'),
+            ]),
+            TableRow(children: [
+              cellText('BLOOD GROUP', bold: true),
+              cellText(': ${data['blood']}'),
+            ]),
+            TableRow(children: [
+              cellText('PRAN NO', bold: true),
+              cellText(': ${data['praan']}'),
+            ]),
+            TableRow(children: [
+              cellText('GENDER', bold: true),
+              cellText(': ${data['gender']}'),
+            ]),
+            TableRow(children: [
+              cellText('PF NO/SSPF NO', bold: true),
+              cellText(': ${data['pfNo']}'),
+            ]),
+            TableRow(children: [
+              cellText('MARITAL STATUS', bold: true),
+              cellText(': ${data['marital']}'),
+            ]),
+            TableRow(children: [
+              cellText('PENSION NO', bold: true),
+              cellText(': ${data['pensionPf']}'),
+            ]),
+          ],
+        );
+      } else {
+        return Table(
+          border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
+          columnWidths: const {
+            0: FixedColumnWidth(180),
+            1: FlexColumnWidth(),
+            2: FixedColumnWidth(180),
+            3: FlexColumnWidth(),
+          },
+          children: [
+            TableRow(children: [
+              cellText('NAME', bold: true),
+              cellText(': ${data['name']}'),
+              cellText('EMP.NO / FORM B', bold: true),
+              cellText(': ${data['empNo'].toString().padLeft(8, '0')}'),
+            ]),
+            TableRow(children: [
+              cellText('FATHER / SPOUSE NAME', bold: true),
+              cellText(': ${data['spouse']}'),
+              cellText('BASIC (RS)', bold: true),
+              cellText(': ${data['basic']}'),
+            ]),
+            TableRow(children: [
+              cellText('DESIGNATION', bold: true),
+              cellText(': ${data['position']}'),
+              cellText('PRESENT PLACE OF POSTING', bold: true),
+              cellText(': ${data['subarea']}'),
+            ]),
+            TableRow(children: [
+              cellText('DEPARTMENT', bold: true),
+              cellText(': ${data['dept']}'),
+              cellText('DATE OF PRESENT POSTING', bold: true),
+              cellText(': ${data['dopp']}'),
+            ]),
+            TableRow(children: [
+              cellText('PRESENT GRADE', bold: true),
+              cellText(': ${data['subgroup']}'),
+              cellText('DATE OF RETIREMENT', bold: true),
+              cellText(': ${data['retireDate']}'),
+            ]),
+            TableRow(children: [
+              cellText('DATE OF BIRTH', bold: true),
+              cellText(': ${data['dob']}'),
+              cellText('MOBLIE NO', bold: true),
+              cellText(': ${data['mobile']}'),
+            ]),
+            TableRow(children: [
+              cellText('DATE OF JOINING IN MOIL', bold: true),
+              cellText(': ${data['apptDate']}'),
+              cellText('E-MAIL', bold: true),
+              cellText(': ${data['email']}'),
+            ]),
+            TableRow(children: [
+              cellText('DATE OF LAST PROMOTION', bold: true),
+              cellText(': ${data['dosl']}'),
+              cellText('UAN NO', bold: true),
+              cellText(': ${data['uan']}'),
+            ]),
+            TableRow(children: [
+              cellText('APPOINTMENT TYPE', bold: true),
+              cellText(': ${data['group']}'),
+              cellText('PAN NO', bold: true),
+              cellText(': ${data['pan']}'),
+            ]),
+            TableRow(children: [
+              cellText('CATEGORY', bold: true),
+              cellText(': ${data['caste']}'),
+              cellText('AADHAR NO', bold: true),
+              cellText(': ${data['aadhar']}'),
+            ]),
+            TableRow(children: [
+              cellText('BLOOD GROUP', bold: true),
+              cellText(': ${data['blood']}'),
+              cellText('PRAN NO', bold: true),
+              cellText(': ${data['praan']}'),
+            ]),
+            TableRow(children: [
+              cellText('GENDER', bold: true),
+              cellText(': ${data['gender']}'),
+              cellText('PF NO/SSPF NO', bold: true),
+              cellText(': ${data['pfNo']}'),
+            ]),
+            TableRow(children: [
+              cellText('MARITAL STATUS', bold: true),
+              cellText(': ${data['marital']}'),
+              cellText('PENSION NO', bold: true),
+              cellText(': ${data['pensionPf']}'),
+            ]),
+          ],
+        );
+      }
+    }
+
+    Widget contentCard = Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Official Placement Info Card
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionHeader(
-                  title: 'Official Placement Info',
-                  icon: Icons.badge_outlined,
+          // Header Block
+          isMobile
+              ? Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'मॉयल\nMOIL',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 6.5,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'MOIL LIMITED',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Human Resource Information System',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Text(
+                          '( EMPLOYEE PROFILE )',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'मॉयल\nMOIL',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 6.5,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'MOIL LIMITED',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Human Resource Information System',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Text(
+                          '( EMPLOYEE PROFILE )',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 50),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                InfoRow(label: 'Employee Number', value: data['empNo'] ?? ''),
-                InfoRow(label: 'Employment Status', value: data['status'] ?? ''),
-                InfoRow(label: 'Employee Group', value: data['group'] ?? ''),
-                InfoRow(label: 'Employee Subgroup', value: data['subgroup'] ?? ''),
-                InfoRow(label: 'Employee Subgroup Text', value: data['subgroupText'] ?? ''),
-                InfoRow(label: 'Position Name', value: data['position'] ?? ''),
-                InfoRow(label: 'Seniority Number', value: data['seniority'] ?? ''),
-                InfoRow(label: 'Payscale', value: data['payscale'] ?? ''),
-                InfoRow(label: 'Department', value: data['dept'] ?? ''),
-                InfoRow(label: 'Personnel Subarea', value: data['subarea'] ?? ''),
-                InfoRow(label: 'Emp Roll', value: data['empRoll'] ?? ''),
+          const SizedBox(height: 12),
+          const Divider(thickness: 1.5, color: Colors.black87),
+          const SizedBox(height: 12),
+
+          // Employee Grid Block
+          buildMainDetailsTable(),
+          const SizedBox(height: 16),
+
+          // Centered Avatar Photo Frame
+          Center(
+            child: Container(
+              width: 100,
+              height: 110,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade400, width: 1),
+              ),
+              child: emp.employeeId == '446' || emp.employeeId == '00000446'
+                  ? Image.asset(
+                      'assets/images/raja_talathoti.jpg',
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      color: Colors.grey.shade100,
+                      child: const Center(
+                        child: Text(
+                          'Passport Size\nPhoto',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 8, color: Colors.grey),
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Qualification Header & Table
+          sectionHeader('QUALIFICATION PROFILE'),
+          const SizedBox(height: 4),
+          responsiveTable(
+            minWidth: 400,
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
+              columnWidths: const {
+                0: FixedColumnWidth(50),
+                1: FlexColumnWidth(),
+              },
+              children: [
+                TableRow(
+                  decoration: BoxDecoration(color: Colors.grey.shade50),
+                  children: [
+                    cellText('SL NO', bold: true),
+                    cellText('QUALIFICATION', bold: true),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    cellText('1'),
+                    cellText(data['qual'] ?? ''),
+                  ],
+                ),
               ],
             ),
           ),
           const SizedBox(height: 16),
 
-          // Personal Details Card
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Family Particulars
+          sectionHeader('FAMILY PARTICULARS'),
+          const SizedBox(height: 4),
+          responsiveTable(
+            minWidth: 600,
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
+              columnWidths: const {
+                0: FixedColumnWidth(50),
+                1: FlexColumnWidth(2.5),
+                2: FlexColumnWidth(2.5),
+                3: FlexColumnWidth(2),
+                4: FlexColumnWidth(1.5),
+              },
               children: [
-                const SectionHeader(
-                  title: 'Personal Info',
-                  icon: Icons.person_outline_rounded,
+                TableRow(
+                  decoration: BoxDecoration(color: Colors.grey.shade50),
+                  children: [
+                    cellText('SL NO', bold: true),
+                    cellText('NAME OF THE MEMBER', bold: true),
+                    cellText('RELATIONSHIP WITH THE EMPLOYEE', bold: true),
+                    cellText('DATE OF BIRTH', bold: true),
+                    cellText('GENDER', bold: true),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                InfoRow(label: 'Gender', value: data['gender'] ?? ''),
-                InfoRow(label: 'Date of Birth', value: data['dob'] ?? ''),
-                InfoRow(label: 'Qualification', value: data['qual'] ?? ''),
-                InfoRow(label: 'Basic Pay', value: 'Rs. ${data['basic'] ?? ''}'),
-                InfoRow(label: 'Date of Appointment', value: data['apptDate'] ?? ''),
-                InfoRow(label: 'DoSL', value: data['dosl'] ?? ''),
-                InfoRow(label: 'DoPP', value: data['dopp'] ?? ''),
-                InfoRow(label: 'Date Of Retirement', value: data['retireDate'] ?? ''),
-                InfoRow(label: 'Caste', value: data['caste'] ?? ''),
-                InfoRow(label: 'Marital Status', value: data['marital'] ?? ''),
-                InfoRow(label: 'Blood Group', value: data['blood'] ?? ''),
+                if (familyList.isNotEmpty)
+                  ...familyList.asMap().entries.map((e) {
+                    final idx = e.key + 1;
+                    final member = e.value;
+                    return TableRow(children: [
+                      cellText('$idx'),
+                      cellText(member['name'] ?? ''),
+                      cellText(member['relation'] ?? ''),
+                      cellText(member['dob'] ?? ''),
+                      cellText(member['gender'] ?? ''),
+                    ]);
+                  }).toList()
+                else
+                  TableRow(children: [
+                    cellText('1'),
+                    cellText('N/A'),
+                    cellText('N/A'),
+                    cellText('N/A'),
+                    cellText('N/A'),
+                  ]),
               ],
             ),
           ),
           const SizedBox(height: 16),
 
-          // Identity & Insurance Card
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Nominees of Employee
+          sectionHeader('NOMINEES OF EMPLOYEE'),
+          const SizedBox(height: 4),
+          responsiveTable(
+            minWidth: 600,
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
+              columnWidths: const {
+                0: FixedColumnWidth(50),
+                1: FlexColumnWidth(2.5),
+                2: FlexColumnWidth(2.5),
+                3: FlexColumnWidth(2),
+                4: FlexColumnWidth(1.8),
+                5: FixedColumnWidth(55),
+              },
               children: [
-                const SectionHeader(
-                  title: 'Identity & Insurance / Policies',
-                  icon: Icons.card_membership_outlined,
+                TableRow(
+                  decoration: BoxDecoration(color: Colors.grey.shade50),
+                  children: [
+                    cellText('SL.NO', bold: true),
+                    cellText('BENEFIT TYPE', bold: true),
+                    cellText('NOMINEE NAME', bold: true),
+                    cellText('RELATIONSHIP WITH EMPLOYEE', bold: true),
+                    cellText('DATE OF BIRTH', bold: true),
+                    cellText('%AGE', bold: true),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                InfoRow(label: 'Voter ID', value: data['voter'] ?? ''),
-                InfoRow(label: 'UAN', value: data['uan'] ?? ''),
-                InfoRow(label: 'Pension ID', value: data['pension'] ?? ''),
-                InfoRow(label: 'Passport Number', value: data['passport'] ?? ''),
-                InfoRow(label: 'PAN Number', value: data['pan'] ?? ''),
-                InfoRow(label: 'Gratuity Number', value: data['gratuity'] ?? ''),
-                InfoRow(label: 'FB', value: data['fb'] ?? ''),
-                InfoRow(label: 'Driving License Number', value: data['dl'] ?? ''),
-                InfoRow(label: 'Aadhar Number', value: data['aadhar'] ?? ''),
-                InfoRow(label: 'PRAAN No.', value: data['praan'] ?? ''),
-                InfoRow(label: 'PPO No.', value: data['ppo'] ?? ''),
-                InfoRow(label: 'New Medical Policy', value: data['newMed'] ?? ''),
-                InfoRow(label: 'Old Medical Policy', value: data['oldMed'] ?? ''),
-                InfoRow(label: 'EPF Trust ID', value: data['epf'] ?? ''),
-                InfoRow(label: 'Employee PF Number', value: data['pfNo'] ?? ''),
-                InfoRow(label: 'Employee Pension Number', value: data['pensionPf'] ?? ''),
+                if (emp.nominees.isNotEmpty)
+                  ...emp.nominees.asMap().entries.map((e) {
+                    final idx = e.key + 1;
+                    final nom = e.value;
+                    return TableRow(children: [
+                      cellText('$idx'),
+                      cellText(nom['benefit'] ?? ''),
+                      cellText(nom['name'] ?? ''),
+                      cellText(nom['relation'] ?? ''),
+                      cellText(nom['dob'] ?? ''),
+                      cellText('${nom['percentage']}%'),
+                    ]);
+                  }).toList()
+                else
+                  TableRow(children: [
+                    cellText('1'),
+                    cellText('N/A'),
+                    cellText('N/A'),
+                    cellText('N/A'),
+                    cellText('N/A'),
+                    cellText('N/A'),
+                  ]),
               ],
             ),
           ),
           const SizedBox(height: 16),
 
-          // Financial / Bank Details Card
-          GlassCard(
+          // Address Block
+          sectionHeader('ADDRESS'),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300, width: 0.5),
+            ),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SectionHeader(
-                  title: 'Financial & Bank Details',
-                  icon: Icons.account_balance_outlined,
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      const TextSpan(text: 'PERMANENT ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black87)),
+                      TextSpan(text: '${data['permAddress']}\n', style: const TextStyle(fontSize: 10, color: Colors.black87)),
+                      const TextSpan(text: 'LOCAL ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black87)),
+                      TextSpan(text: '${data['tempAddress']}\n', style: const TextStyle(fontSize: 10, color: Colors.black87)),
+                      const TextSpan(text: 'EMERGENCY ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black87)),
+                      TextSpan(text: '${data['emergAddress']}', style: const TextStyle(fontSize: 10, color: Colors.black87)),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                InfoRow(label: 'Bank Key', value: data['bankKey'] ?? ''),
-                InfoRow(label: 'Bank Account Number', value: data['bankAcc'] ?? ''),
-                InfoRow(label: 'Spouse Account No.', value: data['spouseAcc'] ?? ''),
-                InfoRow(label: 'Purchase Price', value: data['purchasePrice'] ?? ''),
-                InfoRow(label: 'File Number', value: data['fileNo'] ?? ''),
               ],
             ),
           ),
           const SizedBox(height: 16),
 
-          // Nominees Card
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Service Particulars
+          sectionHeader('SERVICE PARTICULARS'),
+          const SizedBox(height: 4),
+          responsiveTable(
+            minWidth: 700,
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
+              columnWidths: const {
+                0: FixedColumnWidth(40),
+                1: FlexColumnWidth(2.5),
+                2: FixedColumnWidth(50),
+                3: FlexColumnWidth(1.8),
+                4: FlexColumnWidth(1.5),
+                5: FlexColumnWidth(1.5),
+                6: FlexColumnWidth(2.2),
+              },
               children: [
-                const SectionHeader(
-                  title: 'Nomination Details',
-                  icon: Icons.assignment_turned_in_outlined,
+                TableRow(
+                  decoration: BoxDecoration(color: Colors.grey.shade50),
+                  children: [
+                    cellText('SL NO', bold: true),
+                    cellText('DESIGNATION', bold: true),
+                    cellText('GRADE', bold: true),
+                    cellText('LOCATION', bold: true),
+                    cellText('FROM', bold: true),
+                    cellText('TO', bold: true),
+                    cellText('PAYSCALE', bold: true),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                InfoRow(label: 'Nomination Gratuity', value: data['nomGratuity'] ?? ''),
-                InfoRow(label: 'Relation (Gratuity)', value: data['nomGratuityRel'] ?? ''),
-                InfoRow(label: 'Nomination PF', value: data['nomPf'] ?? ''),
-                InfoRow(label: 'Relation (PF)', value: data['nomPfRel'] ?? ''),
-                InfoRow(label: 'Nomination Pension', value: data['nomPension'] ?? ''),
-                InfoRow(label: 'Relation (Pension)', value: data['nomPensionRel'] ?? ''),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Family Members Details Card
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionHeader(
-                  title: 'Family Members Details',
-                  icon: Icons.family_restroom_outlined,
-                ),
-                const SizedBox(height: 12),
-                InfoRow(label: 'Spouse Name', value: data['spouse'] ?? ''),
-                InfoRow(label: 'Spouse DOB', value: data['spouseDob'] ?? ''),
-                InfoRow(label: 'Child 1 Name', value: data['child1'] ?? ''),
-                InfoRow(label: 'Child 1 DOB', value: data['childDob1'] ?? ''),
-                InfoRow(label: 'Child 2 Name', value: data['child2'] ?? ''),
-                InfoRow(label: 'Child 2 DOB', value: data['childDob2'] ?? ''),
-                InfoRow(label: 'Child 3 Name', value: data['child3'] ?? ''),
-                InfoRow(label: 'Child 3 DOB', value: data['childDob3'] ?? ''),
-                InfoRow(label: 'Mother Name', value: data['mother'] ?? ''),
-                InfoRow(label: 'Mother DOB', value: data['motherDob'] ?? ''),
-                InfoRow(label: 'Father Name', value: data['father'] ?? ''),
-                InfoRow(label: 'Father DOB', value: data['fatherDob'] ?? ''),
-                InfoRow(label: 'Other Member', value: data['other'] ?? ''),
-                InfoRow(label: 'Other DOB', value: data['otherDob'] ?? ''),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Contact & Addresses Card
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionHeader(
-                  title: 'Contact Details & Addresses',
-                  icon: Icons.home_outlined,
-                ),
-                const SizedBox(height: 12),
-                InfoRow(label: 'Mobile Number', value: data['mobile'] ?? ''),
-                InfoRow(label: 'Email ID', value: data['email'] ?? ''),
-                InfoRow(label: 'Permanent Address', value: data['permAddress'] ?? ''),
-                InfoRow(label: 'Temporary Address', value: data['tempAddress'] ?? ''),
-                InfoRow(label: 'Emergency Address', value: data['emergAddress'] ?? ''),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Separation Details Card
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionHeader(
-                  title: 'Separation & Other Details',
-                  icon: Icons.exit_to_app_outlined,
-                ),
-                const SizedBox(height: 12),
-                InfoRow(label: 'Date of Separation', value: data['sepDate'] ?? ''),
-                InfoRow(label: 'Reason of Separation', value: data['sepReason'] ?? ''),
-                InfoRow(label: 'Hire Action Reason', value: data['hireReason'] ?? ''),
-                InfoRow(label: 'Penalty Awarded', value: data['penalty'] ?? ''),
+                if (emp.serviceHistory.isNotEmpty)
+                  ...emp.serviceHistory.asMap().entries.map((e) {
+                    final idx = e.key + 1;
+                    final sh = e.value;
+                    return TableRow(children: [
+                      cellText('$idx'),
+                      cellText(sh['designation'] ?? ''),
+                      cellText(sh['grade'] ?? ''),
+                      cellText(sh['location'] ?? ''),
+                      cellText(sh['from'] ?? ''),
+                      cellText(sh['to'] ?? ''),
+                      cellText(sh['payscale'] ?? ''),
+                    ]);
+                  }).toList()
+                else
+                  TableRow(children: [
+                    cellText('1'),
+                    cellText(emp.designation),
+                    cellText(emp.presentGrade),
+                    cellText(emp.presentPlaceOfPosting),
+                    cellText(emp.joinDate),
+                    cellText('Till Date'),
+                    cellText(emp.basicSalary),
+                  ]),
               ],
             ),
           ),
         ],
       ),
     );
+
+    if (isMobile) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: contentCard,
+      );
+    } else {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: 850,
+            child: contentCard,
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildLeavesTab() {

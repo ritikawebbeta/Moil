@@ -17,7 +17,6 @@ import '../../profile/screen/profile_screen.dart';
 import '../../profile/screen/employee_directory_screen.dart';
 import '../../../model/leave_model.dart';
 import '../../profile/controller/profile_controller.dart';
-import '../../../model/employee_model.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -49,7 +48,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: CustomScrollView(
             slivers: [
               SliverToBoxAdapter(child: _buildHeader(context)),
-              SliverToBoxAdapter(child: _buildEmployeeDetailsCard(context)),
               SliverToBoxAdapter(child: _buildQuickStats(context)),
               SliverToBoxAdapter(child: _buildModuleGrid(context)),
               SliverToBoxAdapter(child: _buildRecentLeaves(context)),
@@ -170,10 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (dateStr.isEmpty) return 'N/A';
     try {
       final clean = dateStr.replaceAll('/', '-');
-      final parsed = DateFormat('dd-MM-yyyy').parse(clean);
-      return DateFormat('dd-MM-yyyy').format(parsed);
-    } catch (_) {
-      final parts = dateStr.split(RegExp(r'[-/]'));
+      final parts = clean.split('-');
       if (parts.length == 3) {
         String day = parts[0].padLeft(2, '0');
         String month = parts[1].padLeft(2, '0');
@@ -183,116 +178,10 @@ class _HomeScreenState extends State<HomeScreen> {
           day = year.padLeft(2, '0');
           year = temp;
         }
-        return '$day-$month-$year';
+        return '$day/$month/$year';
       }
-      return dateStr;
-    }
-  }
-
-  Widget _buildEmployeeDetailsCard(BuildContext context) {
-    final profileController = context.watch<ProfileController>();
-    final employee = profileController.employee;
-
-    if (profileController.isLoading || employee == null) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        child: GlassCard(
-          child: const Center(
-            child: SizedBox(
-              height: 40,
-              width: 40,
-              child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: GlassCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.badge_outlined,
-                    color: AppColors.primary,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Employee Information',
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const Divider(height: 20, color: AppColors.cardBorder),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final double itemWidth = constraints.maxWidth > 600
-                    ? (constraints.maxWidth - 32) / 3
-                    : (constraints.maxWidth - 16) / 2;
-
-                return Wrap(
-                  spacing: 16,
-                  runSpacing: 16,
-                  children: [
-                    _buildInfoDetail('Employee No.', employee.employeeId, itemWidth),
-                    _buildInfoDetail('Present Grade', employee.presentGrade, itemWidth),
-                    _buildInfoDetail('Appointment Type', employee.appointmentType, itemWidth),
-                    _buildInfoDetail('Place of Posting', employee.presentPlaceOfPosting, itemWidth),
-                    _buildInfoDetail('Last Promotion Date', _formatDate(employee.lastPromotionDate), itemWidth),
-                    _buildInfoDetail('Date of Joining', _formatDate(employee.joinDate), itemWidth),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoDetail(String label, String value, double width) {
-    return SizedBox(
-      width: width,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value.isEmpty ? 'N/A' : value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
+    } catch (_) {}
+    return dateStr.replaceAll('-', '/');
   }
 
   Widget _buildQuickStats(BuildContext context) {
@@ -530,15 +419,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Quick Access',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -604,44 +484,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildRecentLeaves(BuildContext context) {
     final leaveController = context.watch<LeaveController>();
-    final recentLeaves = leaveController.leaves.take(3).toList();
+    final recentLeaves = leaveController.leaves;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 24, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Recent Leaves',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LeaveScreen()),
-                ),
-                child: const Text(
-                  'View All',
-                  style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
+          const Text(
+            'Leaves Till Date',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           if (recentLeaves.isEmpty)
             const GlassCard(
               child: Center(
                 child: Padding(
                   padding: EdgeInsets.all(20),
                   child: Text(
-                    'No recent leave records',
+                    'No leave records found',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ),
@@ -769,7 +634,7 @@ class _LeaveListTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${DateFormat('dd/MM/yyyy').format(leave.startDate)} – ${DateFormat('dd/MM/yyyy').format(leave.endDate)}',
+                    '${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)}',
                     style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 11,

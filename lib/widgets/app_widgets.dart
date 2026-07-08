@@ -1,6 +1,7 @@
 // lib/widgets/app_widgets.dart
 // Reusable widgets updated for MOIL white-and-blue light corporate theme
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../utils/app_colors.dart';
@@ -519,6 +520,7 @@ class CompulsoryPasswordChangeDialog extends StatefulWidget {
 class _CompulsoryPasswordChangeDialogState
     extends State<CompulsoryPasswordChangeDialog> {
   final _formKey = GlobalKey<FormState>();
+ 
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -528,10 +530,21 @@ class _CompulsoryPasswordChangeDialogState
   bool _obscureConfirm = true;
 
   @override
+  void initState() {
+    super.initState();
+    if (kDebugMode) {
+      _currentPasswordController.text = "1009522";
+      _newPasswordController.text = "10095222";
+      _confirmPasswordController.text = "10095222";
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: widget.dismissible,
       child: Dialog(
+        
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         backgroundColor: Colors.white,
         child: ConstrainedBox(
@@ -657,6 +670,7 @@ class _CompulsoryPasswordChangeDialogState
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                     onPressed: () {
+                      
                       if (_formKey.currentState!.validate()) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(

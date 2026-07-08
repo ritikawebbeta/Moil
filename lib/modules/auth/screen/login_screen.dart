@@ -101,6 +101,7 @@ class _LoginScreenState extends State<LoginScreen>
       // RO1
        _employeeIdController.text = "16194";
       _passwordController.text = "1009522";
+      
 
     }
     _animController = AnimationController(
@@ -208,7 +209,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         const SizedBox(height: 16),
         const Text(
-          'मॉयल लिमिटेड · MOIL Limited',
+          'मॉयल लिमिटेड',
           style: TextStyle(
             color: AppColors.primary,
             fontSize: 22,
@@ -216,13 +217,14 @@ class _LoginScreenState extends State<LoginScreen>
             letterSpacing: 1.5,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         const Text(
-          'Leave Management System',
+          'MOIL Limited',
           style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
+            color: AppColors.primary,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.2,
           ),
         ),
       ],
@@ -238,19 +240,11 @@ class _LoginScreenState extends State<LoginScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              StringsUtils.welcome,
+              'Sign In',
               style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              StringsUtils.loginSubtitle,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
               ),
             ),
             const SizedBox(height: 24),
@@ -293,19 +287,8 @@ class _LoginScreenState extends State<LoginScreen>
                   v == null || v.isEmpty ? 'Password is required' : null,
             ),
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {},
-                child: const Text(
-                  StringsUtils.forgotPassword,
-                  style: TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600),
-                ),
-              ),
-            ),
+   
+           
             const SizedBox(height: 12),
             // Error Message
             Consumer<AuthController>(
@@ -357,28 +340,28 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildFooter() {
-    return Column(
+    return const Column(
       children: [
-        Row(
-          children: [
-            const Expanded(child: Divider(color: AppColors.cardBorder)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                'SECURED BY SAP',
-                style: TextStyle(
-                  color: AppColors.textHint,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-            const Expanded(child: Divider(color: AppColors.cardBorder)),
-          ],
+        Text(
+          'Unable to Login? Please contact head office team on:',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 16),
-        const Text(
+        SizedBox(height: 4),
+        Text(
+          'Email: moilnagpur@gmail.com\nContact no.: +91 89567 93981',
+          style: TextStyle(
+            color: AppColors.textHint,
+            fontSize: 12,
+            height: 1.4,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        Text(
           '© 2026 MOIL Limited. All rights reserved.',
           style: TextStyle(
             color: AppColors.textHint,
