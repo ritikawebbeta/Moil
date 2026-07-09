@@ -29,15 +29,15 @@ class HolidayController extends ChangeNotifier {
     await Future.delayed(const Duration(milliseconds: 300));
 
     _holidays = [
-      // 2025 Public Holidays (from previous screenshot)
-      HolidayModel(id: '1', name: 'Republic Day', date: DateTime(2025, 1, 26), type: 'National', isNational: true),
-      HolidayModel(id: '2', name: 'Holi', date: DateTime(2025, 3, 14), type: 'National', isNational: true),
-      HolidayModel(id: '3', name: 'Dr.Babasaheb Ambedkar Jayanti', date: DateTime(2025, 4, 14), type: 'National', isNational: true),
-      HolidayModel(id: '4', name: 'Independence Day', date: DateTime(2025, 8, 15), type: 'National', isNational: true),
-      HolidayModel(id: '5', name: 'Narbodh/Pola', date: DateTime(2025, 8, 24), type: 'Regional', isNational: false),
-      HolidayModel(id: '6', name: 'Mahatma Gandhi Jayanti', date: DateTime(2025, 10, 2), type: 'National', isNational: true),
-      HolidayModel(id: '7', name: 'Diwali', date: DateTime(2025, 10, 20), type: 'National', isNational: true),
-      HolidayModel(id: '8', name: 'Diwali', date: DateTime(2025, 10, 21), type: 'National', isNational: true),
+      // 2026 Public Holidays (from previous screenshot)
+      HolidayModel(id: '1', name: 'Republic Day', date: DateTime(2026, 1, 26), type: 'National', isNational: true),
+      HolidayModel(id: '2', name: 'Holi', date: DateTime(2026, 3, 14), type: 'National', isNational: true),
+      HolidayModel(id: '3', name: 'Dr.Babasaheb Ambedkar Jayanti', date: DateTime(2026, 4, 14), type: 'National', isNational: true),
+      HolidayModel(id: '4', name: 'Independence Day', date: DateTime(2026, 8, 15), type: 'National', isNational: true),
+      HolidayModel(id: '5', name: 'Narbodh/Pola', date: DateTime(2026, 8, 24), type: 'Regional', isNational: false),
+      HolidayModel(id: '6', name: 'Mahatma Gandhi Jayanti', date: DateTime(2026, 10, 2), type: 'National', isNational: true),
+      HolidayModel(id: '7', name: 'Diwali', date: DateTime(2026, 10, 20), type: 'National', isNational: true),
+      HolidayModel(id: '8', name: 'Diwali', date: DateTime(2026, 10, 21), type: 'National', isNational: true),
 
       // 2026 Optional/Restricted Holidays (from the new screenshot)
       HolidayModel(id: 'opt1', name: 'NEW YEAR\'S DAY', date: DateTime(2026, 1, 1), type: 'Optional', isNational: false),

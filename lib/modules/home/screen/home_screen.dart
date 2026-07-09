@@ -201,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     for (var b in leaveController.balances) {
       final name = b.timeAccount.toLowerCase();
-      final dateRange = '${DateFormat('dd/MM/yyyy').format(b.deductionFrom)} to ${DateFormat('dd/MM/yyyy').format(b.deductionTo)}';
+      final dateRange = '${DateFormat('dd/MM/yyyy').format(b.deductionFrom)}';
       if (name.contains('earned')) {
         el = b.entitlementMinusPlanned;
         elDates = dateRange;
@@ -221,28 +221,28 @@ class _HomeScreenState extends State<HomeScreen> {
       _StatCard(
         title: 'Earned Leave',
         value: el % 1 == 0 ? '${el.toInt()}' : '$el',
-        subtitle: elDates.isNotEmpty ? 'EL Balance\n($elDates)' : 'EL Balance',
+        subtitle: elDates.isNotEmpty ? '$elDates' : 'EL Balance',
         icon: Icons.event_available_rounded,
         color: AppColors.primary,
       ),
       _StatCard(
         title: 'Casual Leave',
         value: cl % 1 == 0 ? '${cl.toInt()}' : '$cl',
-        subtitle: clDates.isNotEmpty ? 'CL Balance\n($clDates)' : 'CL Balance',
+        subtitle: clDates.isNotEmpty ? '$clDates' : 'CL Balance',
         icon: Icons.date_range_rounded,
         color: AppColors.warning,
       ),
       _StatCard(
         title: 'Half Pay Leave',
         value: hpl % 1 == 0 ? '${hpl.toInt()}' : '$hpl',
-        subtitle: hplDates.isNotEmpty ? 'HPL Balance\n($hplDates)' : 'HPL Balance',
+        subtitle: hplDates.isNotEmpty ? '$hplDates' : 'HPL Balance',
         icon: Icons.hourglass_bottom_rounded,
         color: AppColors.success,
       ),
       _StatCard(
         title: 'Optional Leave',
         value: op % 1 == 0 ? '${op.toInt()}' : '$op',
-        subtitle: opDates.isNotEmpty ? 'OP Balance\n($opDates)' : 'OP Balance',
+        subtitle: opDates.isNotEmpty ? '$opDates' : 'OP Balance',
         icon: Icons.celebration_rounded,
         color: const Color(0xFF8B5CF6),
       ),
