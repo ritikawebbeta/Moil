@@ -10,6 +10,7 @@ import '../controller/leave_controller.dart';
 import '../../../widgets/app_widgets.dart';
 import '../../../model/leave_model.dart';
 import '../../auth/controller/auth_controller.dart';
+import '../../profile/controller/profile_controller.dart';
 
 class LeaveCalendarScreen extends StatefulWidget {
   const LeaveCalendarScreen({super.key});
@@ -35,7 +36,13 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    final auth = context.read<AuthController>();
+    final user = auth.user;
+    final loggedInEmpNo = user?.employeeId;
+    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
+        emp['reportingOfficer'] == loggedInEmpNo ||
+        emp['reportingOfficer1'] == loggedInEmpNo);
+    _tabController = TabController(length: isReportingOfficer ? 2 : 1, vsync: this);
   }
 
   @override
@@ -47,9 +54,12 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthController>().user;
-    final isRO = user?.role == 'RO' || user?.role == 'RO1';
+    final loggedInEmpNo = user?.employeeId;
+    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
+        emp['reportingOfficer'] == loggedInEmpNo ||
+        emp['reportingOfficer1'] == loggedInEmpNo);
 
-    if (!isRO) {
+    if (!isReportingOfficer) {
       return _buildPersonalCalendar();
     }
 

@@ -10,6 +10,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../utils/app_colors.dart';
 import '../../auth/controller/auth_controller.dart';
+import '../../profile/controller/profile_controller.dart';
 import '../controller/tour_controller.dart';
 import '../../../model/tour_model.dart';
 import '../../../widgets/app_widgets.dart';
@@ -527,7 +528,13 @@ class _TourCalendarTabState extends State<_TourCalendarTab>
   @override
   void initState() {
     super.initState();
-    _subTabController = TabController(length: 2, vsync: this);
+    final auth = context.read<AuthController>();
+    final user = auth.user;
+    final loggedInEmpNo = user?.employeeId;
+    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
+        emp['reportingOfficer'] == loggedInEmpNo ||
+        emp['reportingOfficer1'] == loggedInEmpNo);
+    _subTabController = TabController(length: isReportingOfficer ? 2 : 1, vsync: this);
   }
 
   @override
@@ -548,6 +555,17 @@ class _TourCalendarTabState extends State<_TourCalendarTab>
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    final user = auth.user;
+    final loggedInEmpNo = user?.employeeId;
+    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
+        emp['reportingOfficer'] == loggedInEmpNo ||
+        emp['reportingOfficer1'] == loggedInEmpNo);
+
+    if (!isReportingOfficer) {
+      return _buildPersonalCalendar();
+    }
+
     return Column(
       children: [
         // Sub tabs: Personal vs Team

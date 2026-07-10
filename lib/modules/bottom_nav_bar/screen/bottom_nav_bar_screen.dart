@@ -16,6 +16,7 @@ import '../../leave/screen/leave_calendar_screen.dart';
 import '../../leave/screen/leave_balance_screen.dart';
 import '../../tour/screen/tour_screen.dart';
 import '../../profile/screen/profile_screen.dart';
+import '../../profile/controller/profile_controller.dart';
 import '../../profile/screen/employee_directory_screen.dart';
 import '../../payslip/screen/payslip_screen.dart';
 import '../../holiday/screen/holiday_screen.dart';
@@ -351,7 +352,10 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
 
   Widget _buildSidebar(BottomNavBarController navBarController, int selectedIndex) {
     final user = context.watch<AuthController>().user;
-    final isEmployee = user?.role == 'Employee' || (user?.role != 'RO' && user?.role != 'RO1');
+    final loggedInEmpNo = user?.employeeId;
+    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
+        emp['reportingOfficer'] == loggedInEmpNo ||
+        emp['reportingOfficer1'] == loggedInEmpNo);
 
     return Container(
       width: _isSidebarCollapsed ? 70 : 250,
@@ -464,7 +468,7 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
                   isSelected: selectedIndex == 2,
                   onTap: () => navBarController.setSelectedIndex(2),
                 ),
-                if (!isEmployee)
+                if (isReportingOfficer)
                   _buildSidebarTile(
                     icon: Icons.people_outline_rounded,
                     activeIcon: Icons.people_rounded,
@@ -486,7 +490,7 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
                   isSelected: selectedIndex == 6,
                   onTap: () => navBarController.setSelectedIndex(6),
                 ),
-                if (!isEmployee)
+                if (isReportingOfficer)
                   _buildSidebarTile(
                     icon: Icons.approval_rounded,
                     activeIcon: Icons.approval_rounded,

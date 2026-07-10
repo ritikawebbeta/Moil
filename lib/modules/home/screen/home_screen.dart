@@ -492,8 +492,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final navBarController = context.read<BottomNavBarController>();
     final user = context.watch<AuthController>().user;
-    final isEmployee =
-        user?.role == 'Employee' || (user?.role != 'RO' && user?.role != 'RO1');
+    final loggedInEmpNo = user?.employeeId;
+    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
+        emp['reportingOfficer'] == loggedInEmpNo ||
+        emp['reportingOfficer1'] == loggedInEmpNo);
 
     final modules = [
       _ModuleItem(
@@ -560,7 +562,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         },
       ),
-      if (!isEmployee)
+      if (isReportingOfficer)
         _ModuleItem(
           title: 'Directory',
           subtitle: 'Employee List',
@@ -578,7 +580,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           },
         ),
-      if (!isEmployee)
+      if (isReportingOfficer)
         _ModuleItem(
           title: 'Approvals',
           subtitle: 'Pending Actions',
