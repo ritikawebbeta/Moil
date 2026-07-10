@@ -98,7 +98,6 @@ class ProfileController extends ChangeNotifier {
       'reportingOfficer': '16194',
       'reportingOfficer1': '0',
     },
-
     {
       'empNo': '540',
       'name': 'Swapnil Kanthiram Manpe',

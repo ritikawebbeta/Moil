@@ -127,14 +127,19 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                   eventLoader: (day) => _getEventsForDay(day, controller.leaves),
                   calendarStyle: CalendarStyle(
                     defaultTextStyle: const TextStyle(color: AppColors.textPrimary),
-                    weekendTextStyle: const TextStyle(color: AppColors.error),
+                    weekendTextStyle: const TextStyle(color: AppColors.textPrimary),
                     selectedDecoration: const BoxDecoration(
                       color: AppColors.primary,
                       shape: BoxShape.circle,
                     ),
                     todayDecoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.15),
+                      color: Colors.transparent,
+                      border: Border.all(color: AppColors.primary, width: 1.5),
                       shape: BoxShape.circle,
+                    ),
+                    todayTextStyle: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
                     ),
                     markerDecoration: const BoxDecoration(
                       color: AppColors.warning,
@@ -160,7 +165,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                   ),
                   daysOfWeekStyle: const DaysOfWeekStyle(
                     weekdayStyle: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                    weekendStyle: TextStyle(color: AppColors.error, fontSize: 12),
+                    weekendStyle: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ),
               ),
@@ -338,6 +343,17 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
     final daysInMonth = DateUtils.getDaysInMonth(_focusedDay.year, _focusedDay.month);
     final firstDay = DateTime(_focusedDay.year, _focusedDay.month, 1);
 
+    final auth = context.read<AuthController>();
+    final currentUser = auth.user;
+    final loggedInEmpNo = currentUser?.employeeId;
+    final List<String> teamList = ProfileController.rawEmployees
+        .where((emp) =>
+            emp['reportingOfficer'] == loggedInEmpNo ||
+            emp['reportingOfficer1'] == loggedInEmpNo)
+        .map((emp) => emp['name'] as String)
+        .toList();
+    final teamToDisplay = teamList.isNotEmpty ? teamList : _teamMembers;
+
     return GlassCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -356,7 +372,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                 _buildDateHeaderRow(daysInMonth, firstDay),
                 const Divider(height: 1, color: AppColors.cardBorder),
                 // Team member rows
-                ..._teamMembers.asMap().entries.map((e) {
+                ...teamToDisplay.asMap().entries.map((e) {
                   return _buildTeamMemberRow(e.value, daysInMonth, firstDay, e.key.isEven);
                 }),
               ],

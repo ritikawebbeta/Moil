@@ -25,7 +25,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LeaveController>().fetchLeaves(widget.employee.employeeId);
       context.read<TourController>().fetchTours(widget.employee.employeeId);
@@ -77,6 +77,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                 Tab(text: 'Profile'),
                 Tab(text: 'Leaves'),
                 Tab(text: 'Tours'),
+                Tab(text: 'Payslips'),
               ],
             ),
           ),
@@ -87,6 +88,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                 _buildProfileTab(),
                 _buildLeavesTab(),
                 _buildToursTab(),
+                _buildPayslipsTab(),
               ],
             ),
           ),
@@ -891,23 +893,21 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       ),
     );
 
-    if (isMobile) {
-      return Padding(
-        padding: const EdgeInsets.all(16),
-        child: contentCard,
-      );
-    } else {
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            width: 850,
-            child: contentCard,
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Center(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: isMobile ? 650 : 850,
+              child: contentCard,
+            ),
           ),
         ),
-      );
-    }
+      ),
+    );
   }
 
   Widget _buildLeavesTab() {
@@ -1056,6 +1056,335 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildPayslipsTab() {
+    final double basic = double.tryParse(widget.employee.basicSalary.replaceAll(',', '')) ?? 100000.00;
+    
+    final List<Map<String, dynamic>> payslips = [
+      {'month': 'May 2026', 'gross': basic * 1.85, 'deductions': basic * 0.46, 'status': 'Available'},
+      {'month': 'April 2026', 'gross': basic * 1.85, 'deductions': basic * 0.46, 'status': 'Available'},
+      {'month': 'March 2026', 'gross': basic * 1.85, 'deductions': basic * 0.45, 'status': 'Available'},
+      {'month': 'February 2026', 'gross': basic * 1.85, 'deductions': basic * 0.46, 'status': 'Available'},
+      {'month': 'January 2026', 'gross': basic * 1.85, 'deductions': basic * 0.46, 'status': 'Available'},
+      {'month': 'December 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+    ];
+
+    final format = NumberFormat.currency(locale: 'HI', symbol: '₹', decimalDigits: 2);
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: payslips.length,
+      itemBuilder: (context, index) {
+        final p = payslips[index];
+        final double gross = p['gross'];
+        final double deductions = p['deductions'];
+        final double net = gross - deductions;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: GlassCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.receipt_long_rounded, color: AppColors.primary),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p['month'],
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Text(
+                            'Net: ${format.format(net)}',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.success),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Gross: ${format.format(gross)}',
+                            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.visibility_outlined, color: AppColors.primary, size: 20),
+                      onPressed: () {
+                        _viewEmployeePayslip(p['month'], gross, deductions, net);
+                      },
+                      tooltip: 'View Payslip',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.download_outlined, color: AppColors.textSecondary, size: 20),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Downloading Payslip for ${p['month']}...')),
+                        );
+                      },
+                      tooltip: 'Download PDF',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _viewEmployeePayslip(String month, double gross, double deductions, double net) {
+    final emp = widget.employee;
+    final format = NumberFormat.currency(locale: 'HI', symbol: '₹', decimalDigits: 2);
+    final double basic = double.tryParse(emp.basicSalary.replaceAll(',', '')) ?? 100000.00;
+    final double da = basic * 0.50;
+    final double hra = basic * 0.15;
+    final double otherPerks = gross - basic - da - hra;
+    final double pf = deductions * 0.35;
+    final double it = deductions * 0.45;
+    final double otherDeductions = deductions - pf - it;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        Widget cellText(String text, {bool bold = false, TextAlign align = TextAlign.left, Color? bgColor}) {
+          return Container(
+            color: bgColor,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            alignment: align == TextAlign.center
+                ? Alignment.center
+                : align == TextAlign.right ? Alignment.centerRight : Alignment.centerLeft,
+            child: Text(
+              text,
+              textAlign: align,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+                color: Colors.black87,
+              ),
+            ),
+          );
+        }
+
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SingleChildScrollView(
+              child: Container(
+                width: 700,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: const BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                'मॉयल\nMOIL',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 6, color: Colors.white, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'MOIL LIMITED',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
+                            ),
+                          ],
+                        ),
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('PAYMENT SLIP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            Text('CONFIDENTIAL', style: TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const Divider(thickness: 1, color: Colors.black54),
+                    const SizedBox(height: 8),
+                    Table(
+                      border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
+                      children: [
+                        TableRow(children: [
+                          cellText('Employee Code', bold: true),
+                          cellText(emp.employeeId),
+                          cellText('Name', bold: true),
+                          cellText(emp.name),
+                        ]),
+                        TableRow(children: [
+                          cellText('Department', bold: true),
+                          cellText(emp.department),
+                          cellText('Designation', bold: true),
+                          cellText(emp.designation),
+                        ]),
+                        TableRow(children: [
+                          cellText('Grade', bold: true),
+                          cellText(emp.presentGrade),
+                          cellText('Payslip Month', bold: true),
+                          cellText(month),
+                        ]),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('EARNINGS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                              const SizedBox(height: 4),
+                              Table(
+                                border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
+                                children: [
+                                  TableRow(
+                                    decoration: BoxDecoration(color: Colors.grey.shade100),
+                                    children: [
+                                      cellText('Description', bold: true),
+                                      cellText('Amount', bold: true, align: TextAlign.right),
+                                    ],
+                                  ),
+                                  TableRow(children: [
+                                    cellText('Basic Pay'),
+                                    cellText(format.format(basic), align: TextAlign.right),
+                                  ]),
+                                  TableRow(children: [
+                                    cellText('Dearness Allowance (DA)'),
+                                    cellText(format.format(da), align: TextAlign.right),
+                                  ]),
+                                  TableRow(children: [
+                                    cellText('House Rent Allowance (HRA)'),
+                                    cellText(format.format(hra), align: TextAlign.right),
+                                  ]),
+                                  TableRow(children: [
+                                    cellText('Other Perks & Allowances'),
+                                    cellText(format.format(otherPerks), align: TextAlign.right),
+                                  ]),
+                                  TableRow(
+                                    decoration: BoxDecoration(color: Colors.grey.shade100),
+                                    children: [
+                                      cellText('Total Earnings', bold: true),
+                                      cellText(format.format(gross), bold: true, align: TextAlign.right),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('DEDUCTIONS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                              const SizedBox(height: 4),
+                              Table(
+                                border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
+                                children: [
+                                  TableRow(
+                                    decoration: BoxDecoration(color: Colors.grey.shade100),
+                                    children: [
+                                      cellText('Description', bold: true),
+                                      cellText('Amount', bold: true, align: TextAlign.right),
+                                    ],
+                                  ),
+                                  TableRow(children: [
+                                    cellText('Provident Fund (PF)'),
+                                    cellText(format.format(pf), align: TextAlign.right),
+                                  ]),
+                                  TableRow(children: [
+                                    cellText('Income Tax (TDS)'),
+                                    cellText(format.format(it), align: TextAlign.right),
+                                  ]),
+                                  TableRow(children: [
+                                    cellText('Other Deductions'),
+                                    cellText(format.format(otherDeductions), align: TextAlign.right),
+                                  ]),
+                                  TableRow(children: [
+                                    cellText('-'),
+                                    cellText('-', align: TextAlign.right),
+                                  ]),
+                                  TableRow(
+                                    decoration: BoxDecoration(color: Colors.grey.shade100),
+                                    children: [
+                                      cellText('Total Deductions', bold: true),
+                                      cellText(format.format(deductions), bold: true, align: TextAlign.right),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('NET DISTRIBUTABLE PAY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: AppColors.success)),
+                          Text(format.format(net), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.success)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Close'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         );
       },
     );

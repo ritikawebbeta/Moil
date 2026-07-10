@@ -320,13 +320,12 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context, child) {
               return Theme(
                 data: Theme.of(context).copyWith(
-                  colorScheme: ColorScheme.dark(
+                  colorScheme: const ColorScheme.light(
                     primary: AppColors.primary,
                     onPrimary: Colors.white,
-                    surface: AppColors.backgroundSecondary,
                     onSurface: AppColors.textPrimary,
                   ),
-                  dialogBackgroundColor: AppColors.background,
+                  dialogBackgroundColor: AppColors.backgroundSecondary,
                 ),
                 child: child!,
               );
