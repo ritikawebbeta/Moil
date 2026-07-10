@@ -31,6 +31,7 @@ class BottomNavBarScreen extends StatefulWidget {
 class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
   bool _isSidebarCollapsed = false; // State for web sidebar size
   bool _isLeaveMenuExpanded = false;
+  bool _userHasToggled = false;
 
   @override
   void initState() {
@@ -130,6 +131,11 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWeb = constraints.maxWidth > 800;
+        final isTablet = constraints.maxWidth > 800 && constraints.maxWidth <= 1050;
+
+        if (!_userHasToggled && isTablet && !_isSidebarCollapsed) {
+          _isSidebarCollapsed = true;
+        }
 
         // Prevent index out of bounds in case mobile tab controller is set past mobile range
         int selectedIndex = navBarController.selectedIndex;
@@ -368,7 +374,10 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.menu_rounded, color: Colors.white),
-                        onPressed: () => setState(() => _isSidebarCollapsed = false),
+                        onPressed: () => setState(() {
+                          _isSidebarCollapsed = false;
+                          _userHasToggled = true;
+                        }),
                       ),
                       const SizedBox(height: 12),
                       Container(
@@ -426,7 +435,10 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.chevron_left_rounded, color: Colors.white70),
-                        onPressed: () => setState(() => _isSidebarCollapsed = true),
+                        onPressed: () => setState(() {
+                          _isSidebarCollapsed = true;
+                          _userHasToggled = true;
+                        }),
                       ),
                     ],
                   ),

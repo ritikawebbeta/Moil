@@ -951,7 +951,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                         const Icon(Icons.date_range_outlined, size: 14, color: AppColors.textSecondary),
                         const SizedBox(width: 4),
                         Text(
-                          '${DateFormat('dd/MM/yyyy').format(leave.startDate)} – ${DateFormat('dd/MM/yyyy').format(leave.endDate)}',
+                          '${DateFormat('dd-MM-yyyy').format(leave.startDate)} – ${DateFormat('dd-MM-yyyy').format(leave.endDate)}',
                           style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
                         ),
                       ],
@@ -1039,7 +1039,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                         const Icon(Icons.calendar_today_outlined, size: 14, color: AppColors.textSecondary),
                         const SizedBox(width: 4),
                         Text(
-                          '${DateFormat('dd/MM/yyyy').format(tour.startDate)} – ${DateFormat('dd/MM/yyyy').format(tour.endDate)}',
+                          '${DateFormat('dd-MM-yyyy').format(tour.startDate)} – ${DateFormat('dd-MM-yyyy').format(tour.endDate)}',
                           style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                         ),
                       ],

@@ -139,10 +139,7 @@ class LeaveBalanceScreen extends StatelessWidget {
   }
 
   Widget _buildTimeAccountsTable(LeaveController controller) {
-    final filteredBalances = controller.balances.where((b) {
-      final name = b.timeAccount.toLowerCase();
-      return name != 'earned leave' && name != 'casual leave';
-    }).toList();
+    final filteredBalances = controller.balances;
 
     return GlassCard(
       padding: EdgeInsets.zero,
@@ -155,97 +152,110 @@ class LeaveBalanceScreen extends StatelessWidget {
             trailing: _FilterRow(),
           ),
           // Table
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Container(
-                  color: AppColors.backgroundTertiary,
-                  child: const Row(
-                    children: [
-                      _HeaderCell(text: 'Time Account', width: 160),
-                      _HeaderCell(text: 'Deduction from', width: 130),
-                      _HeaderCell(text: 'Deduction to', width: 130),
-                      _HeaderCell(text: 'Entitlement', width: 120),
-                      _HeaderCell(text: 'Entitlement Minus Planned', width: 200),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1, color: AppColors.cardBorder),
-                // Rows
-                if (filteredBalances.isEmpty)
-                  const SizedBox(
-                     width: 740,
-                    height: 80,
-                    child: Center(
-                      child: Text('No records found', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                    ),
-                  )
-                else
-                  ...filteredBalances.asMap().entries.map((entry) {
-                    final i = entry.key;
-                    final b = entry.value;
-                    final color = _getLeaveColor(b.timeAccount);
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final totalWidth = constraints.maxWidth > 740 ? constraints.maxWidth : 740.0;
+              final extraWidth = totalWidth - 740.0;
 
-                    return Column(
-                      children: [
-                        Container(
-                          color: i.isEven ? AppColors.background.withOpacity(0.3) : Colors.transparent,
-                          child: Row(
-                            children: [
-                              _BodyCell(
-                                width: 160,
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        color: color,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      b.timeAccount,
-                                      style: TextStyle(
-                                        color: color,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              _BodyCell(
-                                text: DateFormat('dd/MM/yyyy').format(b.deductionFrom),
-                                width: 130,
-                              ),
-                              _BodyCell(
-                                text: DateFormat('dd/MM/yyyy').format(b.deductionTo),
-                                width: 130,
-                              ),
-                              _BodyCell(
-                                text: '${b.entitlement.toStringAsFixed(2)} Days',
-                                width: 120,
-                                valueColor: AppColors.success,
-                              ),
-                              _BodyCell(
-                                text: '${b.entitlementMinusPlanned.toStringAsFixed(2)} Days',
-                                width: 200,
-                                valueColor: AppColors.primary,
-                              ),
-                            ],
-                          ),
+              final nameWidth = 160.0 + extraWidth * 0.3;
+              final dedFromWidth = 130.0 + extraWidth * 0.15;
+              final dedToWidth = 130.0 + extraWidth * 0.15;
+              final entitlementWidth = 120.0 + extraWidth * 0.15;
+              final plannedWidth = 200.0 + extraWidth * 0.25;
+
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Container(
+                      color: AppColors.backgroundTertiary,
+                      child: Row(
+                        children: [
+                          _HeaderCell(text: 'Time Account', width: nameWidth),
+                          _HeaderCell(text: 'Deduction from', width: dedFromWidth),
+                          _HeaderCell(text: 'Deduction to', width: dedToWidth),
+                          _HeaderCell(text: 'Entitlement', width: entitlementWidth),
+                          _HeaderCell(text: 'Entitlement Minus Planned', width: plannedWidth),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: AppColors.cardBorder),
+                    // Rows
+                    if (filteredBalances.isEmpty)
+                      SizedBox(
+                        width: totalWidth,
+                        height: 80,
+                        child: const Center(
+                          child: Text('No records found', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                         ),
-                        const Divider(height: 1, color: AppColors.cardBorder),
-                      ],
-                    );
-                  }),
-              ],
-            ),
+                      )
+                    else
+                      ...filteredBalances.asMap().entries.map((entry) {
+                        final i = entry.key;
+                        final b = entry.value;
+                        final color = _getLeaveColor(b.timeAccount);
+
+                        return Column(
+                          children: [
+                            Container(
+                              color: i.isEven ? AppColors.background.withOpacity(0.3) : Colors.transparent,
+                              child: Row(
+                                children: [
+                                  _BodyCell(
+                                    width: nameWidth,
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            color: color,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          b.timeAccount,
+                                          style: TextStyle(
+                                            color: color,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  _BodyCell(
+                                    text: DateFormat('dd-MM-yyyy').format(b.deductionFrom),
+                                    width: dedFromWidth,
+                                  ),
+                                  _BodyCell(
+                                    text: DateFormat('dd-MM-yyyy').format(b.deductionTo),
+                                    width: dedToWidth,
+                                  ),
+                                  _BodyCell(
+                                    text: '${b.entitlement.toStringAsFixed(2)} Days',
+                                    width: entitlementWidth,
+                                    valueColor: AppColors.success,
+                                  ),
+                                  _BodyCell(
+                                    text: '${b.entitlementMinusPlanned.toStringAsFixed(2)} Days',
+                                    width: plannedWidth,
+                                    valueColor: AppColors.primary,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Divider(height: 1, color: AppColors.cardBorder),
+                          ],
+                        );
+                      }),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),

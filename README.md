@@ -161,5 +161,22 @@ We recently completed a comprehensive set of rebranding and core modules alignme
 ### 🎉 Holiday Calendar
 - Programmed the list to grey out passed/expired holidays in lists.
 - Populated the 8 public holidays for 2025 and 18 optional/restricted holidays for 2026 exactly matching the provided screenshots.
-- Defaulted the selected year filter to `2025` for immediate loading of public holidays.
+- Defaulted the selected year filter to `2026` for immediate loading of public holidays.
+
+### 👥 Dynamic Organizational Hierarchy & Approvals Routing
+- Standardized all 12 employees inside `rawEmployees` database with their correct parameters (basic salary, dates, and names).
+- Mapped relationships using `reportingOfficer` (RO) and `reportingOfficer1` (RO1/RO2) fields.
+- Upgraded the **Employee Directory** and **Pending Approvals** (leaves & tours) modules to dynamically filter and display records under a manager's direct and indirect hierarchy, removing all hardcoded employee list logic.
+
+### 📱 Responsive Overflows & Tablet Sidebar Auto-Collapse
+- Resolved vertical cell flows in the dashboard module grid by dynamically calculating cross-axis counts (8 columns on Desktop, 4 columns on Tablet, 3 columns on Mobile) and aspect ratios.
+- Positioned dashboard quick stats cards as a 2x2 grid on Tablet widths to prevent clipping.
+- Enabled automatic sidebar collapse on Tablet screen sizes (widths between 800px and 1050px) to maximize workspace canvas space.
+- Configured Payslip salary summary cards to stack vertically on Mobile screens.
+
+### ⚙️ Date-driven Dashboard Balances & Navigation Alignment
+- Integrated independent visual calendar date pickers inside each quick stats box on the dashboard (rendered in the `dd-MM-yyyy` format with a calendar icon), launching a calendar dialog to select any target date. Balances recalculate dynamically based on the chosen date.
+- Restored display of **all leaves** (including Earned Leave and Casual Leave) in the Leave Quota (Time Accounts) table.
+- Fixed the Leave Status **"New"** button navigation logic to correctly route to the "Leave Apply" tab (index 2).
+- Expanded the Holiday Calendar year filter choices to support future years (`[2025, 2026, 2027, 2028, 2029, 2030]`).
 

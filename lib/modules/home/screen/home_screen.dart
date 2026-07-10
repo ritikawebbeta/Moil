@@ -17,6 +17,8 @@ import '../../profile/screen/profile_screen.dart';
 import '../../profile/screen/employee_directory_screen.dart';
 import '../../../model/leave_model.dart';
 import '../../profile/controller/profile_controller.dart';
+import '../../tour/controller/tour_controller.dart';
+import '../../../model/tour_model.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,15 +28,23 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  DateTime _earnedLeaveDate = DateTime(2026, 1, 1);
+  DateTime _casualLeaveDate = DateTime(2026, 1, 1);
+  DateTime _hplDate = DateTime(2026, 1, 1);
+  DateTime _optionalLeaveDate = DateTime(2026, 1, 1);
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthController>();
       if (auth.user != null) {
-        context.read<ProfileController>().fetchEmployeeProfile(auth.user!.employeeId);
+        context
+            .read<ProfileController>()
+            .fetchEmployeeProfile(auth.user!.employeeId);
         context.read<LeaveController>().fetchLeaves(auth.user!.employeeId);
         context.read<LeaveController>().fetchBalances(auth.user!.employeeId);
+        context.read<TourController>().fetchTours(auth.user!.employeeId);
       }
     });
   }
@@ -50,8 +60,34 @@ class _HomeScreenState extends State<HomeScreen> {
               SliverToBoxAdapter(child: _buildHeader(context)),
               SliverToBoxAdapter(child: _buildQuickStats(context)),
               SliverToBoxAdapter(child: _buildModuleGrid(context)),
-              SliverToBoxAdapter(child: _buildRecentLeaves(context)),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: MediaQuery.of(context).size.width < 800
+                      ? Column(
+                          children: [
+                            _buildRecentLeaves(context),
+                            // const SizedBox(height: 12),
+                            _buildRecentTours(context),
+                          ],
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _buildRecentLeaves(context),
+                            ),
+                            // const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildRecentTours(context),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 24),
+              ),
             ],
           ),
         ),
@@ -187,89 +223,265 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildQuickStats(BuildContext context) {
     final leaveController = context.watch<LeaveController>();
     final width = MediaQuery.of(context).size.width;
-    final isWeb = width > 800;
 
-    double el = 185.50;
-    double cl = 10.50;
-    double hpl = 107.00;
-    double op = 2.00;
+    double baseEl = 185.50;
+    double baseCl = 10.50;
+    double baseHpl = 107.00;
+    double baseOp = 2.00;
 
-    String elDates = '';
-    String clDates = '';
-    String hplDates = '';
-    String opDates = '';
-
+    // Retrieve default base balances from controller
     for (var b in leaveController.balances) {
       final name = b.timeAccount.toLowerCase();
-      final dateRange = '${DateFormat('dd/MM/yyyy').format(b.deductionFrom)}';
       if (name.contains('earned')) {
-        el = b.entitlementMinusPlanned;
-        elDates = dateRange;
+        baseEl = b.entitlementMinusPlanned;
       } else if (name.contains('casual')) {
-        cl = b.entitlementMinusPlanned;
-        clDates = dateRange;
+        baseCl = b.entitlementMinusPlanned;
       } else if (name.contains('hpl')) {
-        hpl = b.entitlementMinusPlanned;
-        hplDates = dateRange;
+        baseHpl = b.entitlementMinusPlanned;
       } else if (name.contains('optional')) {
-        op = b.entitlementMinusPlanned;
-        opDates = dateRange;
+        baseOp = b.entitlementMinusPlanned;
       }
+    }
+
+    int getDayOfYear(DateTime date) {
+      return date.difference(DateTime(date.year, 1, 1)).inDays + 1;
+    }
+
+    double calculateEarnedLeave() {
+      final int year = _earnedLeaveDate.year;
+      double val = baseEl;
+      if (year == 2025) {
+        val = 120.0;
+      } else if (year == 2027) {
+        val = 245.50;
+      } else if (year > 2027) {
+        val = 245.50 + (year - 2027) * 30.0;
+      }
+      final double consumed = getDayOfYear(_earnedLeaveDate) * 0.1;
+      return (val - consumed).clamp(0.0, 500.0);
+    }
+
+    double calculateCasualLeave() {
+      final int year = _casualLeaveDate.year;
+      double val = baseCl;
+      if (year == 2025) {
+        val = 8.0;
+      } else if (year >= 2027) {
+        val = 12.0;
+      }
+      final double consumed = getDayOfYear(_casualLeaveDate) * 0.02;
+      return (val - consumed).clamp(0.0, 12.0);
+    }
+
+    double calculateHPL() {
+      final int year = _hplDate.year;
+      double val = baseHpl;
+      if (year == 2025) {
+        val = 90.0;
+      } else if (year == 2027) {
+        val = 127.0;
+      } else if (year > 2027) {
+        val = 127.0 + (year - 2027) * 20.0;
+      }
+      final double consumed = getDayOfYear(_hplDate) * 0.05;
+      return (val - consumed).clamp(0.0, 400.0);
+    }
+
+    double calculateOptionalLeave() {
+      final int year = _optionalLeaveDate.year;
+      double val = baseOp;
+      if (year == 2025) {
+        val = 1.0;
+      } else if (year >= 2027) {
+        val = 2.0;
+      }
+      if (_optionalLeaveDate.month > 6) {
+        val = (val - 1.0).clamp(0.0, 2.0);
+      }
+      return val;
+    }
+
+    final double el = calculateEarnedLeave();
+    final double cl = calculateCasualLeave();
+    final double hpl = calculateHPL();
+    final double op = calculateOptionalLeave();
+
+    Widget buildCalendarPicker({
+      required DateTime selectedDate,
+      required ValueChanged<DateTime> onDateSelected,
+    }) {
+      return InkWell(
+        onTap: () async {
+          final DateTime? picked = await showDatePicker(
+            context: context,
+            initialDate: selectedDate,
+            firstDate: DateTime(2025, 1, 1),
+            lastDate: DateTime(2030, 12, 31),
+            builder: (context, child) {
+              return Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: ColorScheme.dark(
+                    primary: AppColors.primary,
+                    onPrimary: Colors.white,
+                    surface: AppColors.backgroundSecondary,
+                    onSurface: AppColors.textPrimary,
+                  ),
+                  dialogBackgroundColor: AppColors.background,
+                ),
+                child: child!,
+              );
+            },
+          );
+          if (picked != null) {
+            onDateSelected(picked);
+          }
+        },
+        child: Container(
+          margin: const EdgeInsets.only(top: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.backgroundSecondary.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                DateFormat('dd-MM-yyyy').format(selectedDate),
+                style: const TextStyle(fontSize: 10, color: AppColors.textHint, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.calendar_today_rounded, color: AppColors.primary, size: 10),
+            ],
+          ),
+        ),
+      );
     }
 
     final cards = [
       _StatCard(
         title: 'Earned Leave',
-        value: el % 1 == 0 ? '${el.toInt()}' : '$el',
-        subtitle: elDates.isNotEmpty ? '$elDates' : 'EL Balance',
+        value: el % 1 == 0 ? '${el.toInt()}' : el.toStringAsFixed(1),
+        subtitleWidget: buildCalendarPicker(
+          selectedDate: _earnedLeaveDate,
+          onDateSelected: (date) {
+            setState(() {
+              _earnedLeaveDate = date;
+            });
+          },
+        ),
         icon: Icons.event_available_rounded,
         color: AppColors.primary,
       ),
       _StatCard(
         title: 'Casual Leave',
-        value: cl % 1 == 0 ? '${cl.toInt()}' : '$cl',
-        subtitle: clDates.isNotEmpty ? '$clDates' : 'CL Balance',
+        value: cl % 1 == 0 ? '${cl.toInt()}' : cl.toStringAsFixed(1),
+        subtitleWidget: buildCalendarPicker(
+          selectedDate: _casualLeaveDate,
+          onDateSelected: (date) {
+            setState(() {
+              _casualLeaveDate = date;
+            });
+          },
+        ),
         icon: Icons.date_range_rounded,
         color: AppColors.warning,
       ),
       _StatCard(
         title: 'Half Pay Leave',
-        value: hpl % 1 == 0 ? '${hpl.toInt()}' : '$hpl',
-        subtitle: hplDates.isNotEmpty ? '$hplDates' : 'HPL Balance',
+        value: hpl % 1 == 0 ? '${hpl.toInt()}' : hpl.toStringAsFixed(1),
+        subtitleWidget: buildCalendarPicker(
+          selectedDate: _hplDate,
+          onDateSelected: (date) {
+            setState(() {
+              _hplDate = date;
+            });
+          },
+        ),
         icon: Icons.hourglass_bottom_rounded,
         color: AppColors.success,
       ),
       _StatCard(
         title: 'Optional Leave',
-        value: op % 1 == 0 ? '${op.toInt()}' : '$op',
-        subtitle: opDates.isNotEmpty ? '$opDates' : 'OP Balance',
+        value: op % 1 == 0 ? '${op.toInt()}' : op.toStringAsFixed(1),
+        subtitleWidget: buildCalendarPicker(
+          selectedDate: _optionalLeaveDate,
+          onDateSelected: (date) {
+            setState(() {
+              _optionalLeaveDate = date;
+            });
+          },
+        ),
         icon: Icons.celebration_rounded,
         color: const Color(0xFF8B5CF6),
       ),
     ];
 
-    if (isWeb) {
-      return Container(
-        margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-        child: Row(
+    Widget buildCardsLayout() {
+      if (width > 1200) {
+        return Row(
           children: cards.map((c) => Expanded(child: Padding(
             padding: const EdgeInsets.only(right: 8),
             child: c,
           ))).toList(),
-        ),
+        );
+      } else if (width > 700) {
+        return Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: cards[0],
+                )),
+                Expanded(child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: cards[1],
+                )),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: cards[2],
+                )),
+                Expanded(child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: cards[3],
+                )),
+              ],
+            ),
+          ],
+        );
+      }
+
+      return Column(
+        children: cards.map((c) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: c,
+        )).toList(),
       );
     }
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      child: GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 1.25,
-        children: cards,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Leave Balance',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          buildCardsLayout(),
+        ],
       ),
     );
   }
@@ -280,7 +492,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final navBarController = context.read<BottomNavBarController>();
     final user = context.watch<AuthController>().user;
-    final isEmployee = user?.role == 'Employee' || (user?.role != 'RO' && user?.role != 'RO1');
+    final isEmployee =
+        user?.role == 'Employee' || (user?.role != 'RO' && user?.role != 'RO1');
 
     final modules = [
       _ModuleItem(
@@ -359,7 +572,8 @@ class _HomeScreenState extends State<HomeScreen> {
             } else {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const EmployeeDirectoryScreen()),
+                MaterialPageRoute(
+                    builder: (_) => const EmployeeDirectoryScreen()),
               );
             }
           },
@@ -411,8 +625,19 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     ];
 
-    final int crossAxisCount = isWeb ? 8 : 3;
-    final double childAspectRatio = isWeb ? 1.05 : 0.95;
+    final int crossAxisCount;
+    final double childAspectRatio;
+
+    if (width > 1200) {
+      crossAxisCount = 8;
+      childAspectRatio = 1.1;
+    } else if (width > 700) {
+      crossAxisCount = 4;
+      childAspectRatio = 1.25;
+    } else {
+      crossAxisCount = 3;
+      childAspectRatio = 0.95;
+    }
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 24, 20, 0),
@@ -434,7 +659,8 @@ class _HomeScreenState extends State<HomeScreen> {
               return GestureDetector(
                 onTap: m.onTap,
                 child: GlassCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -446,7 +672,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: m.color.withOpacity(0.15)),
                         ),
-                        child: Icon(m.icon, color: m.color, size: isWeb ? 18 : 20),
+                        child:
+                            Icon(m.icon, color: m.color, size: isWeb ? 18 : 20),
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -485,6 +712,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildRecentLeaves(BuildContext context) {
     final leaveController = context.watch<LeaveController>();
     final recentLeaves = leaveController.leaves;
+    final double width = MediaQuery.of(context).size.width;
+    final bool isWeb = width > 800;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 24, 20, 0),
@@ -507,13 +736,82 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: EdgeInsets.all(20),
                   child: Text(
                     'No leave records found',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ),
               ),
-            )
-          else
-            ...recentLeaves.map((leave) => _LeaveListTile(leave: leave)),
+            ),
+          // else if (isWeb)
+          //   Wrap(
+          //     spacing: 12,
+          //     runSpacing: 12,
+          //     children: recentLeaves.map((leave) {
+          //       return SizedBox(
+          //         width: width > 1200 ? (width - 80) / 3 : (width - 60) / 2,
+          //         child: _LeaveListTile(leave: leave),
+          //       );
+          //     }).toList(),
+          //   )
+          // else
+          Column(
+            children: recentLeaves
+                .map((leave) => _LeaveListTile(leave: leave))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentTours(BuildContext context) {
+    final tourController = context.watch<TourController>();
+    final tours = tourController.tours;
+    final double width = MediaQuery.of(context).size.width;
+    final bool isWeb = width > 800;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Tours Till Date',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (tours.isEmpty)
+            const GlassCard(
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'No tour records found',
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                ),
+              ),
+            ),
+          // else if (isWeb)
+          //   Wrap(
+          //     spacing: 12,
+          //     runSpacing: 12,
+          //     children: tours.map((tour) {
+          //       return SizedBox(
+          //         width: width > 1200 ? (width - 80) / 3 : (width - 60) / 2,
+          //         child: _TourListTile(tour: tour),
+          //       );
+          //     }).toList(),
+          //   )
+          // else
+          Column(
+            children: tours.map((tour) => _TourListTile(tour: tour)).toList(),
+          ),
         ],
       ),
     );
@@ -523,60 +821,92 @@ class _HomeScreenState extends State<HomeScreen> {
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
-  final String subtitle;
+  final Widget subtitleWidget;
   final IconData icon;
   final Color color;
 
   const _StatCard({
     required this.title,
     required this.value,
-    required this.subtitle,
+    required this.subtitleWidget,
     required this.icon,
     required this.color,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-            ),
+Widget build(BuildContext context) {
+  final double width = MediaQuery.of(context).size.width;
+  final bool isWeb = width > 800;
+
+  return GlassCard(
+    padding: const EdgeInsets.all(12),
+    child: isWeb
+        ? Row(
+            children: [
+              Icon(icon, color: color, size: 50),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitleWidget,
+                  ],
+                ),
+              ),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 40),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitleWidget,
+            ],
           ),
-          const SizedBox(height: 2),
-            Text(
-              title,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                color: AppColors.textHint,
-                fontSize: 9,
-              ),
-            ),
-          ],
-        ),
-      );
-    
-  }
+  );
 }
+  }
+
 
 class _ModuleItem {
   final String title;
@@ -644,6 +974,65 @@ class _LeaveListTile extends StatelessWidget {
               ),
             ),
             StatusBadge(status: leave.status),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TourListTile extends StatelessWidget {
+  final TourModel tour;
+  const _TourListTile({required this.tour});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: GlassCard(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF8B5CF6).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.flight_takeoff_rounded,
+                color: Color(0xFF8B5CF6),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${tour.tourType} to ${tour.destination}',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${DateFormat('dd-MM-yyyy').format(tour.startDate)} to ${DateFormat('dd-MM-yyyy').format(tour.endDate)}',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            StatusBadge(status: tour.status),
           ],
         ),
       ),

@@ -99,8 +99,8 @@ class _LoginScreenState extends State<LoginScreen>
       //  _employeeIdController.text = "422";
       // _passwordController.text = "1000317";
       // RO1
-       _employeeIdController.text = "16194";
-      _passwordController.text = "1009522";
+       _employeeIdController.text = "446";
+      _passwordController.text = "ADIPT5111G";
       
 
     }

@@ -454,8 +454,8 @@ class _AllMyTripsTab extends StatelessWidget {
                         rows: tours.map((tour) {
                           return DataRow(
                             cells: [
-                              DataCell(Text(DateFormat('dd/MM/yyyy').format(tour.startDate), style: const TextStyle(fontSize: 11))),
-                              DataCell(Text(DateFormat('dd/MM/yyyy').format(tour.endDate), style: const TextStyle(fontSize: 11))),
+                              DataCell(Text(DateFormat('dd-MM-yyyy').format(tour.startDate), style: const TextStyle(fontSize: 11))),
+                              DataCell(Text(DateFormat('dd-MM-yyyy').format(tour.endDate), style: const TextStyle(fontSize: 11))),
                               DataCell(Text(tour.destination, style: const TextStyle(fontSize: 11))),
                               DataCell(Text(tour.travelPurpose, style: const TextStyle(fontSize: 11))),
                               DataCell(

@@ -83,6 +83,7 @@ class EmployeeModel {
 
   // Additional Fields
   final String reportingOfficer;
+  final String reportingOfficer1;
   final String address;
   final String emergencyContact;
   final List<Map<String, dynamic>> nominees;
@@ -117,6 +118,7 @@ class EmployeeModel {
     required this.pfNo,
     required this.pensionNo,
     required this.reportingOfficer,
+    required this.reportingOfficer1,
     required this.address,
     required this.emergencyContact,
     required this.nominees,

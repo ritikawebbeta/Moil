@@ -179,7 +179,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                   child: GestureDetector(
                     onTap: () => _pickDate(true),
                     child: _DateField(
-                      value: DateFormat('dd/MM/yyyy').format(_startDate),
+                      value: DateFormat('dd-MM-yyyy').format(_startDate),
                     ),
                   ),
                 ),
@@ -191,7 +191,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                   child: GestureDetector(
                     onTap: () => _pickDate(false),
                     child: _DateField(
-                      value: DateFormat('dd/MM/yyyy').format(_endDate),
+                      value: DateFormat('dd-MM-yyyy').format(_endDate),
                     ),
                   ),
                 ),

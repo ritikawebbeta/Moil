@@ -69,6 +69,9 @@ class _PayslipScreenState extends State<PayslipScreen> {
     final double it = (payslip['deductions'] * 22420.0 / 46274.00);
     final double otherDeductions = payslip['deductions'] - pf - it;
 
+    final double width = MediaQuery.of(context).size.width;
+    final bool isMobile = width < 600;
+
     return GlassCard(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -112,30 +115,56 @@ class _PayslipScreenState extends State<PayslipScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _SalaryCard(
-                label: 'Gross Salary',
-                amount: _formatCurrency(payslip['gross']),
-                color: AppColors.success,
-                icon: Icons.account_balance_wallet_outlined,
-              )),
-              const SizedBox(width: 12),
-              Expanded(child: _SalaryCard(
-                label: 'Deductions',
-                amount: _formatCurrency(payslip['deductions']),
-                color: AppColors.error,
-                icon: Icons.remove_circle_outline,
-              )),
-              const SizedBox(width: 12),
-              Expanded(child: _SalaryCard(
-                label: 'Net Pay',
-                amount: _formatCurrency(payslip['net']),
-                color: AppColors.primary,
-                icon: Icons.payments_outlined,
-              )),
-            ],
-          ),
+          if (isMobile)
+            Column(
+              children: [
+                _SalaryCard(
+                  label: 'Gross Salary',
+                  amount: _formatCurrency(payslip['gross']),
+                  color: AppColors.success,
+                  icon: Icons.account_balance_wallet_outlined,
+                ),
+                const SizedBox(height: 12),
+                _SalaryCard(
+                  label: 'Deductions',
+                  amount: _formatCurrency(payslip['deductions']),
+                  color: AppColors.error,
+                  icon: Icons.remove_circle_outline,
+                ),
+                const SizedBox(height: 12),
+                _SalaryCard(
+                  label: 'Net Pay',
+                  amount: _formatCurrency(payslip['net']),
+                  color: AppColors.primary,
+                  icon: Icons.payments_outlined,
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(child: _SalaryCard(
+                  label: 'Gross Salary',
+                  amount: _formatCurrency(payslip['gross']),
+                  color: AppColors.success,
+                  icon: Icons.account_balance_wallet_outlined,
+                )),
+                const SizedBox(width: 12),
+                Expanded(child: _SalaryCard(
+                  label: 'Deductions',
+                  amount: _formatCurrency(payslip['deductions']),
+                  color: AppColors.error,
+                  icon: Icons.remove_circle_outline,
+                )),
+                const SizedBox(width: 12),
+                Expanded(child: _SalaryCard(
+                  label: 'Net Pay',
+                  amount: _formatCurrency(payslip['net']),
+                  color: AppColors.primary,
+                  icon: Icons.payments_outlined,
+                )),
+              ],
+            ),
           const SizedBox(height: 16),
           const Divider(color: AppColors.cardBorder),
           const SizedBox(height: 12),

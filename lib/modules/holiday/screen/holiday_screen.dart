@@ -100,28 +100,37 @@ class _HolidayScreenState extends State<HolidayScreen> {
   }
 
   Widget _buildFilters(HolidayController controller) {
+    final double width = MediaQuery.of(context).size.width;
+    final bool isMobile = width < 600;
+
     return GlassCard(
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
           const Icon(Icons.filter_list_rounded, color: AppColors.primary, size: 20),
-          const SizedBox(width: 10),
-          const Text('Filter:', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
+          if (!isMobile) ...[
+            const Text('Filter:', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            const SizedBox(width: 10),
+          ],
           // Year dropdown
-          _FilterDropdown<int>(
-            value: controller.selectedYear,
-            items: const [2025, 2026, 2027],
-            itemLabel: (y) => '$y',
-            onChanged: controller.setYear,
+          Expanded(
+            child: _FilterDropdown<int>(
+              value: controller.selectedYear,
+              items: const [2025, 2026, 2027, 2028, 2029, 2030],
+              itemLabel: (y) => '$y',
+              onChanged: controller.setYear,
+            ),
           ),
           const SizedBox(width: 10),
           // Month dropdown
-          _FilterDropdown<int?>(
-            value: controller.selectedMonth,
-            items: [null, ...List.generate(12, (i) => i + 1)],
-            itemLabel: (m) => m == null ? 'All Months' : DateFormat('MMMM').format(DateTime(2026, m)),
-            onChanged: controller.setMonth,
+          Expanded(
+            child: _FilterDropdown<int?>(
+              value: controller.selectedMonth,
+              items: [null, ...List.generate(12, (i) => i + 1)],
+              itemLabel: (m) => m == null ? 'All Months' : DateFormat('MMMM').format(DateTime(2026, m)),
+              onChanged: controller.setMonth,
+            ),
           ),
         ],
       ),
@@ -129,12 +138,39 @@ class _HolidayScreenState extends State<HolidayScreen> {
   }
 
   Widget _buildHolidayStats(HolidayController controller, {required bool optionalOnly}) {
+    final double width = MediaQuery.of(context).size.width;
+    final bool isMobile = width < 600;
+
     final holidays = controller.filteredHolidays
         .where((h) => optionalOnly ? h.type == 'Optional' : h.type != 'Optional')
         .toList();
 
     final national = holidays.where((h) => h.isNational).length;
     final regional = holidays.where((h) => !h.isNational && h.type != 'Optional').length;
+
+    if (isMobile) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: _StatChip(label: optionalOnly ? 'Total Optional' : 'Total Holidays', value: '${holidays.length}', color: AppColors.primary)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              if (!optionalOnly) ...[
+                Expanded(child: _StatChip(label: 'National', value: '$national', color: AppColors.success)),
+                const SizedBox(width: 10),
+                Expanded(child: _StatChip(label: 'Regional', value: '$regional', color: AppColors.warning)),
+              ] else ...[
+                Expanded(child: _StatChip(label: 'Restricted', value: '${holidays.length}', color: AppColors.warning)),
+              ],
+            ],
+          ),
+        ],
+      );
+    }
 
     return Row(
       children: [

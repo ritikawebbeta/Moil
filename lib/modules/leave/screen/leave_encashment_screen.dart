@@ -107,7 +107,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
     final data = _mockEmployees[searchCode] ?? {
       'name': emp?.name ?? 'Mock Employee ($searchCode)',
       'docNo': '${22200 + searchCode.hashCode % 1000}',
-      'createdOn': DateFormat('dd/MM/yyyy').format(DateTime.now()),
+      'createdOn': DateFormat('dd-MM-yyyy').format(DateTime.now()),
       'balance': '00120',
       'approver': 'Nitin Pagnis',
       'status': 'NEW',

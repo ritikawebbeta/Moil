@@ -163,6 +163,6 @@ class _NotifCard extends StatelessWidget {
     final diff = now.difference(dt);
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return DateFormat('dd/MM/yyyy').format(dt);
+    return DateFormat('dd-MM-yyyy').format(dt);
   }
 }

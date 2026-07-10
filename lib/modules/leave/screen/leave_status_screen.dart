@@ -260,7 +260,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
   Widget _buildNewButton() {
     return GestureDetector(
       onTap: () {
-        context.read<LeaveController>().setActiveTabIndex(1);
+        context.read<LeaveController>().setActiveTabIndex(2);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -317,7 +317,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                       color: AppColors.primary, size: 14),
                   const SizedBox(width: 6),
                   Text(
-                    DateFormat('dd/MM/yyyy').format(_tempShowFrom!),
+                    DateFormat('dd-MM-yyyy').format(_tempShowFrom!),
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 12,
@@ -554,7 +554,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                         children: [
                           const Icon(Icons.calendar_today_outlined, color: AppColors.primary, size: 12),
                           const SizedBox(width: 4),
-                          Text(DateFormat('dd/MM/yyyy').format(_tempTimeAccountShowFrom!), style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+                          Text(DateFormat('dd-MM-yyyy').format(_tempTimeAccountShowFrom!), style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -690,8 +690,8 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                                 ],
                               ),
                             ),
-                            _TableCell(text: DateFormat('dd/MM/yyyy').format(b.deductionFrom), width: col1),
-                            _TableCell(text: DateFormat('dd/MM/yyyy').format(b.deductionTo), width: col2),
+                            _TableCell(text: DateFormat('dd-MM-yyyy').format(b.deductionFrom), width: col1),
+                            _TableCell(text: DateFormat('dd-MM-yyyy').format(b.deductionTo), width: col2),
                             _TableCell(text: '${b.entitlement.toStringAsFixed(2)} Days', width: col3, valueColor: AppColors.success),
                             _TableCell(text: '${b.entitlementMinusPlanned.toStringAsFixed(2)} Days', width: col4, valueColor: AppColors.primary),
                           ],

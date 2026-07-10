@@ -2,6 +2,7 @@
 // Multi-level approval screen for HOD, Reporting Officer, CMD
 
 import 'package:employee_management/modules/auth/controller/auth_controller.dart';
+import 'package:employee_management/modules/profile/controller/profile_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -158,18 +159,19 @@ class _LeaveApprovalListState extends State<_LeaveApprovalList> {
       ),
     ];
 
-    if (currentUser?.employeeId == '16194') {
-      // Rakesh Tumane sees his direct reports Nitin & Raja
-      _pendingLeaves = allLeaves.where((l) => l.employeeId.contains('283') || l.employeeId.contains('446')).toList();
-    } else if (currentUser?.employeeId == '283') {
-      // Nitin Kajarekar sees Kartik and Arvind
-      _pendingLeaves = allLeaves.where((l) => l.employeeId.contains('422') || l.employeeId.contains('431')).toList();
-    } else if (currentUser?.employeeId == '446') {
-      // Raja Talathoti sees Sushant
-      _pendingLeaves = allLeaves.where((l) => l.employeeId.contains('491')).toList();
-    } else {
-      _pendingLeaves = [];
-    }
+    final currentUserId = currentUser?.employeeId;
+    _pendingLeaves = allLeaves.where((l) {
+      final parts = l.employeeId.split(' ');
+      final empId = parts.first.replaceAll('(', '').replaceAll(')', '').trim();
+      final empMap = ProfileController.rawEmployees.firstWhere(
+        (e) => e['empNo'] == empId,
+        orElse: () => <String, dynamic>{},
+      );
+      if (empMap.isEmpty) return false;
+      final ro = empMap['reportingOfficer'] ?? '';
+      final ro1 = empMap['reportingOfficer1'] ?? '';
+      return ro == currentUserId || ro1 == currentUserId;
+    }).toList();
   }
 
   void _handleAction(String id, String action) {
@@ -237,7 +239,7 @@ class _LeaveApprovalCard extends StatelessWidget {
           InfoRow(label: 'Employee', value: leave.employeeId),
           InfoRow(
             label: 'Duration',
-            value: '${DateFormat('dd/MM/yyyy').format(leave.startDate)} – ${DateFormat('dd/MM/yyyy').format(leave.endDate)}',
+            value: '${DateFormat('dd-MM-yyyy').format(leave.startDate)} – ${DateFormat('dd-MM-yyyy').format(leave.endDate)}',
           ),
           InfoRow(label: 'Type', value: leave.duration),
           if (leave.reason != null) InfoRow(label: 'Reason', value: leave.reason!),
@@ -342,18 +344,19 @@ class _TourApprovalListState extends State<_TourApprovalList> {
       ),
     ];
 
-    if (currentUser?.employeeId == '16194') {
-      // Rakesh Tumane sees Nitin & Raja
-      _pendingTours = allTours.where((t) => t.employeeId.contains('283') || t.employeeId.contains('446')).toList();
-    } else if (currentUser?.employeeId == '283') {
-      // Nitin Kajarekar sees Kartik and Arvind
-      _pendingTours = allTours.where((t) => t.employeeId.contains('422') || t.employeeId.contains('431')).toList();
-    } else if (currentUser?.employeeId == '446') {
-      // Raja Talathoti sees Sushant and Swapnil
-      _pendingTours = allTours.where((t) => t.employeeId.contains('491') || t.employeeId.contains('540')).toList();
-    } else {
-      _pendingTours = [];
-    }
+    final currentUserId = currentUser?.employeeId;
+    _pendingTours = allTours.where((t) {
+      final parts = t.employeeId.split(' ');
+      final empId = parts.first.replaceAll('(', '').replaceAll(')', '').trim();
+      final empMap = ProfileController.rawEmployees.firstWhere(
+        (e) => e['empNo'] == empId,
+        orElse: () => <String, dynamic>{},
+      );
+      if (empMap.isEmpty) return false;
+      final ro = empMap['reportingOfficer'] ?? '';
+      final ro1 = empMap['reportingOfficer1'] ?? '';
+      return ro == currentUserId || ro1 == currentUserId;
+    }).toList();
   }
 
   void _handleAction(String id, String action) {
@@ -430,7 +433,7 @@ class _TourApprovalCard extends StatelessWidget {
           InfoRow(label: 'Destination', value: tour.destination),
           InfoRow(
             label: 'Duration',
-            value: '${DateFormat('dd/MM/yyyy').format(tour.startDate)} – ${DateFormat('dd/MM/yyyy').format(tour.endDate)}',
+            value: '${DateFormat('dd-MM-yyyy').format(tour.startDate)} – ${DateFormat('dd-MM-yyyy').format(tour.endDate)}',
           ),
           InfoRow(label: 'Purpose', value: tour.travelPurpose),
           InfoRow(label: 'Transport', value: tour.transportMode),

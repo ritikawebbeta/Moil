@@ -6,7 +6,7 @@ import '../../../model/holiday_model.dart';
 class HolidayController extends ChangeNotifier {
   bool _isLoading = false;
   List<HolidayModel> _holidays = [];
-  int _selectedYear = 2025;
+  int _selectedYear = 2026;
   int? _selectedMonth;
 
   bool get isLoading => _isLoading;

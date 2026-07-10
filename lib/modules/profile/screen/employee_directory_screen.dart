@@ -69,25 +69,17 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                     // 1. Strict Organization Hierarchy Filters
                     final List<Map<String, dynamic>> rawList = ProfileController.rawEmployees.where((m) {
                       final empNo = m['empNo'];
-                      if (currentUser?.employeeId == '16194') {
-                        return empNo != '16194';
-                      } else if (currentUser?.employeeId == '283') {
-                        return empNo == '422' || empNo == '431';
-                      } else if (currentUser?.employeeId == '446') {
-                        return empNo == '491' || empNo == '540';
-                      }
-                      return false;
+                      if (empNo == currentUser?.employeeId) return false;
+                      if (currentUser?.employeeId == '16194') return true; // Rakesh Tumane sees all
+                      final ro = m['reportingOfficer'] ?? '';
+                      final ro1 = m['reportingOfficer1'] ?? '';
+                      return ro == currentUser?.employeeId || ro1 == currentUser?.employeeId;
                     }).toList();
 
                     final List<dynamic> modelList = controller.employees.where((e) {
-                      if (currentUser?.employeeId == '16194') {
-                        return e.employeeId != '16194';
-                      } else if (currentUser?.employeeId == '283') {
-                        return e.employeeId == '422' || e.employeeId == '431';
-                      } else if (currentUser?.employeeId == '446') {
-                        return e.employeeId == '491' || e.employeeId == '540';
-                      }
-                      return false;
+                      if (e.employeeId == currentUser?.employeeId) return false;
+                      if (currentUser?.employeeId == '16194') return true; // Rakesh Tumane sees all
+                      return e.reportingOfficer == currentUser?.employeeId || e.reportingOfficer1 == currentUser?.employeeId;
                     }).toList();
 
                     bool matchMultiTerm(String value, String filter) {
