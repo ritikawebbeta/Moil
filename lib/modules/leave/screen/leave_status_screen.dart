@@ -9,6 +9,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
+import '../../bottom_nav_bar/controller/bottom_nav_bar_controller.dart';
 import '../controller/leave_controller.dart';
 import '../../../model/leave_model.dart';
 
@@ -260,7 +261,16 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
   Widget _buildNewButton() {
     return GestureDetector(
       onTap: () {
-        context.read<LeaveController>().setActiveTabIndex(2);
+        final isWeb = MediaQuery.of(context).size.width > 800;
+        if (isWeb) {
+          try {
+            context.read<BottomNavBarController>().setSelectedIndex(8);
+          } catch (_) {
+            context.read<LeaveController>().setActiveTabIndex(2);
+          }
+        } else {
+          context.read<LeaveController>().setActiveTabIndex(2);
+        }
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),

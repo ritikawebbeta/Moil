@@ -12,7 +12,8 @@ import '../../tour/controller/tour_controller.dart';
 
 class EmployeeDetailScreen extends StatefulWidget {
   final EmployeeModel employee;
-  const EmployeeDetailScreen({super.key, required this.employee});
+  final int initialTabIndex;
+  const EmployeeDetailScreen({super.key, required this.employee, this.initialTabIndex = 0});
 
   @override
   State<EmployeeDetailScreen> createState() => _EmployeeDetailScreenState();
@@ -25,7 +26,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 4, vsync: this, initialIndex: widget.initialTabIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LeaveController>().fetchLeaves(widget.employee.employeeId);
       context.read<TourController>().fetchTours(widget.employee.employeeId);

@@ -225,14 +225,14 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       leading: leading ??
           (() {
-            final isMobile = MediaQuery.of(context).size.width < 800;
-            if (!isMobile) return const SizedBox.shrink();
-            if (Navigator.of(context).canPop()) {
+            if (Navigator.of(context).canPop() && showBack) {
               return IconButton(
                 icon: const Icon(Icons.arrow_back_ios_rounded, size: 20, color: Colors.white),
                 onPressed: () => Navigator.of(context).pop(),
               );
             }
+            final isMobile = MediaQuery.of(context).size.width < 800;
+            if (!isMobile) return const SizedBox.shrink();
             try {
               final navBar = context.read<BottomNavBarController>();
               if (navBar.selectedIndex != 0) {

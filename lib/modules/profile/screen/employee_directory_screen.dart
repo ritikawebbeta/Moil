@@ -327,7 +327,24 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.receipt_long_rounded, color: AppColors.primary, size: 20),
+                        tooltip: 'View Payslips',
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => EmployeeDetailScreen(employee: emp, initialTabIndex: 3),
+                            ),
+                          );
+                        },
+                      ),
+                      const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -445,6 +462,20 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            IconButton(
+                              icon: const Icon(Icons.receipt_long_rounded, color: AppColors.primary, size: 18),
+                              tooltip: 'View Payslips',
+                              onPressed: () {
+                                if (empModel != null) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => EmployeeDetailScreen(employee: empModel, initialTabIndex: 3),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
                             IconButton(
                               icon: const Icon(Icons.print_outlined, color: AppColors.primary, size: 18),
                               tooltip: 'Print HRIS Profile',
