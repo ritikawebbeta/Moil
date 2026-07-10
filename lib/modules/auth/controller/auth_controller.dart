@@ -83,12 +83,12 @@ class AuthController extends ChangeNotifier {
       }
 
       _user = UserModel(
-        id: match['empNo'] ?? '283',
-        employeeId: match['empNo'] ?? '283',
-        name: match['name'] ?? 'Nitin Purushottam Kajarekar',
-        email: match['email'] ?? 'ABC@gmail.com',
-        department: match['dept'] ?? 'Finance',
-        designation: match['position'] ?? 'General Manager-Finance',
+        id: match['empNo'] ?? '446',
+        employeeId: match['empNo'] ?? '446',
+        name: match['name'] ?? 'Raja Talathoti',
+        email: match['email'] ?? 'raja_talathoti@moil.nic.in',
+        department: match['dept'] ?? 'System',
+        designation: match['position'] ?? 'Deputy General Manager-System',
         role: match['empRoll'] ?? 'RO',
         reportingOfficer: match['empRoll'] ?? 'RO',
         mobileNumber: match['mobile'] ?? '123456789',
