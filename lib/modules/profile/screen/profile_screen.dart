@@ -296,10 +296,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               cellText(': ${data['spouse']}'),
             ]),
             TableRow(children: [
-              cellText('BASIC (RS)', bold: true),
-              cellText(': ${data['basic']}'),
-            ]),
-            TableRow(children: [
               cellText('DESIGNATION', bold: true),
               cellText(': ${data['position']}'),
             ]),
@@ -316,7 +312,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               cellText(': ${data['dopp']}'),
             ]),
             TableRow(children: [
-              cellText('PRESENT GRADE', bold: true),
+              cellText('PRESENT SUBGROUP', bold: true),
               cellText(': ${data['subgroup']}'),
             ]),
             TableRow(children: [
@@ -370,10 +366,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             TableRow(children: [
               cellText('PRAN NO', bold: true),
               cellText(': ${data['praan']}'),
-            ]),
-            TableRow(children: [
-              cellText('GENDER', bold: true),
-              cellText(': ${data['gender']}'),
             ]),
             TableRow(children: [
               cellText('PF NO/SSPF NO', bold: true),
@@ -408,8 +400,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             TableRow(children: [
               cellText('FATHER / SPOUSE NAME', bold: true),
               cellText(': ${data['spouse']}'),
-              cellText('BASIC (RS)', bold: true),
-              cellText(': ${data['basic']}'),
+              cellText('', bold: true),
+              cellText(''),
             ]),
             TableRow(children: [
               cellText('DESIGNATION', bold: true),
@@ -424,7 +416,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               cellText(': ${data['dopp']}'),
             ]),
             TableRow(children: [
-              cellText('PRESENT GRADE', bold: true),
+              cellText('PRESENT SUBGROUP', bold: true),
               cellText(': ${data['subgroup']}'),
               cellText('DATE OF RETIREMENT', bold: true),
               cellText(': ${data['retireDate']}'),
@@ -466,10 +458,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               cellText(': ${data['praan']}'),
             ]),
             TableRow(children: [
-              cellText('GENDER', bold: true),
-              cellText(': ${data['gender']}'),
               cellText('PF NO/SSPF NO', bold: true),
               cellText(': ${data['pfNo']}'),
+              cellText('', bold: true),
+              cellText(''),
             ]),
             TableRow(children: [
               cellText('MARITAL STATUS', bold: true),
@@ -633,21 +625,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.grey.shade400, width: 1),
               ),
-              child: emp.employeeId == '446' || emp.employeeId == '00000446'
+              child: (emp.employeeId.trim().replaceAll(RegExp('^0+'), '') == '446')
                   ? Image.asset(
                       'assets/images/raja_talathoti.jpg',
                       fit: BoxFit.cover,
                     )
-                  : Container(
-                      color: Colors.grey.shade100,
-                      child: const Center(
-                        child: Text(
-                          'Passport Size\nPhoto',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 8, color: Colors.grey),
-                        ),
-                      ),
-                    ),
+                  : (emp.employeeId.trim().replaceAll(RegExp('^0+'), '') == '16194')
+                      ? Image.asset(
+                          'assets/images/rakesh_tumane.jpg',
+                          fit: BoxFit.cover,
+                        )
+                      : (emp.employeeId.trim().replaceAll(RegExp('^0+'), '') == '17110')
+                          ? Image.asset(
+                              'assets/images/sameer_banerjee.jpg',
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              color: Colors.grey.shade100,
+                              child: const Center(
+                                child: Text(
+                                  'Passport Size\nPhoto',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 8, color: Colors.grey),
+                                ),
+                              ),
+                            ),
             ),
           ),
           const SizedBox(height: 16),

@@ -12,6 +12,8 @@ import '../../../widgets/app_widgets.dart';
 import '../../bottom_nav_bar/controller/bottom_nav_bar_controller.dart';
 import '../controller/leave_controller.dart';
 import '../../../model/leave_model.dart';
+import '../../profile/controller/profile_controller.dart';
+import '../../auth/controller/auth_controller.dart';
 
 class LeaveStatusScreen extends StatefulWidget {
   const LeaveStatusScreen({super.key});
@@ -25,8 +27,60 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
   String? _tempTimeAccount;
   DateTime? _tempTimeAccountShowFrom;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthController>();
+      final empId = auth.user?.employeeId ?? '';
+      if (empId.isNotEmpty) {
+        context.read<LeaveController>().fetchLeaves(empId);
+      }
+    });
+  }
+
+  String _getEmployeeName(String empId) {
+    final cleanId = empId.split(' ').first.replaceAll('(', '').replaceAll(')', '').trim();
+    final match = ProfileController.rawEmployees.firstWhere(
+      (e) => e['empNo'] == cleanId,
+      orElse: () => {'name': cleanId},
+    );
+    return match['name'] ?? cleanId;
+  }
+
+  Map<String, String> _getProcessorNames(String rawEmpId, String status) {
+    final empId = rawEmpId.split(' ').first.replaceAll('(', '').replaceAll(')', '').trim();
+    String p1 = '-';
+    String p = '-';
+
+    if (empId == '446') {
+      p1 = '-';
+      if (status == 'Approved') {
+        p = 'Rakesh Tumane';
+      }
+    } else if (['540', '4410', '4428', '4733', '419'].contains(empId)) {
+      if (status == 'Approved') {
+        p1 = 'Raja Talathoti';
+        p = 'Nitin Kajarekar';
+      } else if (status.contains('P1 Approved') || status.contains('P1 approved')) {
+        p1 = 'Raja Talathoti';
+        p = '-';
+      }
+    } else {
+      if (status == 'Approved') {
+        p1 = 'Raja Talathoti';
+        p = 'Rakesh Tumane';
+      } else if (status.contains('P1 Approved') || status.contains('P1 approved')) {
+        p1 = 'Raja Talathoti';
+        p = '-';
+      }
+    }
+    return {'processor1': p1, 'processor': p};
+  }
+
   Future<void> _printLeavePdf(LeaveModel leave) async {
     final doc = pw.Document();
+    final procInfo = _getProcessorNames(leave.employeeId, leave.status);
 
     doc.addPage(
       pw.Page(
@@ -52,15 +106,17 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                 pw.SizedBox(height: 30),
                 _buildPdfRow('Leave ID:', leave.id),
                 _buildPdfRow('Employee ID:', leave.employeeId),
+                _buildPdfRow('Employee Name:', _getEmployeeName(leave.employeeId)),
                 _buildPdfRow('Leave Type:', leave.leaveType),
                 _buildPdfRow('Duration:', leave.duration),
                 _buildPdfRow('Start Date:', DateFormat('dd-MM-yyyy').format(leave.startDate)),
                 _buildPdfRow('End Date:', DateFormat('dd-MM-yyyy').format(leave.endDate)),
                 _buildPdfRow('Absence Hours:', leave.absenceHours?.toStringAsFixed(2) ?? 'N/A'),
-                _buildPdfRow('Used Days:', leave.used ?? 'N/A'),
+                _buildPdfRow('Absent Days:', leave.used ?? 'N/A'),
                 _buildPdfRow('Reason:', leave.reason ?? 'N/A'),
                 _buildPdfRow('Status:', leave.status),
-                _buildPdfRow('Processor:', leave.processor ?? 'N/A'),
+                _buildPdfRow('Processor:', procInfo['processor'] ?? '-'),
+                _buildPdfRow('Processor 1:', procInfo['processor1'] ?? '-'),
                 pw.Divider(height: 20),
                 _buildPdfRow('Applied Time:', leave.appliedOn != null ? DateFormat('dd-MM-yyyy HH:mm').format(leave.appliedOn!) : 'N/A'),
                 _buildPdfRow('Approval Time:', leave.approvedOn != null ? DateFormat('dd-MM-yyyy HH:mm').format(leave.approvedOn!) : 'N/A'),
@@ -222,6 +278,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
         _tempTimeAccountShowFrom ??= controller.timeAccountShowFrom;
 
         return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,20 +433,122 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
 
   Widget _buildLeaveTable(LeaveController controller) {
     final filteredLeaves = controller.leaves.where((leave) {
-      return !leave.startDate.isBefore(controller.showFrom);
+      return !leave.startDate.isBefore(controller.showFrom) &&
+          leave.leaveType.toLowerCase() != 'official tour';
     }).toList();
+
+    final isMobile = MediaQuery.of(context).size.width < 900;
+
+    if (isMobile) {
+      if (filteredLeaves.isEmpty) {
+        return const Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Center(
+            child: Text(
+              'No leave records found',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        );
+      }
+      return ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: filteredLeaves.length,
+        itemBuilder: (context, index) {
+          final leave = filteredLeaves[index];
+          final procInfo = _getProcessorNames(leave.employeeId, leave.status);
+          final cleanEmpId = leave.employeeId.split(' ').first.replaceAll('(', '').replaceAll(')', '').trim();
+
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: AppColors.cardBg,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.cardBorder, width: 1),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Leave ID: ${leave.id}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13),
+                      ),
+                      StatusBadge(status: leave.status),
+                    ],
+                  ),
+                  const Divider(height: 16, color: AppColors.cardBorder),
+                  _buildMobileRow('Employee', '$cleanEmpId - ${_getEmployeeName(leave.employeeId)}'),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Leave Type', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                      LeaveTypeBadge(type: leave.leaveType),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  _buildMobileRow('Duration', leave.duration),
+                  const SizedBox(height: 6),
+                  _buildMobileRow('Dates', '${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)} (${leave.used ?? '0.00 Days'})'),
+                  const SizedBox(height: 6),
+                  _buildMobileRow('Reason', leave.reason ?? 'N/A'),
+                  const SizedBox(height: 6),
+                  _buildMobileRow('Processor', procInfo['processor'] ?? '-'),
+                  const SizedBox(height: 6),
+                  _buildMobileRow('Process 1', procInfo['processor1'] ?? '-'),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.visibility_outlined, color: AppColors.primary, size: 20),
+                        onPressed: () => _viewLeaveDetails(leave),
+                        tooltip: 'View Details',
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.print_outlined, color: AppColors.primary, size: 20),
+                        onPressed: () => _printLeavePdf(leave),
+                        tooltip: 'Print Requisition',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final totalWidth = constraints.maxWidth > 1430 ? constraints.maxWidth : 1430.0;
-        final extraWidth = totalWidth - 1430.0;
+        final totalWidth = constraints.maxWidth > 1500.0 ? constraints.maxWidth : 1500.0;
+        final extraWidth = totalWidth - 1500.0;
         
         final actionsWidth = 80.0;
-        final typeWidth = 150.0 + extraWidth * 0.2;
-        final otherWidth = 120.0 + extraWidth * 0.8 / 10;
+        final leaveIdWidth = 90.0;
+        final empIdWidth = 90.0;
+        final empNameWidth = 150.0 + extraWidth * 0.2;
+        final typeWidth = 140.0 + extraWidth * 0.1;
+        final durationWidth = 100.0;
+        final startDateWidth = 100.0;
+        final endDateWidth = 100.0;
+        final absentDaysWidth = 90.0;
+        final reasonWidth = 180.0 + extraWidth * 0.4;
+        final statusWidth = 120.0;
+        final processorWidth = 130.0 + extraWidth * 0.15;
+        final processor1Width = 130.0 + extraWidth * 0.15;
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -399,17 +558,18 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                 child: Row(
                   children: [
                     _TableHeaderCell(text: 'Actions', width: actionsWidth),
-                    _TableHeaderCell(text: 'Type of Leave', width: typeWidth),
-                    _TableHeaderCell(text: 'Start Date', width: otherWidth),
-                    _TableHeaderCell(text: 'Start time', width: otherWidth),
-                    _TableHeaderCell(text: 'End Date', width: otherWidth),
-                    _TableHeaderCell(text: 'End time', width: otherWidth),
-                    _TableHeaderCell(text: 'Applied Time', width: otherWidth),
-                    _TableHeaderCell(text: 'Approve Time', width: otherWidth),
-                    _TableHeaderCell(text: 'Processor', width: otherWidth),
-                    _TableHeaderCell(text: 'Status', width: otherWidth),
-                    _TableHeaderCell(text: 'Absence hours', width: otherWidth),
-                    _TableHeaderCell(text: 'Used', width: otherWidth),
+                    _TableHeaderCell(text: 'Leave ID', width: leaveIdWidth),
+                    _TableHeaderCell(text: 'Emp ID', width: empIdWidth),
+                    _TableHeaderCell(text: 'Emp Name', width: empNameWidth),
+                    _TableHeaderCell(text: 'Leave Type', width: typeWidth),
+                    _TableHeaderCell(text: 'Duration', width: durationWidth),
+                    _TableHeaderCell(text: 'Start Dt', width: startDateWidth),
+                    _TableHeaderCell(text: 'End Date', width: endDateWidth),
+                    _TableHeaderCell(text: 'Absend Days', width: absentDaysWidth),
+                    _TableHeaderCell(text: 'Reason', width: reasonWidth),
+                    _TableHeaderCell(text: 'Status', width: statusWidth),
+                    _TableHeaderCell(text: 'Processor', width: processorWidth),
+                    _TableHeaderCell(text: 'Process 1', width: processor1Width),
                   ],
                 ),
               ),
@@ -430,6 +590,9 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                 ...filteredLeaves.asMap().entries.map((e) {
                   final leave = e.value;
                   final isEven = e.key.isEven;
+                  final procInfo = _getProcessorNames(leave.employeeId, leave.status);
+                  final cleanEmpId = leave.employeeId.split(' ').first.replaceAll('(', '').replaceAll(')', '').trim();
+
                   return Container(
                     width: totalWidth,
                     color: isEven
@@ -460,44 +623,30 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                                 ),
                               ),
                             ),
+                            _TableCell(text: leave.id, width: leaveIdWidth),
+                            _TableCell(text: cleanEmpId, width: empIdWidth),
+                            _TableCell(text: _getEmployeeName(leave.employeeId), width: empNameWidth),
                             _TableCell(
                               child: LeaveTypeBadge(type: leave.leaveType),
                               width: typeWidth,
                             ),
+                            _TableCell(text: leave.duration, width: durationWidth),
                             _TableCell(
                               text: DateFormat('dd-MM-yyyy').format(leave.startDate),
-                              width: otherWidth,
+                              width: startDateWidth,
                             ),
-                            _TableCell(text: leave.startTime, width: otherWidth),
                             _TableCell(
                               text: DateFormat('dd-MM-yyyy').format(leave.endDate),
-                              width: otherWidth,
+                              width: endDateWidth,
                             ),
-                            _TableCell(text: leave.endTime, width: otherWidth),
-                            _TableCell(
-                              text: leave.appliedOn != null
-                                  ? DateFormat('dd-MM-yyyy HH:mm').format(leave.appliedOn!)
-                                  : 'N/A',
-                              width: otherWidth,
-                            ),
-                            _TableCell(
-                              text: leave.approvedOn != null
-                                  ? DateFormat('dd-MM-yyyy HH:mm').format(leave.approvedOn!)
-                                  : 'N/A',
-                              width: otherWidth,
-                            ),
-                            _TableCell(text: leave.processor ?? '', width: otherWidth),
+                            _TableCell(text: leave.used ?? 'N/A', width: absentDaysWidth),
+                            _TableCell(text: leave.reason ?? 'N/A', width: reasonWidth),
                             _TableCell(
                               child: StatusBadge(status: leave.status),
-                              width: otherWidth,
+                              width: statusWidth,
                             ),
-                            _TableCell(
-                              text: leave.absenceHours != null
-                                  ? leave.absenceHours!.toStringAsFixed(2)
-                                  : '',
-                              width: otherWidth,
-                            ),
-                            _TableCell(text: leave.used ?? '', width: otherWidth),
+                            _TableCell(text: procInfo['processor'] ?? '-', width: processorWidth),
+                            _TableCell(text: procInfo['processor1'] ?? '-', width: processor1Width),
                           ],
                         ),
                         const Divider(height: 1, color: AppColors.cardBorder),
@@ -617,6 +766,77 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
       return matchesType && matchesDate;
     }).toList();
 
+    final isMobile = MediaQuery.of(context).size.width < 900;
+
+    if (isMobile) {
+      if (filteredBalances.isEmpty) {
+        return const Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Center(
+            child: Text(
+              'No matching records found',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
+          ),
+        );
+      }
+      return ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: filteredBalances.length,
+        itemBuilder: (context, index) {
+          final b = filteredBalances[index];
+          final color = _getLeaveColor(b.timeAccount);
+
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: AppColors.cardBg,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.cardBorder, width: 1),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        b.timeAccount,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 16, color: AppColors.cardBorder),
+                  _buildMobileRow('Deduction From', DateFormat('dd-MM-yyyy').format(b.deductionFrom)),
+                  const SizedBox(height: 6),
+                  _buildMobileRow('Deduction To', DateFormat('dd-MM-yyyy').format(b.deductionTo)),
+                  const SizedBox(height: 6),
+                  _buildMobileRow('Entitlement', '${b.entitlement.toStringAsFixed(2)} Days', valueColor: AppColors.success),
+                  const SizedBox(height: 6),
+                  _buildMobileRow('Entitlement - Planned', '${b.entitlementMinusPlanned.toStringAsFixed(2)} Days', valueColor: AppColors.primary),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
     final colWidths = [160.0, 130.0, 130.0, 130.0, 180.0];
     final baseTotal = colWidths.reduce((a, b) => a + b);
 
@@ -633,6 +853,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -715,6 +936,23 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildMobileRow(String label, String value, {Color? valueColor}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+        Text(
+          value,
+          style: TextStyle(
+            color: valueColor ?? AppColors.textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 

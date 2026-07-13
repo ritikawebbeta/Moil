@@ -1,5 +1,6 @@
 // lib/main.dart
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -72,6 +73,7 @@ class EmployeeManagementApp extends StatelessWidget {
     return MaterialApp(
       title: 'MOIL LMS - Leave Management System',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: CustomScrollBehavior(),
       theme: _buildTheme(),
       initialRoute: '/login',
       routes: {
@@ -181,4 +183,14 @@ class AuthGuard extends StatelessWidget {
     }
     return child;
   }
+}
+
+class CustomScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
 }

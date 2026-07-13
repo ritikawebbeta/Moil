@@ -380,14 +380,14 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                 columns: const [
                   DataColumn(label: Text('Employee ID')),
                   DataColumn(label: Text('Employee Name')),
-                  DataColumn(label: Text('Status')),
                   DataColumn(label: Text('Group')),
-                  DataColumn(label: Text('Grade')),
+                  DataColumn(label: Text('Subgroup')),
                   DataColumn(label: Text('Position')),
                   DataColumn(label: Text('Department')),
-                  DataColumn(label: Text('Basic Pay')),
                   DataColumn(label: Text('DOB')),
-                  DataColumn(label: Text('Gender')),
+                  DataColumn(label: Text('Date of Appointment')),
+                  DataColumn(label: Text('DOPP')),
+                  DataColumn(label: Text('DOR')),
                   DataColumn(label: Text('Mobile')),
                   DataColumn(label: Text('Actions')),
                 ],
@@ -429,34 +429,14 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                           ),
                         ),
                       ),
-                      DataCell(
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: (m['status'] == 'Active')
-                                ? AppColors.success.withOpacity(0.1)
-                                : AppColors.error.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            m['status'] ?? '',
-                            style: TextStyle(
-                              color: (m['status'] == 'Active')
-                                  ? AppColors.success
-                                  : AppColors.error,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ),
                       DataCell(Text(m['group'] ?? '')),
-                      DataCell(Text(m['subgroupText'] ?? '')),
+                      DataCell(Text(m['subgroup'] ?? '')),
                       DataCell(Text(m['position'] ?? '')),
                       DataCell(Text(m['dept'] ?? '')),
-                      DataCell(Text('₹${m['basic'] ?? ''}')),
                       DataCell(Text(m['dob'] ?? '')),
-                      DataCell(Text(m['gender'] ?? '')),
+                      DataCell(Text(m['apptDate'] ?? '')),
+                      DataCell(Text(m['dopp'] ?? '')),
+                      DataCell(Text(m['retireDate'] ?? '')),
                       DataCell(Text(m['mobile'] ?? '')),
                       DataCell(
                         Row(

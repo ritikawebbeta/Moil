@@ -9,6 +9,10 @@ import '../../../widgets/app_widgets.dart';
 import '../../../model/employee_model.dart';
 import '../../leave/controller/leave_controller.dart';
 import '../../tour/controller/tour_controller.dart';
+import '../../auth/controller/auth_controller.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import '../../payslip/utils/payslip_pdf_helper.dart';
 
 class EmployeeDetailScreen extends StatefulWidget {
   final EmployeeModel employee;
@@ -22,6 +26,8 @@ class EmployeeDetailScreen extends StatefulWidget {
 class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  String? _selectedMonth;
+  String _historyFilterYear = 'All';
 
   @override
   void initState() {
@@ -36,6 +42,20 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    try {
+      final leaveController = context.read<LeaveController>();
+      final tourController = context.read<TourController>();
+      final authController = context.read<AuthController>();
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (authController.user != null) {
+          final empId = authController.user!.employeeId;
+          leaveController.fetchLeaves(empId);
+          leaveController.fetchBalances(empId);
+          tourController.fetchTours(empId);
+        }
+      });
+    } catch (_) {}
     super.dispose();
   }
 
@@ -315,10 +335,6 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
               cellText(': ${data['spouse']}'),
             ]),
             TableRow(children: [
-              cellText('BASIC (RS)', bold: true),
-              cellText(': ${data['basic']}'),
-            ]),
-            TableRow(children: [
               cellText('DESIGNATION', bold: true),
               cellText(': ${data['position']}'),
             ]),
@@ -335,7 +351,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
               cellText(': ${data['dopp']}'),
             ]),
             TableRow(children: [
-              cellText('PRESENT GRADE', bold: true),
+              cellText('PRESENT SUBGROUP', bold: true),
               cellText(': ${data['subgroup']}'),
             ]),
             TableRow(children: [
@@ -389,10 +405,6 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
             TableRow(children: [
               cellText('PRAN NO', bold: true),
               cellText(': ${data['praan']}'),
-            ]),
-            TableRow(children: [
-              cellText('GENDER', bold: true),
-              cellText(': ${data['gender']}'),
             ]),
             TableRow(children: [
               cellText('PF NO/SSPF NO', bold: true),
@@ -427,8 +439,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
             TableRow(children: [
               cellText('FATHER / SPOUSE NAME', bold: true),
               cellText(': ${data['spouse']}'),
-              cellText('BASIC (RS)', bold: true),
-              cellText(': ${data['basic']}'),
+              cellText('', bold: true),
+              cellText(''),
             ]),
             TableRow(children: [
               cellText('DESIGNATION', bold: true),
@@ -443,7 +455,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
               cellText(': ${data['dopp']}'),
             ]),
             TableRow(children: [
-              cellText('PRESENT GRADE', bold: true),
+              cellText('PRESENT SUBGROUP', bold: true),
               cellText(': ${data['subgroup']}'),
               cellText('DATE OF RETIREMENT', bold: true),
               cellText(': ${data['retireDate']}'),
@@ -485,10 +497,10 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
               cellText(': ${data['praan']}'),
             ]),
             TableRow(children: [
-              cellText('GENDER', bold: true),
-              cellText(': ${data['gender']}'),
               cellText('PF NO/SSPF NO', bold: true),
               cellText(': ${data['pfNo']}'),
+              cellText('', bold: true),
+              cellText(''),
             ]),
             TableRow(children: [
               cellText('MARITAL STATUS', bold: true),
@@ -652,21 +664,31 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.grey.shade400, width: 1),
               ),
-              child: emp.employeeId == '446' || emp.employeeId == '00000446'
+              child: (emp.employeeId.trim().replaceAll(RegExp('^0+'), '') == '446')
                   ? Image.asset(
                       'assets/images/raja_talathoti.jpg',
                       fit: BoxFit.cover,
                     )
-                  : Container(
-                      color: Colors.grey.shade100,
-                      child: const Center(
-                        child: Text(
-                          'Passport Size\nPhoto',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 8, color: Colors.grey),
-                        ),
-                      ),
-                    ),
+                  : (emp.employeeId.trim().replaceAll(RegExp('^0+'), '') == '16194')
+                      ? Image.asset(
+                          'assets/images/rakesh_tumane.jpg',
+                          fit: BoxFit.cover,
+                        )
+                      : (emp.employeeId.trim().replaceAll(RegExp('^0+'), '') == '17110')
+                          ? Image.asset(
+                              'assets/images/sameer_banerjee.jpg',
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              color: Colors.grey.shade100,
+                              child: const Center(
+                                child: Text(
+                                  'Passport Size\nPhoto',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 8, color: Colors.grey),
+                                ),
+                              ),
+                            ),
             ),
           ),
           const SizedBox(height: 16),
@@ -1072,318 +1094,371 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       {'month': 'February 2026', 'gross': basic * 1.85, 'deductions': basic * 0.46, 'status': 'Available'},
       {'month': 'January 2026', 'gross': basic * 1.85, 'deductions': basic * 0.46, 'status': 'Available'},
       {'month': 'December 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'November 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'October 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'September 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'August 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'July 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'June 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'May 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'April 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'March 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'February 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'January 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
+      {'month': 'December 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
+      {'month': 'November 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
+      {'month': 'October 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
+      {'month': 'September 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
+      {'month': 'August 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
+      {'month': 'July 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
+      {'month': 'June 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
+      {'month': 'May 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
+      {'month': 'April 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
+      {'month': 'March 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
+      {'month': 'February 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
+      {'month': 'January 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
     ];
 
+    if (_selectedMonth == null || !payslips.any((p) => p['month'] == _selectedMonth)) {
+      _selectedMonth = payslips.first['month'];
+    }
+
+    final currentPayslip = payslips.firstWhere((p) => p['month'] == _selectedMonth);
+    final double grossVal = currentPayslip['gross'];
+    final double deductionsVal = currentPayslip['deductions'];
+    final double netVal = grossVal - deductionsVal;
+
+    // Breakdown
+    final double basicPart = basic;
+    final double daPart = basic * 0.50;
+    final double hraPart = basic * 0.15;
+    final double otherPerksPart = grossVal - basicPart - daPart - hraPart;
+
+    final double pfPart = deductionsVal * 0.35;
+    final double itPart = deductionsVal * 0.45;
+    final double otherDeductionsPart = deductionsVal - pfPart - itPart;
+
     final format = NumberFormat.currency(locale: 'HI', symbol: '₹', decimalDigits: 2);
+    final formatSimple = NumberFormat.currency(locale: 'HI', symbol: '₹', decimalDigits: 0);
 
-    return ListView.builder(
+    Widget buildBreakdownRow(String label, String value, {bool isDeduction = false}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            Text(
+              value,
+              style: TextStyle(
+                color: isDeduction ? AppColors.error : AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget buildSalaryCard(String label, String amount, Color color, IconData icon) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.15)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(amount, style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w800)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final double width = MediaQuery.of(context).size.width;
+    final bool isMobileLayout = width < 600;
+
+    final filteredHistory = payslips.where((p) {
+      if (_historyFilterYear == 'All') return true;
+      return p['month'].contains(_historyFilterYear);
+    }).toList();
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      itemCount: payslips.length,
-      itemBuilder: (context, index) {
-        final p = payslips[index];
-        final double gross = p['gross'];
-        final double deductions = p['deductions'];
-        final double net = gross - deductions;
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: GlassCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Salary Summary Card
+          GlassCard(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.receipt_long_rounded, color: AppColors.primary),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        p['month'],
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Text(
-                            'Net: ${format.format(net)}',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.success),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Gross: ${format.format(gross)}',
-                            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.visibility_outlined, color: AppColors.primary, size: 20),
-                      onPressed: () {
-                        _viewEmployeePayslip(p['month'], gross, deductions, net);
-                      },
-                      tooltip: 'View Payslip',
+                    const Text(
+                      'Salary Summary',
+                      style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.download_outlined, color: AppColors.textSecondary, size: 20),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Downloading Payslip for ${p['month']}...')),
-                        );
-                      },
-                      tooltip: 'Download PDF',
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.backgroundSecondary,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.cardBorder),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedMonth,
+                          dropdownColor: AppColors.cardBg,
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                          items: payslips.map((p) {
+                            return DropdownMenuItem<String>(
+                              value: p['month'],
+                              child: Text(p['month']),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedMonth = val;
+                              });
+                            }
+                          },
+                        ),
+                      ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                isMobileLayout
+                    ? Column(
+                        children: [
+                          buildSalaryCard('Gross Salary', formatSimple.format(grossVal), AppColors.success, Icons.account_balance_wallet_outlined),
+                          const SizedBox(height: 12),
+                          buildSalaryCard('Deductions', formatSimple.format(deductionsVal), AppColors.error, Icons.remove_circle_outline),
+                          const SizedBox(height: 12),
+                          buildSalaryCard('Net Pay', formatSimple.format(netVal), AppColors.primary, Icons.payments_outlined),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(child: buildSalaryCard('Gross Salary', formatSimple.format(grossVal), AppColors.success, Icons.account_balance_wallet_outlined)),
+                          const SizedBox(width: 12),
+                          Expanded(child: buildSalaryCard('Deductions', formatSimple.format(deductionsVal), AppColors.error, Icons.remove_circle_outline)),
+                          const SizedBox(width: 12),
+                          Expanded(child: buildSalaryCard('Net Pay', formatSimple.format(netVal), AppColors.primary, Icons.payments_outlined)),
+                        ],
+                      ),
+                const SizedBox(height: 16),
+                const Divider(color: AppColors.cardBorder),
+                const SizedBox(height: 12),
+                buildBreakdownRow('Basic Pay - Exe & NE', format.format(basicPart)),
+                buildBreakdownRow('Dearness Allow - Exe & NE', format.format(daPart)),
+                buildBreakdownRow('House Rent Allow E&NE', format.format(hraPart)),
+                buildBreakdownRow('Other Perks', format.format(otherPerksPart)),
+                buildBreakdownRow('Ee PF contribution', '-${format.format(pfPart)}', isDeduction: true),
+                buildBreakdownRow('Income Tax', '-${format.format(itPart)}', isDeduction: true),
+                buildBreakdownRow('Other Deductions', '-${format.format(otherDeductionsPart)}', isDeduction: true),
               ],
             ),
           ),
-        );
-      },
+          const SizedBox(height: 20),
+
+          // Payslip History Card
+          GlassCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: SectionHeader(title: 'Payslip History', icon: Icons.receipt_long_outlined),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.backgroundSecondary,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.cardBorder),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _historyFilterYear,
+                            dropdownColor: AppColors.cardBg,
+                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                            items: const [
+                              DropdownMenuItem(value: 'All', child: Text('All Years')),
+                              DropdownMenuItem(value: '2026', child: Text('2026')),
+                              DropdownMenuItem(value: '2025', child: Text('2025')),
+                              DropdownMenuItem(value: '2024', child: Text('2024')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _historyFilterYear = val;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (filteredHistory.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: Center(
+                      child: Text(
+                        'No payslips available for the selected year',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      ),
+                    ),
+                  )
+                else
+                  ...filteredHistory.asMap().entries.map((entry) {
+                    final p = entry.value;
+                    final isEven = entry.key.isEven;
+                    final double g = p['gross'];
+                    final double d = p['deductions'];
+                    final double n = g - d;
+                    return Column(
+                      children: [
+                        Container(
+                          color: isEven ? AppColors.background.withOpacity(0.3) : Colors.transparent,
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.receipt_long_rounded, color: AppColors.primary),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      p['month'],
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'Net: ${format.format(n)}',
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.success),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          'Gross: ${format.format(g)}',
+                                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.visibility_outlined, color: AppColors.primary, size: 20),
+                                    onPressed: () {
+                                      _viewEmployeePayslip(p['month'], g, d, n);
+                                    },
+                                    tooltip: 'View Payslip',
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.download_outlined, color: AppColors.textSecondary, size: 20),
+                                    onPressed: () {
+                                      PayslipPdfHelper.printPayslipPdf(
+                                        p['month'],
+                                        employeeId: widget.employee.employeeId,
+                                        gross: g,
+                                        deductions: d,
+                                      );
+                                    },
+                                    tooltip: 'Download PDF',
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 1, color: AppColors.cardBorder),
+                      ],
+                    );
+                  }).toList(),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   void _viewEmployeePayslip(String month, double gross, double deductions, double net) {
-    final emp = widget.employee;
-    final format = NumberFormat.currency(locale: 'HI', symbol: '₹', decimalDigits: 2);
-    final double basic = double.tryParse(emp.basicSalary.replaceAll(',', '')) ?? 100000.00;
-    final double da = basic * 0.50;
-    final double hra = basic * 0.15;
-    final double otherPerks = gross - basic - da - hra;
-    final double pf = deductions * 0.35;
-    final double it = deductions * 0.45;
-    final double otherDeductions = deductions - pf - it;
-
     showDialog(
       context: context,
       builder: (context) {
-        Widget cellText(String text, {bool bold = false, TextAlign align = TextAlign.left, Color? bgColor}) {
-          return Container(
-            color: bgColor,
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            alignment: align == TextAlign.center
-                ? Alignment.center
-                : align == TextAlign.right ? Alignment.centerRight : Alignment.centerLeft,
-            child: Text(
-              text,
-              textAlign: align,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-                color: Colors.black87,
-              ),
-            ),
-          );
-        }
-
         return Dialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SingleChildScrollView(
-              child: Container(
-                width: 700,
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.8,
+            height: MediaQuery.of(context).size.height * 0.8,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: const BoxDecoration(
-                                color: AppColors.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: const Text(
-                                'मॉयल\nMOIL',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 6, color: Colors.white, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'MOIL LIMITED',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
-                            ),
-                          ],
-                        ),
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text('PAYMENT SLIP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            Text('CONFIDENTIAL', style: TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const Divider(thickness: 1, color: Colors.black54),
-                    const SizedBox(height: 8),
-                    Table(
-                      border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
-                      children: [
-                        TableRow(children: [
-                          cellText('Employee Code', bold: true),
-                          cellText(emp.employeeId),
-                          cellText('Name', bold: true),
-                          cellText(emp.name),
-                        ]),
-                        TableRow(children: [
-                          cellText('Department', bold: true),
-                          cellText(emp.department),
-                          cellText('Designation', bold: true),
-                          cellText(emp.designation),
-                        ]),
-                        TableRow(children: [
-                          cellText('Grade', bold: true),
-                          cellText(emp.presentGrade),
-                          cellText('Payslip Month', bold: true),
-                          cellText(month),
-                        ]),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('EARNINGS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
-                              const SizedBox(height: 4),
-                              Table(
-                                border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
-                                children: [
-                                  TableRow(
-                                    decoration: BoxDecoration(color: Colors.grey.shade100),
-                                    children: [
-                                      cellText('Description', bold: true),
-                                      cellText('Amount', bold: true, align: TextAlign.right),
-                                    ],
-                                  ),
-                                  TableRow(children: [
-                                    cellText('Basic Pay'),
-                                    cellText(format.format(basic), align: TextAlign.right),
-                                  ]),
-                                  TableRow(children: [
-                                    cellText('Dearness Allowance (DA)'),
-                                    cellText(format.format(da), align: TextAlign.right),
-                                  ]),
-                                  TableRow(children: [
-                                    cellText('House Rent Allowance (HRA)'),
-                                    cellText(format.format(hra), align: TextAlign.right),
-                                  ]),
-                                  TableRow(children: [
-                                    cellText('Other Perks & Allowances'),
-                                    cellText(format.format(otherPerks), align: TextAlign.right),
-                                  ]),
-                                  TableRow(
-                                    decoration: BoxDecoration(color: Colors.grey.shade100),
-                                    children: [
-                                      cellText('Total Earnings', bold: true),
-                                      cellText(format.format(gross), bold: true, align: TextAlign.right),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('DEDUCTIONS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
-                              const SizedBox(height: 4),
-                              Table(
-                                border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
-                                children: [
-                                  TableRow(
-                                    decoration: BoxDecoration(color: Colors.grey.shade100),
-                                    children: [
-                                      cellText('Description', bold: true),
-                                      cellText('Amount', bold: true, align: TextAlign.right),
-                                    ],
-                                  ),
-                                  TableRow(children: [
-                                    cellText('Provident Fund (PF)'),
-                                    cellText(format.format(pf), align: TextAlign.right),
-                                  ]),
-                                  TableRow(children: [
-                                    cellText('Income Tax (TDS)'),
-                                    cellText(format.format(it), align: TextAlign.right),
-                                  ]),
-                                  TableRow(children: [
-                                    cellText('Other Deductions'),
-                                    cellText(format.format(otherDeductions), align: TextAlign.right),
-                                  ]),
-                                  TableRow(children: [
-                                    cellText('-'),
-                                    cellText('-', align: TextAlign.right),
-                                  ]),
-                                  TableRow(
-                                    decoration: BoxDecoration(color: Colors.grey.shade100),
-                                    children: [
-                                      cellText('Total Deductions', bold: true),
-                                      cellText(format.format(deductions), bold: true, align: TextAlign.right),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: AppColors.success.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('NET DISTRIBUTABLE PAY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: AppColors.success)),
-                          Text(format.format(net), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.success)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Close'),
-                        ),
-                      ],
+                    Text('View Payslip - $month', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary)),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: PdfPreview(
+                    build: (format) => PayslipPdfHelper.generatePayslipPdfBytes(
+                      month,
+                      employeeId: widget.employee.employeeId,
+                      gross: gross,
+                      deductions: deductions,
+                    ),
+                    allowPrinting: true,
+                    allowSharing: true,
+                    canChangePageFormat: false,
+                    canChangeOrientation: false,
+                    initialPageFormat: PdfPageFormat.a4,
+                  ),
+                ),
+              ],
             ),
           ),
         );

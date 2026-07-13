@@ -1,9 +1,35 @@
+import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:intl/intl.dart';
+import '../../profile/controller/profile_controller.dart';
 
 class PayslipPdfHelper {
-  static Future<void> printPayslipPdf(String month) async {
+  static Future<void> printPayslipPdf(
+    String month, {
+    String? employeeId,
+    double? gross,
+    double? deductions,
+  }) async {
+    final pdfBytes = await generatePayslipPdfBytes(
+      month,
+      employeeId: employeeId,
+      gross: gross,
+      deductions: deductions,
+    );
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdfBytes,
+      name: 'Payment_Slip_${month.replaceAll(' ', '_')}.pdf',
+    );
+  }
+
+  static Future<Uint8List> generatePayslipPdfBytes(
+    String month, {
+    String? employeeId,
+    double? gross,
+    double? deductions,
+  }) async {
     final doc = pw.Document();
 
     final fontRegular = await PdfGoogleFonts.hindRegular();
@@ -13,6 +39,28 @@ class PayslipPdfHelper {
       base: fontRegular,
       bold: fontBold,
     );
+
+    // Dynamic Employee Resolution
+    final cleanId = (employeeId ?? '446').trim().replaceAll(RegExp('^0+'), '');
+    final Map<String, dynamic> raw = ProfileController.rawEmployees.firstWhere(
+      (e) => e['empNo'] == cleanId,
+      orElse: () => ProfileController.rawEmployees.first,
+    );
+
+    final double basicVal = double.tryParse(raw['basic'].toString().replaceAll(',', '')) ?? 100000.00;
+    final double grossVal = gross ?? (basicVal * 1.85);
+    final double deductionsVal = deductions ?? (basicVal * 0.46);
+    final double netVal = grossVal - deductionsVal;
+
+    final double daVal = basicVal * 0.50;
+    final double hraVal = basicVal * 0.15;
+    final double otherPerksVal = grossVal - basicVal - daVal - hraVal;
+
+    final double pfVal = deductionsVal * 0.35;
+    final double itVal = deductionsVal * 0.45;
+    final double otherDeductionsVal = deductionsVal - pfVal - itVal;
+
+    final format = NumberFormat.currency(locale: 'HI', symbol: '', decimalDigits: 2);
 
     // Helper for table cells
     pw.Widget cellText(String text, {bool bold = false, double size = 8, PdfColor? color, pw.Alignment alignment = pw.Alignment.centerLeft}) {
@@ -73,7 +121,7 @@ class PayslipPdfHelper {
                           ),
                           pw.Text(
                             'मॉयल लिमिटेड',
-                            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700),
                           ),
                         ],
                       ),
@@ -84,11 +132,11 @@ class PayslipPdfHelper {
                     children: [
                       pw.Text(
                         'Payment Slip',
-                        style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                        style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
                       ),
                       pw.Text(
                         'वेतन पर्ची',
-                        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700),
                       ),
                     ],
                   ),
@@ -110,35 +158,35 @@ class PayslipPdfHelper {
                 children: [
                   pw.TableRow(children: [
                     cellText('Emp Name\nनाम', bold: true),
-                    cellText('B.C.N. Gautam'),
+                    cellText(raw['name'] ?? ''),
                     cellText('Location\nकार्यस्थल', bold: true),
-                    cellText('Head Office Nag'),
+                    cellText(raw['subarea'] ?? ''),
                     cellText('Grade\nवेतनमान', bold: true),
-                    cellText('80000-220000'),
+                    cellText(raw['payscale'] ?? ''),
                   ]),
                   pw.TableRow(children: [
                     cellText('Personnel No.\nकर्मचारी नंबर', bold: true),
-                    cellText('00004428'),
+                    cellText(raw['empNo'] ?? ''),
                     cellText('Department\nविभाग', bold: true),
-                    cellText('System'),
+                    cellText(raw['dept'] ?? ''),
                     cellText('Emp Grp\nकर्मचारी समूह', bold: true),
-                    cellText('Executive'),
+                    cellText(raw['group'] ?? ''),
                   ]),
                   pw.TableRow(children: [
                     cellText('Period\nअवधि', bold: true),
-                    cellText('01.06.2026-30.06.2026'),
+                    cellText(month == 'May 2026' ? '01.05.2026-31.05.2026' : '01.04.2026-30.04.2026'),
                     cellText('PF No\nभविष्य निधि नंबर', bold: true),
-                    cellText('NG/NAG/3600/4755'),
+                    cellText(raw['pfNo'] ?? ''),
                     cellText('Emp Subgrp\nकर्मचारी उपसमूह', bold: true),
-                    cellText('Asst. Gen. Manager'),
+                    cellText(raw['subgroupText'] ?? ''),
                   ]),
                   pw.TableRow(children: [
                     cellText('Pan No\nपैन नंबर', bold: true),
-                    cellText('AIMPG8474A'),
+                    cellText(raw['pan'] ?? ''),
                     cellText('Form B No\nफॉर्म बी. नंबर', bold: true),
-                    cellText('02260'),
+                    cellText(raw['fb'] ?? raw['empNo'] ?? ''),
                     cellText('Designation\nपदनाम', bold: true),
-                    cellText('Assistant General Manager-System'),
+                    cellText(raw['position'] ?? ''),
                   ]),
                 ],
               ),
@@ -170,11 +218,11 @@ class PayslipPdfHelper {
                   pw.TableRow(
                     children: [
                       cellText('STATE BANK OF INDIA', alignment: pw.Alignment.center),
-                      cellText('20529486466', alignment: pw.Alignment.center),
-                      cellText('88,710.00', alignment: pw.Alignment.center),
-                      cellText('185,492.50', alignment: pw.Alignment.center),
-                      cellText('46,274.00', alignment: pw.Alignment.center),
-                      cellText('139,218.50', alignment: pw.Alignment.center),
+                      cellText(raw['bankAcc'] ?? 'N/A', alignment: pw.Alignment.center),
+                      cellText(format.format(basicVal), alignment: pw.Alignment.center),
+                      cellText(format.format(grossVal), alignment: pw.Alignment.center),
+                      cellText(format.format(deductionsVal), alignment: pw.Alignment.center),
+                      cellText(format.format(netVal), alignment: pw.Alignment.center),
                     ],
                   ),
                 ],
@@ -202,53 +250,53 @@ class PayslipPdfHelper {
                   ),
                   pw.TableRow(children: [
                     cellText('Basic Pay - Exe & NE\nमूल वेतन'),
-                    cellText('88,710.00', alignment: pw.Alignment.centerRight),
+                    cellText(format.format(basicVal), alignment: pw.Alignment.centerRight),
                     cellText('Ee PF contribution\nकर्मचारी PF अंशदान'),
-                    cellText('16,404.00', alignment: pw.Alignment.centerRight),
+                    cellText(format.format(pfVal), alignment: pw.Alignment.centerRight),
                   ]),
                   pw.TableRow(children: [
                     cellText('Dearness Allow - Exe & NE\nमहंगाई भत्ता-दिव्या'),
-                    cellText('47,992.00', alignment: pw.Alignment.centerRight),
+                    cellText(format.format(daVal), alignment: pw.Alignment.centerRight),
                     cellText('Prof Tax - split period\nवृत्ति कर - विभाजन अवधि'),
                     cellText('200.00', alignment: pw.Alignment.centerRight),
                   ]),
                   pw.TableRow(children: [
                     cellText('House Rent Allow E&NE\nमकान किराया भत्ता'),
-                    cellText('17,742.00', alignment: pw.Alignment.centerRight),
+                    cellText(format.format(hraVal), alignment: pw.Alignment.centerRight),
                     cellText('Income Tax\nआयकर'),
-                    cellText('22,420.00', alignment: pw.Alignment.centerRight),
+                    cellText(format.format(itVal), alignment: pw.Alignment.centerRight),
                   ]),
                   pw.TableRow(children: [
                     cellText('Other Perks\nअन्य भत्ते'),
-                    cellText('31,048.50', alignment: pw.Alignment.centerRight),
+                    cellText(format.format(otherPerksVal), alignment: pw.Alignment.centerRight),
                     cellText('Credit Society Share\nक्रेडिट सोसायटी शेयर'),
-                    cellText('7,000.00', alignment: pw.Alignment.centerRight),
+                    cellText(format.format(otherDeductionsVal * 0.8), alignment: pw.Alignment.centerRight),
                   ]),
                   pw.TableRow(children: [
                     cellText(''),
                     cellText(''),
                     cellText('Furn & Fixture Recovery\nफर्निचर और फिक्सचर रिकव'),
-                    cellText('100.00', alignment: pw.Alignment.centerRight),
+                    cellText(format.format(otherDeductionsVal * 0.1), alignment: pw.Alignment.centerRight),
                   ]),
                   pw.TableRow(children: [
                     cellText(''),
                     cellText(''),
                     cellText('MEA Subscription fees\nएमईए सदस्यता शुल्क'),
-                    cellText('100.00', alignment: pw.Alignment.centerRight),
+                    cellText(format.format(otherDeductionsVal * 0.05), alignment: pw.Alignment.centerRight),
                   ]),
                   pw.TableRow(children: [
                     cellText(''),
                     cellText(''),
                     cellText('Benevolent Fund\nपरोपकार निधि'),
-                    cellText('50.00', alignment: pw.Alignment.centerRight),
+                    cellText(format.format(otherDeductionsVal * 0.05), alignment: pw.Alignment.centerRight),
                   ]),
                   pw.TableRow(
                     decoration: const pw.BoxDecoration(color: PdfColors.grey200),
                     children: [
                       cellText('Total Earnings', bold: true),
-                      cellText('185,492.50', bold: true, alignment: pw.Alignment.centerRight),
+                      cellText(format.format(grossVal), bold: true, alignment: pw.Alignment.centerRight),
                       cellText('Total Deductions', bold: true),
-                      cellText('46,274.00', bold: true, alignment: pw.Alignment.centerRight),
+                      cellText(format.format(deductionsVal), bold: true, alignment: pw.Alignment.centerRight),
                     ],
                   ),
                 ],
@@ -266,7 +314,7 @@ class PayslipPdfHelper {
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
                     pw.Text('Take Home Pay', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                    pw.Text('139,218.50', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                    pw.Text(format.format(netVal), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
                   ],
                 ),
               ),
@@ -295,35 +343,35 @@ class PayslipPdfHelper {
                         ),
                         pw.TableRow(children: [
                           cellText('Gross Salary'),
-                          cellText('2,239,830.00', alignment: pw.Alignment.centerRight),
+                          cellText(format.format(grossVal * 12), alignment: pw.Alignment.centerRight),
                         ]),
                         pw.TableRow(children: [
                           cellText('Balance'),
-                          cellText('2,239,830.00', alignment: pw.Alignment.centerRight),
+                          cellText(format.format(grossVal * 12), alignment: pw.Alignment.centerRight),
                         ]),
                         pw.TableRow(children: [
                           cellText('Incm under Hd Salary'),
-                          cellText('2,239,830.00', alignment: pw.Alignment.centerRight),
+                          cellText(format.format(grossVal * 12), alignment: pw.Alignment.centerRight),
                         ]),
                         pw.TableRow(children: [
                           cellText('Gross Tot Income'),
-                          cellText('2,239,830.00', alignment: pw.Alignment.centerRight),
+                          cellText(format.format(grossVal * 12), alignment: pw.Alignment.centerRight),
                         ]),
                         pw.TableRow(children: [
                           cellText('Total Income'),
-                          cellText('2,239,830.00', alignment: pw.Alignment.centerRight),
+                          cellText(format.format(grossVal * 12 - 175000.0), alignment: pw.Alignment.centerRight),
                         ]),
                         pw.TableRow(children: [
                           cellText('Tax payable and surcharge'),
-                          cellText('425,827.00', alignment: pw.Alignment.centerRight),
+                          cellText(format.format(itVal * 12), alignment: pw.Alignment.centerRight),
                         ]),
                         pw.TableRow(children: [
                           cellText('Income Tax'),
-                          cellText('22,420.00', alignment: pw.Alignment.centerRight),
+                          cellText(format.format(itVal), alignment: pw.Alignment.centerRight),
                         ]),
                         pw.TableRow(children: [
                           cellText('Balance tax(payable/refundable)'),
-                          cellText('384,327.00', alignment: pw.Alignment.centerRight),
+                          cellText(format.format(itVal * 11), alignment: pw.Alignment.centerRight),
                         ]),
                       ],
                     ),
@@ -415,7 +463,7 @@ class PayslipPdfHelper {
                     decoration: const pw.BoxDecoration(color: PdfColors.grey200),
                     children: [
                       cellText('Leave Details\nहाजरी', bold: true, alignment: pw.Alignment.center),
-                      cellText('E.L.\nअर्जित छुट्टी', bold: true, alignment: pw.Alignment.center),
+                      cellText('E.L.\n अर्जित छुट्टी', bold: true, alignment: pw.Alignment.center),
                       cellText('C.L.\nआकस्मिक छुट्टी', bold: true, alignment: pw.Alignment.center),
                       cellText('H.P.L.\nअर्ध वेतन छुट्टी', bold: true, alignment: pw.Alignment.center),
                       cellText('C.H.P.L.\nसी.एच.पी.एल.', bold: true, alignment: pw.Alignment.center),
@@ -428,9 +476,9 @@ class PayslipPdfHelper {
                   pw.TableRow(
                     children: [
                       cellText('Balance', alignment: pw.Alignment.center),
-                      cellText('263.50', alignment: pw.Alignment.center),
-                      cellText('6.50', alignment: pw.Alignment.center),
-                      cellText('315.00', alignment: pw.Alignment.center),
+                      cellText(cleanId == '446' ? '185.50' : '263.50', alignment: pw.Alignment.center),
+                      cellText(cleanId == '446' ? '10.50' : '6.50', alignment: pw.Alignment.center),
+                      cellText(cleanId == '446' ? '107.00' : '315.00', alignment: pw.Alignment.center),
                       cellText('0.00', alignment: pw.Alignment.center),
                       cellText('2.00', alignment: pw.Alignment.center),
                       cellText('0.00', alignment: pw.Alignment.center),
@@ -455,9 +503,6 @@ class PayslipPdfHelper {
       ),
     );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => doc.save(),
-      name: 'Payment_Slip_${month.replaceAll(' ', '_')}.pdf',
-    );
+    return doc.save();
   }
 }

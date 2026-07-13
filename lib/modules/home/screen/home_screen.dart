@@ -223,23 +223,31 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildQuickStats(BuildContext context) {
     final leaveController = context.watch<LeaveController>();
     final width = MediaQuery.of(context).size.width;
-
     double baseEl = 185.50;
     double baseCl = 10.50;
     double baseHpl = 107.00;
     double baseOp = 2.00;
+
+    double baseElEnt = 215.50;
+    double baseClEnt = 12.00;
+    double baseHplEnt = 107.00;
+    double baseOpEnt = 2.00;
 
     // Retrieve default base balances from controller
     for (var b in leaveController.balances) {
       final name = b.timeAccount.toLowerCase();
       if (name.contains('earned')) {
         baseEl = b.entitlementMinusPlanned;
+        baseElEnt = b.entitlement;
       } else if (name.contains('casual')) {
         baseCl = b.entitlementMinusPlanned;
+        baseClEnt = b.entitlement;
       } else if (name.contains('hpl')) {
         baseHpl = b.entitlementMinusPlanned;
+        baseHplEnt = b.entitlement;
       } else if (name.contains('optional')) {
         baseOp = b.entitlementMinusPlanned;
+        baseOpEnt = b.entitlement;
       }
     }
 
@@ -257,8 +265,20 @@ class _HomeScreenState extends State<HomeScreen> {
       } else if (year > 2027) {
         val = 245.50 + (year - 2027) * 30.0;
       }
-      final double consumed = getDayOfYear(_earnedLeaveDate) * 0.1;
-      return (val - consumed).clamp(0.0, 500.0);
+      return val;
+    }
+
+    double calculateEarnedLeaveEnt() {
+      final int year = _earnedLeaveDate.year;
+      double val = baseElEnt;
+      if (year == 2025) {
+        val = 150.0;
+      } else if (year == 2027) {
+        val = 275.50;
+      } else if (year > 2027) {
+        val = 275.50 + (year - 2027) * 30.0;
+      }
+      return val;
     }
 
     double calculateCasualLeave() {
@@ -269,8 +289,18 @@ class _HomeScreenState extends State<HomeScreen> {
       } else if (year >= 2027) {
         val = 12.0;
       }
-      final double consumed = getDayOfYear(_casualLeaveDate) * 0.02;
-      return (val - consumed).clamp(0.0, 12.0);
+      return val;
+    }
+
+    double calculateCasualLeaveEnt() {
+      final int year = _casualLeaveDate.year;
+      double val = baseClEnt;
+      if (year == 2025) {
+        val = 10.0;
+      } else if (year >= 2027) {
+        val = 12.0;
+      }
+      return val;
     }
 
     double calculateHPL() {
@@ -283,8 +313,20 @@ class _HomeScreenState extends State<HomeScreen> {
       } else if (year > 2027) {
         val = 127.0 + (year - 2027) * 20.0;
       }
-      final double consumed = getDayOfYear(_hplDate) * 0.05;
-      return (val - consumed).clamp(0.0, 400.0);
+      return val;
+    }
+
+    double calculateHplEnt() {
+      final int year = _hplDate.year;
+      double val = baseHplEnt;
+      if (year == 2025) {
+        val = 110.0;
+      } else if (year == 2027) {
+        val = 127.0;
+      } else if (year > 2027) {
+        val = 127.0 + (year - 2027) * 20.0;
+      }
+      return val;
     }
 
     double calculateOptionalLeave() {
@@ -301,10 +343,26 @@ class _HomeScreenState extends State<HomeScreen> {
       return val;
     }
 
+    double calculateOptionalLeaveEnt() {
+      final int year = _optionalLeaveDate.year;
+      double val = baseOpEnt;
+      if (year == 2025) {
+        val = 2.0;
+      } else if (year >= 2027) {
+        val = 2.0;
+      }
+      return val;
+    }
+
     final double el = calculateEarnedLeave();
     final double cl = calculateCasualLeave();
     final double hpl = calculateHPL();
     final double op = calculateOptionalLeave();
+
+    final double elEnt = calculateEarnedLeaveEnt();
+    final double clEnt = calculateCasualLeaveEnt();
+    final double hplEnt = calculateHplEnt();
+    final double opEnt = calculateOptionalLeaveEnt();
 
     Widget buildCalendarPicker({
       required DateTime selectedDate,
@@ -362,6 +420,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _StatCard(
         title: 'Earned Leave',
         value: el % 1 == 0 ? '${el.toInt()}' : el.toStringAsFixed(1),
+        entitlement: elEnt % 1 == 0 ? '${elEnt.toInt()}' : elEnt.toStringAsFixed(1),
         subtitleWidget: buildCalendarPicker(
           selectedDate: _earnedLeaveDate,
           onDateSelected: (date) {
@@ -376,6 +435,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _StatCard(
         title: 'Casual Leave',
         value: cl % 1 == 0 ? '${cl.toInt()}' : cl.toStringAsFixed(1),
+        entitlement: clEnt % 1 == 0 ? '${clEnt.toInt()}' : clEnt.toStringAsFixed(1),
         subtitleWidget: buildCalendarPicker(
           selectedDate: _casualLeaveDate,
           onDateSelected: (date) {
@@ -390,6 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _StatCard(
         title: 'Half Pay Leave',
         value: hpl % 1 == 0 ? '${hpl.toInt()}' : hpl.toStringAsFixed(1),
+        entitlement: hplEnt % 1 == 0 ? '${hplEnt.toInt()}' : hplEnt.toStringAsFixed(1),
         subtitleWidget: buildCalendarPicker(
           selectedDate: _hplDate,
           onDateSelected: (date) {
@@ -404,6 +465,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _StatCard(
         title: 'Optional Leave',
         value: op % 1 == 0 ? '${op.toInt()}' : op.toStringAsFixed(1),
+        entitlement: opEnt % 1 == 0 ? '${opEnt.toInt()}' : opEnt.toStringAsFixed(1),
         subtitleWidget: buildCalendarPicker(
           selectedDate: _optionalLeaveDate,
           onDateSelected: (date) {
@@ -416,6 +478,7 @@ class _HomeScreenState extends State<HomeScreen> {
         color: const Color(0xFF8B5CF6),
       ),
     ];
+
 
     Widget buildCardsLayout() {
       if (width > 1200) {
@@ -822,6 +885,7 @@ class _HomeScreenState extends State<HomeScreen> {
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
+  final String entitlement;
   final Widget subtitleWidget;
   final IconData icon;
   final Color color;
@@ -829,84 +893,97 @@ class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.title,
     required this.value,
+    required this.entitlement,
     required this.subtitleWidget,
     required this.icon,
     required this.color,
   });
 
   @override
-Widget build(BuildContext context) {
-  final double width = MediaQuery.of(context).size.width;
-  final bool isWeb = width > 800;
+  Widget build(BuildContext context) {
+    final double width = MediaQuery.of(context).size.width;
+    final bool isWeb = width > 800;
 
-  return GlassCard(
-    padding: const EdgeInsets.all(12),
-    child: isWeb
-        ? Row(
-            children: [
-              Icon(icon, color: color, size: 50),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitleWidget,
-                  ],
-                ),
-              ),
-            ],
-          )
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: color, size: 40),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitleWidget,
-            ],
+    Widget buildValueRow(double fontSize, double entFontSize) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-  );
-}
+          const SizedBox(width: 4),
+          Text(
+            '/ $entitlement Ent.',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: entFontSize,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return GlassCard(
+      padding: const EdgeInsets.all(12),
+      child: isWeb
+          ? Row(
+              children: [
+                Icon(icon, color: color, size: 50),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      buildValueRow(20, 11),
+                      const SizedBox(height: 2),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitleWidget,
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: color, size: 40),
+                const SizedBox(height: 8),
+                buildValueRow(20, 11),
+                const SizedBox(height: 2),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitleWidget,
+              ],
+            ),
+    );
   }
+}
 
 
 class _ModuleItem {

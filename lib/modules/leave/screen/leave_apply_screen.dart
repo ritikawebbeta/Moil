@@ -70,6 +70,24 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
   final List<String> _durations = ['Full-Day', 'Half-Day'];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthController>();
+      final empId = auth.user?.employeeId ?? '';
+      setState(() {
+        if (empId == '446') {
+          _processor = 'Rakesh Tumane';
+        } else if (['540', '4410', '4428', '4733', '419'].contains(empId)) {
+          _processor = 'Raja Talathoti & Nitin Kajarekar';
+        } else {
+          _processor = 'Raja Talathoti';
+        }
+      });
+    });
+  }
+
+  @override
   void dispose() {
     _noteController.dispose();
     super.dispose();

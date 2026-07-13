@@ -200,10 +200,10 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ],
           ),
-          child: const Center(
-            child: CustomPaint(
-              size: Size(64, 64),
-              painter: MoilLogoPainter(),
+          child: ClipOval(
+            child: Image.asset(
+              'assets/images/moil_logo.png',
+              fit: BoxFit.cover,
             ),
           ),
         ),

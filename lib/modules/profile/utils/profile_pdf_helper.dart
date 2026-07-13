@@ -31,9 +31,18 @@ class ProfilePdfHelper {
     }
 
     pw.ImageProvider? avatarImg;
-    if (emp.employeeId == '446' || emp.employeeId == '00000446') {
+    final empId = emp.employeeId.trim().replaceAll(RegExp('^0+'), '');
+    if (empId == '446') {
       try {
         avatarImg = await imageFromAssetBundle('assets/images/raja_talathoti.jpg');
+      } catch (_) {}
+    } else if (empId == '16194') {
+      try {
+        avatarImg = await imageFromAssetBundle('assets/images/rakesh_tumane.jpg');
+      } catch (_) {}
+    } else if (empId == '17110') {
+      try {
+        avatarImg = await imageFromAssetBundle('assets/images/sameer_banerjee.jpg');
       } catch (_) {}
     }
 

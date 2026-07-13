@@ -125,7 +125,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                     });
                   },
                   eventLoader: (day) => _getEventsForDay(day, controller.leaves),
-                  calendarStyle: CalendarStyle(
+                   calendarStyle: CalendarStyle(
                     defaultTextStyle: const TextStyle(color: AppColors.textPrimary),
                     weekendTextStyle: const TextStyle(color: AppColors.textPrimary),
                     selectedDecoration: const BoxDecoration(
@@ -146,6 +146,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                       shape: BoxShape.circle,
                     ),
                     outsideDaysVisible: false,
+                    markersMaxCount: 0,
                   ),
                   headerStyle: const HeaderStyle(
                     formatButtonVisible: true,
@@ -401,7 +402,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
           ...List.generate(daysInMonth, (i) {
             final day = i + 1;
             final date = DateTime(firstDay.year, firstDay.month, day);
-            final isWeekend = date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
+            final isWeekend = date.weekday == DateTime.sunday;
             return Container(
               width: 28,
               padding: const EdgeInsets.symmetric(vertical: 4),
@@ -434,9 +435,10 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
   Widget _buildTeamMemberRow(String name, int daysInMonth, DateTime firstDay, bool isEven) {
     // Mock leave data per member
     final leaveRanges = {
-      'G Rohini Kumar': <int>[],
-      'Nareshkumar Madhorao Gaidhane': [17, 18, 19],
-      'Gautam Bose': [12],
+      'Swapnil Kanthiram Manpe': [5, 6, 7],
+      'Ranjeet Singh Chouhan': [12, 13],
+      'B.C.N. Gautam': [19, 20, 21],
+      'Radheshyam Chandra': [25],
     };
 
     return Column(
@@ -459,7 +461,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
               ...List.generate(daysInMonth, (i) {
                 final day = i + 1;
                 final date = DateTime(firstDay.year, firstDay.month, day);
-                final isWeekend = date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
+                final isWeekend = date.weekday == DateTime.sunday;
                 final hasLeave = (leaveRanges[name] ?? []).contains(day);
 
                 return Container(

@@ -5,6 +5,7 @@ import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
 import '../../notifications/controller/notification_controller.dart';
 import '../../leave/controller/leave_controller.dart';
+import '../../tour/controller/tour_controller.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../controller/bottom_nav_bar_controller.dart';
 import '../../home/screen/home_screen.dart';
@@ -45,6 +46,9 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
         context.read<LeaveController>().fetchBalances(auth.user!.employeeId);
       }
 
+      // Add listener to automatically restore logged in user context on tab switch!
+      context.read<BottomNavBarController>().addListener(_onTabChanged);
+
       // Auto-select tab index based on route name on startup/refresh
       final routeName = ModalRoute.of(context)?.settings.name;
       if (routeName != null) {
@@ -78,6 +82,31 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
         }
       }
     });
+  }
+
+  @override
+  void dispose() {
+    try {
+      context.read<BottomNavBarController>().removeListener(_onTabChanged);
+    } catch (_) {}
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (!mounted) return;
+    final controller = context.read<BottomNavBarController>();
+    final index = controller.selectedIndex;
+    
+    // If not viewing directory (index 4), restore logged-in employee leaves, balances, and tours context
+    if (index != 4) {
+      final auth = context.read<AuthController>();
+      if (auth.user != null) {
+        final empId = auth.user!.employeeId;
+        context.read<LeaveController>().fetchLeaves(empId);
+        context.read<LeaveController>().fetchBalances(empId);
+        context.read<TourController>().fetchTours(empId);
+      }
+    }
   }
 
   void _showLogoutConfirmation(BuildContext context) {

@@ -1,2 +1,0 @@
-ninja: Entering directory `/Users/apple/.pub-cache/hosted/pub.dev/jni-1.0.0/android/.cxx/RelWithDebInfo/04d1b436/x86_64'
-[1/1] Linking C shared library "/Users/apple/Flutter WB Project/Moil/build/jni/intermediates/cxx/RelWithDebInfo/04d1b436/obj/x86_64/libdartjni.so"

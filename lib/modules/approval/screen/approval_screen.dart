@@ -110,44 +110,8 @@ class _LeaveApprovalListState extends State<_LeaveApprovalList> {
 
     final allLeaves = [
       LeaveModel(
-        id: 'l1',
-        employeeId: '422 (Kartik R. Shah)',
-        leaveType: 'Earned Leave',
-        startDate: DateTime(2026, 7, 10),
-        startTime: '09:00:00',
-        endDate: DateTime(2026, 7, 15),
-        endTime: '17:30:00',
-        duration: 'Full-Day',
-        status: 'Pending',
-        reason: 'Daughter\'s wedding ceremony',
-      ),
-      LeaveModel(
-        id: 'l2',
-        employeeId: '431 (Arvind B Gajbhiye)',
-        leaveType: 'Casual Leave',
-        startDate: DateTime(2026, 7, 24),
-        startTime: '09:00:00',
-        endDate: DateTime(2026, 7, 25),
-        endTime: '17:30:00',
-        duration: 'Full-Day',
-        status: 'Pending',
-        reason: 'Personal family emergency',
-      ),
-      LeaveModel(
-        id: 'l3',
-        employeeId: '283 (Nitin Purushottam Kajarekar)',
-        leaveType: 'HPL (Half Pay Leave)',
-        startDate: DateTime(2026, 8, 1),
-        startTime: '09:00:00',
-        endDate: DateTime(2026, 8, 5),
-        endTime: '17:30:00',
-        duration: 'Full-Day',
-        status: 'Pending',
-        reason: 'Medical checkup and rest',
-      ),
-      LeaveModel(
         id: 'l4',
-        employeeId: '491 (Sushant Khursange)',
+        employeeId: '540 (Swapnil Kanthiram Manpe)',
         leaveType: 'Casual Leave',
         startDate: DateTime(2026, 7, 15),
         startTime: '09:00:00',
@@ -300,7 +264,7 @@ class _TourApprovalListState extends State<_TourApprovalList> {
     final allTours = [
       TourModel(
         id: 't1',
-        employeeId: '491 (Sushant Khursange)',
+        employeeId: '540 (Swapnil Kanthiram Manpe)',
         tourType: 'Official Tour',
         destination: 'Mumbai',
         startDate: DateTime(2026, 7, 15),
@@ -311,7 +275,7 @@ class _TourApprovalListState extends State<_TourApprovalList> {
       ),
       TourModel(
         id: 't2',
-        employeeId: '540 (Swapnil Manpe)',
+        employeeId: '4428 (B.C.N. Gautam)',
         tourType: 'Official Tour',
         destination: 'New Delhi',
         startDate: DateTime(2026, 7, 22),
@@ -322,7 +286,7 @@ class _TourApprovalListState extends State<_TourApprovalList> {
       ),
       TourModel(
         id: 't3',
-        employeeId: '283 (Nitin Purushottam Kajarekar)',
+        employeeId: '4410 (Nitin Kajarekar)',
         tourType: 'Official Tour',
         destination: 'Kolkata',
         startDate: DateTime(2026, 7, 28),
@@ -333,7 +297,7 @@ class _TourApprovalListState extends State<_TourApprovalList> {
       ),
       TourModel(
         id: 't4',
-        employeeId: '422 (Kartik R. Shah)',
+        employeeId: '17110 (Sameer Banerjee)',
         tourType: 'Official Tour',
         destination: 'Pune',
         startDate: DateTime(2026, 8, 2),

@@ -20,7 +20,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
   // Step 1 Controllers
   final _employeeCodeSearchCtrl = TextEditingController(text: '00000000');
   String _selectedYear = DateTime.now().year.toString();
-  final List<String> _calendarYears = List.generate((DateTime.now().year + 10) - 2000 + 1, (index) => (2000 + index).toString());
+  final List<String> _calendarYears = List.generate(7, (index) => (DateTime.now().year - 6 + index).toString());
 
   // Step 2 Controllers & Fields
   final _daysToEncashCtrl = TextEditingController(text: '00000');
@@ -128,13 +128,23 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
     }
     final serviceDays = DateTime.now().difference(joinDateParsed).inDays;
 
+    String resolvedApprover = data['approver'];
+    final cleanSearchCode = searchCode.trim().replaceAll(RegExp('^0+'), ''); // remove leading zeros for lookup
+    if (cleanSearchCode == '446') {
+      resolvedApprover = 'Rakesh Tumane';
+    } else if (['540', '4410', '4428', '4733', '419'].contains(cleanSearchCode)) {
+      resolvedApprover = 'Raja Talathoti & Nitin Kajarekar';
+    } else {
+      resolvedApprover = 'Raja Talathoti';
+    }
+
     setState(() {
       _employeeCode = searchCode;
       _employeeName = data['name'];
       _docNumber = data['docNo'];
       _createdOn = data['createdOn'];
       _leaveBalance = data['balance'];
-      _approver = data['approver'];
+      _approver = resolvedApprover;
       _docStatus = data['status'];
       _serviceDays = serviceDays;
       _daysToEncashCtrl.text = '00000';
@@ -156,6 +166,14 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
     if (days <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Please enter a valid number of days to encash (greater than 0).'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+
+    if (days > 30) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Not eligible: Only up to 30 leaves can be encashed at a time.'),
         backgroundColor: AppColors.error,
       ));
       return;
@@ -195,7 +213,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
   void _resetForm() {
     setState(() {
       _employeeCodeSearchCtrl.text = '00000000';
-      _selectedYear = '2030';
+      _selectedYear = DateTime.now().year.toString();
       _currentStep = 1;
     });
   }
