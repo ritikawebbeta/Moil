@@ -37,14 +37,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
 
   // Mock employee database
   final Map<String, Map<String, dynamic>> _mockEmployees = {
-    '00000467': {
-      'name': 'Vaishali Niteen Taksande',
-      'docNo': '22281',
-      'createdOn': '22.06.2026',
-      'balance': '00229',
-      'approver': 'G Rohini Kumar',
-      'status': 'Draft',
-    },
+  
     '00000463': {
       'name': 'Asim Md.Iqbal Shaikh',
       'docNo': '22283',
@@ -53,14 +46,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
       'approver': 'Manish M Malewar',
       'status': 'UPDATED',
     },
-    '00000000': {
-      'name': 'G Rohini Kumar',
-      'docNo': '22280',
-      'createdOn': '26.06.2026',
-      'balance': '00150',
-      'approver': 'Rakesh Tumane',
-      'status': 'NEW',
-    }
+  
   };
 
   @override

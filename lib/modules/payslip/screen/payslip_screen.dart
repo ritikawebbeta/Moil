@@ -72,6 +72,7 @@ class _PayslipScreenState extends State<PayslipScreen> {
     final double pf = (payslip['deductions'] * 16404.0 / 46274.00);
     final double it = (payslip['deductions'] * 22420.0 / 46274.00);
     final double otherDeductions = payslip['deductions'] - pf - it;
+    final double remainingDeductions = otherDeductions - 200.00;
 
     final double width = MediaQuery.of(context).size.width;
     final bool isMobile = width < 600;
@@ -211,25 +212,25 @@ class _PayslipScreenState extends State<PayslipScreen> {
                 _tableCell('Other Perks\nअन्य भत्ते'),
                 _tableCell(_formatCurrency(otherPerks), align: TextAlign.right),
                 _tableCell('Credit Society Share\nक्रेडिट सोसायटी शेयर'),
-                _tableCell(_formatCurrency(otherDeductions * 0.8), align: TextAlign.right),
+                _tableCell(_formatCurrency(remainingDeductions * 0.8), align: TextAlign.right),
               ]),
               TableRow(children: [
                 _tableCell(''),
                 _tableCell(''),
                 _tableCell('Furn & Fixture Recovery\nफर्निचर और फिक्सचर रिकव'),
-                _tableCell(_formatCurrency(otherDeductions * 0.1), align: TextAlign.right),
+                _tableCell(_formatCurrency(remainingDeductions * 0.1), align: TextAlign.right),
               ]),
               TableRow(children: [
                 _tableCell(''),
                 _tableCell(''),
                 _tableCell('MEA Subscription fees\nएमईए सदस्यता शुल्क'),
-                _tableCell(_formatCurrency(otherDeductions * 0.05), align: TextAlign.right),
+                _tableCell(_formatCurrency(remainingDeductions * 0.05), align: TextAlign.right),
               ]),
               TableRow(children: [
                 _tableCell(''),
                 _tableCell(''),
                 _tableCell('Benevolent Fund\nपरोपकार निधि'),
-                _tableCell(_formatCurrency(otherDeductions * 0.05), align: TextAlign.right),
+                _tableCell(_formatCurrency(remainingDeductions * 0.05), align: TextAlign.right),
               ]),
               TableRow(
                 decoration: const BoxDecoration(color: Color(0xFFE2E8F0)),

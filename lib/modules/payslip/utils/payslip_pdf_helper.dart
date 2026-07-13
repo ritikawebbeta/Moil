@@ -56,9 +56,10 @@ class PayslipPdfHelper {
     final double hraVal = basicVal * 0.15;
     final double otherPerksVal = grossVal - basicVal - daVal - hraVal;
 
-    final double pfVal = deductionsVal * 0.35;
-    final double itVal = deductionsVal * 0.45;
+    final double pfVal = deductionsVal * 16404.0 / 46274.00;
+    final double itVal = deductionsVal * 22420.0 / 46274.00;
     final double otherDeductionsVal = deductionsVal - pfVal - itVal;
+    final double remainingDeductionsVal = otherDeductionsVal - 200.00;
 
     final format = NumberFormat.currency(locale: 'HI', symbol: '', decimalDigits: 2);
 
@@ -270,25 +271,25 @@ class PayslipPdfHelper {
                     cellText('Other Perks\nअन्य भत्ते'),
                     cellText(format.format(otherPerksVal), alignment: pw.Alignment.centerRight),
                     cellText('Credit Society Share\nक्रेडिट सोसायटी शेयर'),
-                    cellText(format.format(otherDeductionsVal * 0.8), alignment: pw.Alignment.centerRight),
+                    cellText(format.format(remainingDeductionsVal * 0.8), alignment: pw.Alignment.centerRight),
                   ]),
                   pw.TableRow(children: [
                     cellText(''),
                     cellText(''),
                     cellText('Furn & Fixture Recovery\nफर्निचर और फिक्सचर रिकव'),
-                    cellText(format.format(otherDeductionsVal * 0.1), alignment: pw.Alignment.centerRight),
+                    cellText(format.format(remainingDeductionsVal * 0.1), alignment: pw.Alignment.centerRight),
                   ]),
                   pw.TableRow(children: [
                     cellText(''),
                     cellText(''),
                     cellText('MEA Subscription fees\nएमईए सदस्यता शुल्क'),
-                    cellText(format.format(otherDeductionsVal * 0.05), alignment: pw.Alignment.centerRight),
+                    cellText(format.format(remainingDeductionsVal * 0.05), alignment: pw.Alignment.centerRight),
                   ]),
                   pw.TableRow(children: [
                     cellText(''),
                     cellText(''),
                     cellText('Benevolent Fund\nपरोपकार निधि'),
-                    cellText(format.format(otherDeductionsVal * 0.05), alignment: pw.Alignment.centerRight),
+                    cellText(format.format(remainingDeductionsVal * 0.05), alignment: pw.Alignment.centerRight),
                   ]),
                   pw.TableRow(
                     decoration: const pw.BoxDecoration(color: PdfColors.grey200),
