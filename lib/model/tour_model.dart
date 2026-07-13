@@ -13,6 +13,7 @@ class TourModel {
   final String status;
   final String? remarks;
   final DateTime? appliedOn;
+  final DateTime? approvedOn;
 
   // New columns from SAP travel request
   final String countryRegion;
@@ -39,6 +40,7 @@ class TourModel {
     required this.status,
     this.remarks,
     this.appliedOn,
+    this.approvedOn,
     this.countryRegion = 'India',
     this.activity = 'Official Tour',
     this.advances = 0.0,
@@ -65,6 +67,7 @@ class TourModel {
       status: json['status'] ?? 'Pending',
       remarks: json['remarks'],
       appliedOn: json['appliedOn'] != null ? DateTime.parse(json['appliedOn']) : null,
+      approvedOn: json['approvedOn'] != null ? DateTime.parse(json['approvedOn']) : null,
       countryRegion: json['countryRegion'] ?? 'India',
       activity: json['activity'] ?? 'Official Tour',
       advances: (json['advances'] as num?)?.toDouble() ?? 0.0,
@@ -92,6 +95,7 @@ class TourModel {
       'status': status,
       'remarks': remarks,
       'appliedOn': appliedOn?.toIso8601String(),
+      'approvedOn': approvedOn?.toIso8601String(),
       'countryRegion': countryRegion,
       'activity': activity,
       'advances': advances,
@@ -118,6 +122,7 @@ class TourModel {
     String? status,
     String? remarks,
     DateTime? appliedOn,
+    DateTime? approvedOn,
     String? countryRegion,
     String? activity,
     double? advances,
@@ -142,6 +147,7 @@ class TourModel {
       status: status ?? this.status,
       remarks: remarks ?? this.remarks,
       appliedOn: appliedOn ?? this.appliedOn,
+      approvedOn: approvedOn ?? this.approvedOn,
       countryRegion: countryRegion ?? this.countryRegion,
       activity: activity ?? this.activity,
       advances: advances ?? this.advances,

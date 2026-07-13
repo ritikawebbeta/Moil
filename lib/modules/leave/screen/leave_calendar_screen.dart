@@ -27,6 +27,10 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
   CalendarFormat _calendarFormat = CalendarFormat.month;
   String _viewMode = 'Month';
 
+  late String _tempViewMode;
+  late int _tempMonth;
+  late int _tempYear;
+
   final List<String> _teamMembers = [
     'G Rohini Kumar',
     'Nareshkumar Madhorao Gaidhane',
@@ -43,6 +47,10 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
         emp['reportingOfficer'] == loggedInEmpNo ||
         emp['reportingOfficer1'] == loggedInEmpNo);
     _tabController = TabController(length: isReportingOfficer ? 2 : 1, vsync: this);
+
+    _tempViewMode = _viewMode;
+    _tempMonth = _focusedDay.month;
+    _tempYear = _focusedDay.year;
   }
 
   @override
@@ -276,22 +284,27 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
       padding: const EdgeInsets.all(12),
       child: Row(
         children: [
-          _buildControlChip(label: 'View:', value: _viewMode, options: const ['Month', 'Week'],
-            onSelect: (v) => setState(() => _viewMode = v)),
+          _buildControlChip(label: 'View:', value: _tempViewMode, options: const ['Month', 'Week'],
+            onSelect: (v) => setState(() => _tempViewMode = v)),
           const SizedBox(width: 8),
-          _buildControlChip(label: 'Month:', value: DateFormat('MMMM').format(_focusedDay),
+          _buildControlChip(label: 'Month:', value: DateFormat('MMMM').format(DateTime(2026, _tempMonth)),
             options: List.generate(12, (i) => DateFormat('MMMM').format(DateTime(2026, i + 1))),
             onSelect: (v) {
               final monthIndex = DateFormat('MMMM').parse(v).month;
-              setState(() => _focusedDay = DateTime(_focusedDay.year, monthIndex));
+              setState(() => _tempMonth = monthIndex);
             }),
           const SizedBox(width: 4),
-          _buildControlChip(label: '', value: _focusedDay.year.toString(),
+          _buildControlChip(label: '', value: _tempYear.toString(),
             options: const ['2025', '2026', '2027'],
-            onSelect: (v) => setState(() => _focusedDay = DateTime(int.parse(v), _focusedDay.month))),
+            onSelect: (v) => setState(() => _tempYear = int.parse(v))),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: () {},
+            onTap: () {
+              setState(() {
+                _viewMode = _tempViewMode;
+                _focusedDay = DateTime(_tempYear, _tempMonth, 1);
+              });
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(

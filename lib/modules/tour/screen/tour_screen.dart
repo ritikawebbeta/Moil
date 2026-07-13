@@ -691,6 +691,20 @@ class _TourCalendarTabState extends State<_TourCalendarTab>
                             Text(t.destination, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                             const SizedBox(height: 2),
                             Text(t.travelPurpose, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Text(
+                                  'Applied: ${t.appliedOn != null ? DateFormat('dd-MM-yyyy').format(t.appliedOn!) : 'N/A'}',
+                                  style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Approved: ${t.approvedOn != null ? DateFormat('dd-MM-yyyy').format(t.approvedOn!) : 'N/A'}',
+                                  style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -2673,6 +2687,20 @@ class _TourCalendarDialogState extends State<_TourCalendarDialog> {
                                               fontSize: 10,
                                               color: AppColors.textMuted,
                                             ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Row(
+                                            children: [
+                                              Text(
+                                                'Applied: ${e.appliedOn != null ? DateFormat('dd-MM-yyyy').format(e.appliedOn!) : 'N/A'}',
+                                                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text(
+                                                'Approved: ${e.approvedOn != null ? DateFormat('dd-MM-yyyy').format(e.approvedOn!) : 'N/A'}',
+                                                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),

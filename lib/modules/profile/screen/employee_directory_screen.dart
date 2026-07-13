@@ -197,7 +197,7 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
               if (isWeb) {
                 return Row(
                   children: [
-                    Expanded(child: _buildFilterField('Emp ID', (v) => setState(() => _filterId = v))),
+                    Expanded(child: _buildFilterField('Employee ID', (v) => setState(() => _filterId = v))),
                     const SizedBox(width: 8),
                     Expanded(child: _buildFilterField('Name', (v) => setState(() => _filterName = v))),
                     const SizedBox(width: 8),
@@ -213,7 +213,7 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: _buildFilterField('Emp ID', (v) => setState(() => _filterId = v))),
+                        Expanded(child: _buildFilterField('Employee ID', (v) => setState(() => _filterId = v))),
                         const SizedBox(width: 8),
                         Expanded(child: _buildFilterField('Name', (v) => setState(() => _filterName = v))),
                       ],
@@ -284,15 +284,29 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
               padding: const EdgeInsets.all(14),
               child: Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.08),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.08),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+                      ),
+                      child: (() {
+                        final id = emp.employeeId.trim().replaceAll(RegExp('^0+'), '');
+                        if (id == '446') {
+                          return Image.asset('assets/images/raja_talathoti.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                        } else if (id == '16194') {
+                          return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                        } else if (id == '17110') {
+                          return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                        } else {
+                          return const Icon(Icons.person_rounded, color: AppColors.primary, size: 24);
+                        }
+                      }()),
                     ),
-                    child: const Icon(Icons.person_rounded, color: AppColors.primary, size: 24),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -384,10 +398,10 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                   DataColumn(label: Text('Subgroup')),
                   DataColumn(label: Text('Position')),
                   DataColumn(label: Text('Department')),
-                  DataColumn(label: Text('DOB')),
+                  DataColumn(label: Text('Date of Birth')),
                   DataColumn(label: Text('Date of Appointment')),
-                  DataColumn(label: Text('DOPP')),
-                  DataColumn(label: Text('DOR')),
+                  DataColumn(label: Text('Date of Present Posting')),
+                  DataColumn(label: Text('Date of Retirement')),
                   DataColumn(label: Text('Mobile')),
                   DataColumn(label: Text('Actions')),
                 ],
@@ -419,13 +433,42 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                               );
                             }
                           },
-                          child: Text(
-                            m['name'] ?? '',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                              decoration: TextDecoration.underline,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.08),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: (() {
+                                    final id = (m['empNo'] ?? '').toString().trim().replaceAll(RegExp('^0+'), '');
+                                    if (id == '446') {
+                                      return Image.asset('assets/images/raja_talathoti.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                                    } else if (id == '16194') {
+                                      return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                                    } else if (id == '17110') {
+                                      return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                                    } else {
+                                      return const Icon(Icons.person_rounded, color: AppColors.primary, size: 14);
+                                    }
+                                  }()),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                m['name'] ?? '',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

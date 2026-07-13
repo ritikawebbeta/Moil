@@ -111,7 +111,6 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                 _buildPdfRow('Duration:', leave.duration),
                 _buildPdfRow('Start Date:', DateFormat('dd-MM-yyyy').format(leave.startDate)),
                 _buildPdfRow('End Date:', DateFormat('dd-MM-yyyy').format(leave.endDate)),
-                _buildPdfRow('Absence Hours:', leave.absenceHours?.toStringAsFixed(2) ?? 'N/A'),
                 _buildPdfRow('Absent Days:', leave.used ?? 'N/A'),
                 _buildPdfRow('Reason:', leave.reason ?? 'N/A'),
                 _buildPdfRow('Status:', leave.status),
@@ -122,24 +121,11 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                 _buildPdfRow('Approval Time:', leave.approvedOn != null ? DateFormat('dd-MM-yyyy HH:mm').format(leave.approvedOn!) : 'N/A'),
                 _buildPdfRow('Approver Comments:', leave.remarks ?? 'N/A'),
                 pw.SizedBox(height: 50),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Column(
-                      children: [
-                        pw.Container(width: 120, height: 1, color: PdfColors.black),
-                        pw.SizedBox(height: 5),
-                        pw.Text('Employee Signature', style: const pw.TextStyle(fontSize: 10)),
-                      ],
-                    ),
-                    pw.Column(
-                      children: [
-                        pw.Container(width: 120, height: 1, color: PdfColors.black),
-                        pw.SizedBox(height: 5),
-                        pw.Text('Approving Authority Signature', style: const pw.TextStyle(fontSize: 10)),
-                      ],
-                    ),
-                  ],
+                pw.Center(
+                  child: pw.Text(
+                    'This is a system generated PDF and requires no signature.',
+                    style: pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic, color: PdfColor.fromInt(0xFF7F7F7F)),
+                  ),
                 ),
               ],
             ),
@@ -202,7 +188,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                   'Date Range',
                   '${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)}',
                 ),
-                _buildDetailRow('Used Days / Hours', '${leave.used ?? 'N/A'} (${leave.absenceHours?.toStringAsFixed(2) ?? '0.00'} Hrs)'),
+                _buildDetailRow('Absent Days', leave.used ?? 'N/A'),
                 _buildDetailRow('Reason', leave.reason ?? 'N/A'),
                 const Divider(height: 24, color: AppColors.cardBorder),
                 _buildDetailRow(
@@ -495,7 +481,9 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                   const SizedBox(height: 6),
                   _buildMobileRow('Duration', leave.duration),
                   const SizedBox(height: 6),
-                  _buildMobileRow('Dates', '${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)} (${leave.used ?? '0.00 Days'})'),
+                  _buildMobileRow('Dates', '${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)}'),
+                  const SizedBox(height: 6),
+                  _buildMobileRow('Absent Days', leave.used ?? 'N/A'),
                   const SizedBox(height: 6),
                   _buildMobileRow('Reason', leave.reason ?? 'N/A'),
                   const SizedBox(height: 6),
@@ -529,8 +517,8 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final totalWidth = constraints.maxWidth > 1500.0 ? constraints.maxWidth : 1500.0;
-        final extraWidth = totalWidth - 1500.0;
+        final totalWidth = constraints.maxWidth > 1520.0 ? constraints.maxWidth : 1520.0;
+        final extraWidth = totalWidth - 1520.0;
         
         final actionsWidth = 80.0;
         final leaveIdWidth = 90.0;
@@ -540,7 +528,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
         final durationWidth = 100.0;
         final startDateWidth = 100.0;
         final endDateWidth = 100.0;
-        final absentDaysWidth = 90.0;
+        final absentDaysWidth = 110.0;
         final reasonWidth = 180.0 + extraWidth * 0.4;
         final statusWidth = 120.0;
         final processorWidth = 130.0 + extraWidth * 0.15;
@@ -565,7 +553,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                     _TableHeaderCell(text: 'Duration', width: durationWidth),
                     _TableHeaderCell(text: 'Start Dt', width: startDateWidth),
                     _TableHeaderCell(text: 'End Date', width: endDateWidth),
-                    _TableHeaderCell(text: 'Absend Days', width: absentDaysWidth),
+                    _TableHeaderCell(text: 'Absent Days', width: absentDaysWidth),
                     _TableHeaderCell(text: 'Reason', width: reasonWidth),
                     _TableHeaderCell(text: 'Status', width: statusWidth),
                     _TableHeaderCell(text: 'Processor', width: processorWidth),

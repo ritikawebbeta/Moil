@@ -668,16 +668,19 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                   ? Image.asset(
                       'assets/images/raja_talathoti.jpg',
                       fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
                     )
                   : (emp.employeeId.trim().replaceAll(RegExp('^0+'), '') == '16194')
                       ? Image.asset(
                           'assets/images/rakesh_tumane.jpg',
                           fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
                         )
                       : (emp.employeeId.trim().replaceAll(RegExp('^0+'), '') == '17110')
                           ? Image.asset(
                               'assets/images/sameer_banerjee.jpg',
                               fit: BoxFit.cover,
+                              alignment: Alignment.topCenter,
                             )
                           : Container(
                               color: Colors.grey.shade100,

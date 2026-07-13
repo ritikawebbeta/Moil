@@ -104,11 +104,12 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
         ? empList.firstWhere((e) => e.employeeId == searchCode)
         : null;
 
+    final cleanSearchCode = searchCode.trim().replaceAll(RegExp('^0+'), '');
     final data = _mockEmployees[searchCode] ?? {
       'name': emp?.name ?? 'Mock Employee ($searchCode)',
       'docNo': '${22200 + searchCode.hashCode % 1000}',
       'createdOn': DateFormat('dd-MM-yyyy').format(DateTime.now()),
-      'balance': '00120',
+      'balance': cleanSearchCode == '446' ? '185.50' : '00120',
       'approver': 'Rakesh Tumane',
       'status': 'NEW',
     };
@@ -129,7 +130,6 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
     final serviceDays = DateTime.now().difference(joinDateParsed).inDays;
 
     String resolvedApprover = data['approver'];
-    final cleanSearchCode = searchCode.trim().replaceAll(RegExp('^0+'), ''); // remove leading zeros for lookup
     if (cleanSearchCode == '446') {
       resolvedApprover = 'Rakesh Tumane';
     } else if (['540', '4410', '4428', '4733', '419'].contains(cleanSearchCode)) {

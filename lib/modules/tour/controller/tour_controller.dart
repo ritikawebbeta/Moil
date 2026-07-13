@@ -33,6 +33,7 @@ class TourController extends ChangeNotifier {
           transportMode: 'Train',
           status: 'Approved',
           appliedOn: DateTime(2026, 5, 4),
+          approvedOn: DateTime(2026, 5, 5),
         ),
         TourModel(
           id: '2',
@@ -45,6 +46,7 @@ class TourController extends ChangeNotifier {
           transportMode: 'Flight',
           status: 'Approved',
           appliedOn: DateTime(2026, 5, 8),
+          approvedOn: DateTime(2026, 5, 9),
         ),
         TourModel(
           id: '3',
@@ -57,6 +59,7 @@ class TourController extends ChangeNotifier {
           transportMode: 'Train',
           status: 'Approved',
           appliedOn: DateTime(2026, 3, 28),
+          approvedOn: DateTime(2026, 3, 29),
         ),
         TourModel(
           id: '4',
@@ -69,6 +72,7 @@ class TourController extends ChangeNotifier {
           transportMode: 'Train',
           status: 'Approved',
           appliedOn: DateTime(2026, 1, 24),
+          approvedOn: DateTime(2026, 1, 25),
         ),
         TourModel(
           id: '5',
@@ -81,6 +85,7 @@ class TourController extends ChangeNotifier {
           transportMode: 'Flight',
           status: 'Approved',
           appliedOn: DateTime(2026, 1, 17),
+          approvedOn: DateTime(2026, 1, 18),
         ),
         TourModel(
           id: '6',
@@ -93,6 +98,7 @@ class TourController extends ChangeNotifier {
           transportMode: 'Flight',
           status: 'Approved',
           appliedOn: DateTime(2025, 12, 14),
+          approvedOn: DateTime(2025, 12, 15),
         ),
         TourModel(
           id: '7',
@@ -105,6 +111,7 @@ class TourController extends ChangeNotifier {
           transportMode: 'Bus',
           status: 'Approved',
           appliedOn: DateTime(2025, 10, 30),
+          approvedOn: DateTime(2025, 10, 31),
         ),
       ];
 
