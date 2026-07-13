@@ -302,6 +302,12 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                           return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
                         } else if (id == '17110') {
                           return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                        } else if (id == '540') {
+                          return Image.asset('assets/images/swapnil_manpe.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                        } else if (id == '4410') {
+                          return Image.asset('assets/images/ranjeet_chouhan.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                        } else if (id == '4428') {
+                          return Image.asset('assets/images/bcn_gautam.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
                         } else {
                           return const Icon(Icons.person_rounded, color: AppColors.primary, size: 24);
                         }
@@ -453,6 +459,12 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                                       return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
                                     } else if (id == '17110') {
                                       return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                                    } else if (id == '540') {
+                                      return Image.asset('assets/images/swapnil_manpe.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                                    } else if (id == '4410') {
+                                      return Image.asset('assets/images/ranjeet_chouhan.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                                    } else if (id == '4428') {
+                                      return Image.asset('assets/images/bcn_gautam.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
                                     } else {
                                       return const Icon(Icons.person_rounded, color: AppColors.primary, size: 14);
                                     }

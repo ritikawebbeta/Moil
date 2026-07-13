@@ -135,6 +135,37 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.08),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+              ),
+              child: (() {
+                final id = (user?.employeeId ?? '').trim().replaceAll(RegExp('^0+'), '');
+                if (id == '446') {
+                  return Image.asset('assets/images/raja_talathoti.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else if (id == '16194') {
+                  return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else if (id == '17110') {
+                  return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else if (id == '540') {
+                  return Image.asset('assets/images/swapnil_manpe.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else if (id == '4410') {
+                  return Image.asset('assets/images/ranjeet_chouhan.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else if (id == '4428') {
+                  return Image.asset('assets/images/bcn_gautam.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else {
+                  return const Icon(Icons.person_rounded, color: AppColors.primary, size: 20);
+                }
+              }()),
+            ),
+          ),
+          const SizedBox(width: 12),
           GestureDetector(
             onTap: () => Navigator.push(
               context,

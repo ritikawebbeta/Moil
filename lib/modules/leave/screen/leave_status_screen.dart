@@ -517,13 +517,13 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final totalWidth = constraints.maxWidth > 1520.0 ? constraints.maxWidth : 1520.0;
-        final extraWidth = totalWidth - 1520.0;
+        final totalWidth = constraints.maxWidth > 1600.0 ? constraints.maxWidth : 1600.0;
+        final extraWidth = totalWidth - 1600.0;
         
         final actionsWidth = 80.0;
         final leaveIdWidth = 90.0;
-        final empIdWidth = 90.0;
-        final empNameWidth = 150.0 + extraWidth * 0.2;
+        final empIdWidth = 110.0;
+        final empNameWidth = 160.0 + extraWidth * 0.2;
         final typeWidth = 140.0 + extraWidth * 0.1;
         final durationWidth = 100.0;
         final startDateWidth = 100.0;
@@ -531,8 +531,8 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
         final absentDaysWidth = 110.0;
         final reasonWidth = 180.0 + extraWidth * 0.4;
         final statusWidth = 120.0;
-        final processorWidth = 130.0 + extraWidth * 0.15;
-        final processor1Width = 130.0 + extraWidth * 0.15;
+        final processorWidth = 150.0 + extraWidth * 0.15;
+        final processor1Width = 160.0 + extraWidth * 0.15;
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -547,17 +547,17 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                   children: [
                     _TableHeaderCell(text: 'Actions', width: actionsWidth),
                     _TableHeaderCell(text: 'Leave ID', width: leaveIdWidth),
-                    _TableHeaderCell(text: 'Emp ID', width: empIdWidth),
-                    _TableHeaderCell(text: 'Emp Name', width: empNameWidth),
+                    _TableHeaderCell(text: 'Employee ID', width: empIdWidth),
+                    _TableHeaderCell(text: 'Employee Name', width: empNameWidth),
                     _TableHeaderCell(text: 'Leave Type', width: typeWidth),
                     _TableHeaderCell(text: 'Duration', width: durationWidth),
-                    _TableHeaderCell(text: 'Start Dt', width: startDateWidth),
+                    _TableHeaderCell(text: 'Start Date', width: startDateWidth),
                     _TableHeaderCell(text: 'End Date', width: endDateWidth),
                     _TableHeaderCell(text: 'Absent Days', width: absentDaysWidth),
                     _TableHeaderCell(text: 'Reason', width: reasonWidth),
                     _TableHeaderCell(text: 'Status', width: statusWidth),
-                    _TableHeaderCell(text: 'Processor', width: processorWidth),
-                    _TableHeaderCell(text: 'Process 1', width: processor1Width),
+                    _TableHeaderCell(text: 'Processing Officer', width: processorWidth),
+                    _TableHeaderCell(text: 'Processing Officer 1', width: processor1Width),
                   ],
                 ),
               ),

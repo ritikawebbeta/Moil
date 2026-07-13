@@ -664,34 +664,33 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.grey.shade400, width: 1),
               ),
-              child: (emp.employeeId.trim().replaceAll(RegExp('^0+'), '') == '446')
-                  ? Image.asset(
-                      'assets/images/raja_talathoti.jpg',
-                      fit: BoxFit.cover,
-                      alignment: Alignment.topCenter,
-                    )
-                  : (emp.employeeId.trim().replaceAll(RegExp('^0+'), '') == '16194')
-                      ? Image.asset(
-                          'assets/images/rakesh_tumane.jpg',
-                          fit: BoxFit.cover,
-                          alignment: Alignment.topCenter,
-                        )
-                      : (emp.employeeId.trim().replaceAll(RegExp('^0+'), '') == '17110')
-                          ? Image.asset(
-                              'assets/images/sameer_banerjee.jpg',
-                              fit: BoxFit.cover,
-                              alignment: Alignment.topCenter,
-                            )
-                          : Container(
-                              color: Colors.grey.shade100,
-                              child: const Center(
-                                child: Text(
-                                  'Passport Size\nPhoto',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(fontSize: 8, color: Colors.grey),
-                                ),
-                              ),
-                            ),
+              child: (() {
+                final id = emp.employeeId.trim().replaceAll(RegExp('^0+'), '');
+                if (id == '446') {
+                  return Image.asset('assets/images/raja_talathoti.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else if (id == '16194') {
+                  return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else if (id == '17110') {
+                  return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else if (id == '540') {
+                  return Image.asset('assets/images/swapnil_manpe.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else if (id == '4410') {
+                  return Image.asset('assets/images/ranjeet_chouhan.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else if (id == '4428') {
+                  return Image.asset('assets/images/bcn_gautam.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
+                } else {
+                  return Container(
+                    color: Colors.grey.shade100,
+                    child: const Center(
+                      child: Text(
+                        'Passport Size\nPhoto',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 8, color: Colors.grey),
+                      ),
+                    ),
+                  );
+                }
+              }()),
             ),
           ),
           const SizedBox(height: 16),

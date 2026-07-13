@@ -44,6 +44,18 @@ class ProfilePdfHelper {
       try {
         avatarImg = await imageFromAssetBundle('assets/images/sameer_banerjee.jpg');
       } catch (_) {}
+    } else if (empId == '540') {
+      try {
+        avatarImg = await imageFromAssetBundle('assets/images/swapnil_manpe.jpg');
+      } catch (_) {}
+    } else if (empId == '4410') {
+      try {
+        avatarImg = await imageFromAssetBundle('assets/images/ranjeet_chouhan.jpg');
+      } catch (_) {}
+    } else if (empId == '4428') {
+      try {
+        avatarImg = await imageFromAssetBundle('assets/images/bcn_gautam.jpg');
+      } catch (_) {}
     }
 
     doc.addPage(
