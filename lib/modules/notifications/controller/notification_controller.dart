@@ -17,7 +17,7 @@ class NotificationController extends ChangeNotifier {
       NotificationModel(
         id: '1',
         title: 'Leave Approved',
-        message: 'Your Casual Leave request for 02 Mar 2026 has been approved by Nitin Pagnis.',
+        message: 'Your Casual Leave request for 02 Mar 2026 has been approved by Rakesh Tumane.',
         type: 'leave_approved',
         timestamp: DateTime.now().subtract(const Duration(hours: 2)),
         isRead: false,

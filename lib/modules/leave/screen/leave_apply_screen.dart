@@ -79,7 +79,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
         if (empId == '446') {
           _processor = 'Rakesh Tumane';
         } else if (['540', '4410', '4428', '4733', '419'].contains(empId)) {
-          _processor = 'Raja Talathoti & Nitin Kajarekar';
+          _processor = 'Raja Talathoti & Rakesh Tumane';
         } else {
           _processor = 'Raja Talathoti';
         }

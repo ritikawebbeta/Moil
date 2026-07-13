@@ -286,7 +286,7 @@ class _TourApprovalListState extends State<_TourApprovalList> {
       ),
       TourModel(
         id: 't3',
-        employeeId: '4410 (Nitin Kajarekar)',
+        employeeId: '4410 (Ranjeet Singh Chouhan)',
         tourType: 'Official Tour',
         destination: 'Kolkata',
         startDate: DateTime(2026, 7, 28),
@@ -493,7 +493,7 @@ class _SystemApprovalList extends StatelessWidget {
               //   ],
               // ),
               const SizedBox(height: 12),
-              const InfoRow(label: 'Employee', value: 'Nitin Kajarekar (283)'),
+              const InfoRow(label: 'Employee', value: 'Ranjeet Singh Chouhan (4410)'),
               const InfoRow(label: 'Reason', value: 'Compulsory system reset requirement'),
               const SizedBox(height: 14),
               const Divider(color: AppColors.cardBorder),

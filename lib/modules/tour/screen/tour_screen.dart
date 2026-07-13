@@ -2246,7 +2246,7 @@ class _ApplyTourTabState extends State<_ApplyTourTab> {
                   ElevatedButton.icon(
                     onPressed: () {
                       final auth = context.read<AuthController>();
-                      final userName = auth.user?.name ?? 'Nitin Pagnis';
+                      final userName = auth.user?.name ?? 'Raja Talathoti';
                       final employeeId = auth.user?.employeeId ?? '00000265';
                       _TravelRequisitionDialog.printTourDocument(
                           context, _lastSubmittedTour!, userName, employeeId);
@@ -2913,7 +2913,7 @@ class _TravelRequisitionDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.read<AuthController>();
-    final userName = auth.user?.name ?? 'Nitin Pagnis';
+    final userName = auth.user?.name ?? 'Raja Talathoti';
     final employeeId = auth.user?.employeeId ?? '00000265';
 
     final requisitionDateStr = DateFormat('dd-MMM-yy').format(tour.appliedOn ?? DateTime.now());

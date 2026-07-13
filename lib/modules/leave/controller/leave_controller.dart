@@ -133,7 +133,7 @@ class LeaveController extends ChangeNotifier {
           endDate: DateTime(2026, 3, 2),
           endTime: '00:00:00',
           duration: 'Full-Day',
-          processor: 'Nitin Pagnis',
+          processor: 'Rakesh Tumane',
           status: 'Approved',
           absenceHours: 6.45,
           used: '1 Days',

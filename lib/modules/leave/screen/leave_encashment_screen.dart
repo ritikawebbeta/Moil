@@ -58,7 +58,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
       'docNo': '22280',
       'createdOn': '26.06.2026',
       'balance': '00150',
-      'approver': 'Nitin Pagnis',
+      'approver': 'Rakesh Tumane',
       'status': 'NEW',
     }
   };
@@ -109,7 +109,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
       'docNo': '${22200 + searchCode.hashCode % 1000}',
       'createdOn': DateFormat('dd-MM-yyyy').format(DateTime.now()),
       'balance': '00120',
-      'approver': 'Nitin Pagnis',
+      'approver': 'Rakesh Tumane',
       'status': 'NEW',
     };
 
@@ -133,7 +133,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
     if (cleanSearchCode == '446') {
       resolvedApprover = 'Rakesh Tumane';
     } else if (['540', '4410', '4428', '4733', '419'].contains(cleanSearchCode)) {
-      resolvedApprover = 'Raja Talathoti & Nitin Kajarekar';
+      resolvedApprover = 'Raja Talathoti & Rakesh Tumane';
     } else {
       resolvedApprover = 'Raja Talathoti';
     }

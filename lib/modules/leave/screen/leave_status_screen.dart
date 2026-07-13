@@ -61,7 +61,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
     } else if (['540', '4410', '4428', '4733', '419'].contains(empId)) {
       if (status == 'Approved') {
         p1 = 'Raja Talathoti';
-        p = 'Nitin Kajarekar';
+        p = 'Rakesh Tumane';
       } else if (status.contains('P1 Approved') || status.contains('P1 approved')) {
         p1 = 'Raja Talathoti';
         p = '-';
