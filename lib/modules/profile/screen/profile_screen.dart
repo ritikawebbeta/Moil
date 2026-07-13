@@ -296,6 +296,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               cellText(': ${data['spouse']}'),
             ]),
             TableRow(children: [
+              cellText('BASIC (RS)', bold: true),
+              cellText(': ${data['basic']}'),
+            ]),
+            TableRow(children: [
               cellText('DESIGNATION', bold: true),
               cellText(': ${data['position']}'),
             ]),
@@ -366,6 +370,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             TableRow(children: [
               cellText('PRAN NO', bold: true),
               cellText(': ${data['praan']}'),
+            ]),
+            TableRow(children: [
+              cellText('GENDER', bold: true),
+              cellText(': ${data['gender']}'),
             ]),
             TableRow(children: [
               cellText('PF NO/SSPF NO', bold: true),
@@ -400,8 +408,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             TableRow(children: [
               cellText('FATHER / SPOUSE NAME', bold: true),
               cellText(': ${data['spouse']}'),
-              cellText('', bold: true),
-              cellText(''),
+              cellText('BASIC (RS)', bold: true),
+              cellText(': ${data['basic']}'),
             ]),
             TableRow(children: [
               cellText('DESIGNATION', bold: true),
@@ -458,10 +466,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               cellText(': ${data['praan']}'),
             ]),
             TableRow(children: [
+              cellText('GENDER', bold: true),
+              cellText(': ${data['gender']}'),
               cellText('PF NO/SSPF NO', bold: true),
               cellText(': ${data['pfNo']}'),
-              cellText('', bold: true),
-              cellText(''),
             ]),
             TableRow(children: [
               cellText('MARITAL STATUS', bold: true),

@@ -171,35 +171,94 @@ class _PayslipScreenState extends State<PayslipScreen> {
             ),
           const SizedBox(height: 16),
           const Divider(color: AppColors.cardBorder),
-          const SizedBox(height: 12),
-          _buildBreakdownRow('Basic Pay - Exe & NE', _formatCurrency(basic)),
-          _buildBreakdownRow('Dearness Allow - Exe & NE', _formatCurrency(da)),
-          _buildBreakdownRow('House Rent Allow E&NE', _formatCurrency(hra)),
-          _buildBreakdownRow('Other Perks', _formatCurrency(otherPerks)),
-          _buildBreakdownRow('Ee PF contribution', '-${_formatCurrency(pf)}', isDeduction: true),
-          _buildBreakdownRow('Income Tax', '-${_formatCurrency(it)}', isDeduction: true),
-          _buildBreakdownRow('Other Deductions', '-${_formatCurrency(otherDeductions)}', isDeduction: true),
+          Table(
+            border: TableBorder.all(color: AppColors.cardBorder, width: 0.5),
+            columnWidths: const {
+              0: FlexColumnWidth(2.5),
+              1: FlexColumnWidth(1.2),
+              2: FlexColumnWidth(2.5),
+              3: FlexColumnWidth(1.2),
+            },
+            children: [
+              TableRow(
+                decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
+                children: [
+                  _tableCell('Earnings / अर्जन', bold: true, align: TextAlign.center),
+                  _tableCell('Amount (₹)', bold: true, align: TextAlign.center),
+                  _tableCell('Deductions / कटौतियाँ', bold: true, align: TextAlign.center),
+                  _tableCell('Amount (₹)', bold: true, align: TextAlign.center),
+                ],
+              ),
+              TableRow(children: [
+                _tableCell('Basic Pay - Exe & NE\nमूल वेतन'),
+                _tableCell(_formatCurrency(basic), align: TextAlign.right),
+                _tableCell('Ee PF contribution\nकर्मचारी PF अंशदान'),
+                _tableCell(_formatCurrency(pf), align: TextAlign.right),
+              ]),
+              TableRow(children: [
+                _tableCell('Dearness Allow - Exe & NE\nमहंगाई भत्ता-दिव्या'),
+                _tableCell(_formatCurrency(da), align: TextAlign.right),
+                _tableCell('Prof Tax - split period\nवृत्ति कर - विभाजन अवधि'),
+                _tableCell('₹ 200.00', align: TextAlign.right),
+              ]),
+              TableRow(children: [
+                _tableCell('House Rent Allow E&NE\nमकान किराया भत्ता'),
+                _tableCell(_formatCurrency(hra), align: TextAlign.right),
+                _tableCell('Income Tax\nआयकर'),
+                _tableCell(_formatCurrency(it), align: TextAlign.right),
+              ]),
+              TableRow(children: [
+                _tableCell('Other Perks\nअन्य भत्ते'),
+                _tableCell(_formatCurrency(otherPerks), align: TextAlign.right),
+                _tableCell('Credit Society Share\nक्रेडिट सोसायटी शेयर'),
+                _tableCell(_formatCurrency(otherDeductions * 0.8), align: TextAlign.right),
+              ]),
+              TableRow(children: [
+                _tableCell(''),
+                _tableCell(''),
+                _tableCell('Furn & Fixture Recovery\nफर्निचर और फिक्सचर रिकव'),
+                _tableCell(_formatCurrency(otherDeductions * 0.1), align: TextAlign.right),
+              ]),
+              TableRow(children: [
+                _tableCell(''),
+                _tableCell(''),
+                _tableCell('MEA Subscription fees\nएमईए सदस्यता शुल्क'),
+                _tableCell(_formatCurrency(otherDeductions * 0.05), align: TextAlign.right),
+              ]),
+              TableRow(children: [
+                _tableCell(''),
+                _tableCell(''),
+                _tableCell('Benevolent Fund\nपरोपकार निधि'),
+                _tableCell(_formatCurrency(otherDeductions * 0.05), align: TextAlign.right),
+              ]),
+              TableRow(
+                decoration: const BoxDecoration(color: Color(0xFFE2E8F0)),
+                children: [
+                  _tableCell('Total Earnings / कुल अर्जन', bold: true),
+                  _tableCell(_formatCurrency(payslip['gross']), bold: true, align: TextAlign.right),
+                  _tableCell('Total Deductions / कुल कटौतियाँ', bold: true),
+                  _tableCell(_formatCurrency(payslip['deductions']), bold: true, align: TextAlign.right),
+                ],
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildBreakdownRow(String label, String value, {bool isDeduction = false}) {
+  Widget _tableCell(String text, {bool bold = false, TextAlign align = TextAlign.left}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-          Text(
-            value,
-            style: TextStyle(
-              color: isDeduction ? AppColors.error : AppColors.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Text(
+        text,
+        textAlign: align,
+        style: TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 10,
+          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+          height: 1.2,
+        ),
       ),
     );
   }

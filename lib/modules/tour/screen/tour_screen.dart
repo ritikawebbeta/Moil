@@ -428,8 +428,8 @@ class _AllMyTripsTab extends StatelessWidget {
           // Scrollable SAP spreadsheet Table
           LayoutBuilder(
             builder: (context, constraints) {
-              final totalWidth = constraints.maxWidth > 800 ? constraints.maxWidth : 800.0;
-              final dynamicSpacing = (totalWidth - 550) / 5;
+              final totalWidth = constraints.maxWidth > 950 ? constraints.maxWidth : 950.0;
+              final dynamicSpacing = (totalWidth - 700) / 7;
               final columnSpacing = dynamicSpacing > 24.0 ? dynamicSpacing : 24.0;
 
               return SingleChildScrollView(
@@ -450,6 +450,8 @@ class _AllMyTripsTab extends StatelessWidget {
                           DataColumn(label: Text('End Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
                           DataColumn(label: Text('Destination', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
                           DataColumn(label: Text('Reason', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
+                          DataColumn(label: Text('Applied On', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
+                          DataColumn(label: Text('Approved On', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
                           DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary))),
                         ],
                         rows: tours.map((tour) {
@@ -459,6 +461,8 @@ class _AllMyTripsTab extends StatelessWidget {
                               DataCell(Text(DateFormat('dd-MM-yyyy').format(tour.endDate), style: const TextStyle(fontSize: 11))),
                               DataCell(Text(tour.destination, style: const TextStyle(fontSize: 11))),
                               DataCell(Text(tour.travelPurpose, style: const TextStyle(fontSize: 11))),
+                              DataCell(Text(tour.appliedOn != null ? DateFormat('dd-MM-yyyy').format(tour.appliedOn!) : '-', style: const TextStyle(fontSize: 11))),
+                              DataCell(Text(tour.approvedOn != null ? DateFormat('dd-MM-yyyy').format(tour.approvedOn!) : '-', style: const TextStyle(fontSize: 11))),
                               DataCell(
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -1485,13 +1489,16 @@ class _ApplyTourTabState extends State<_ApplyTourTab> {
 
   // ─── Employee Info Banner ─────────────────────────────────────────
   Widget _buildEmployeeBanner() {
+    final user = context.read<AuthController>().user;
+    final name = user?.name ?? 'Employee';
+    final empNo = user?.employeeId ?? '00000000';
     return Container(
       width: double.infinity,
       color: AppColors.primary.withOpacity(0.08),
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: const Text(
-        'Employee G Rohini Kumar ( 00000468 )',
-        style: TextStyle(
+      child: Text(
+        'Employee $name ( $empNo )',
+        style: const TextStyle(
           color: AppColors.primary,
           fontSize: 13,
           fontWeight: FontWeight.w700,
