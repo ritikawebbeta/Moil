@@ -7,7 +7,7 @@ import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
 import '../utils/payslip_pdf_helper.dart';
 import '../../auth/controller/auth_controller.dart';
-
+import '../../profile/controller/profile_controller.dart';
 class PayslipScreen extends StatefulWidget {
   const PayslipScreen({super.key});
 
@@ -63,10 +63,15 @@ class _PayslipScreenState extends State<PayslipScreen> {
   Widget _buildSalaryOverview() {
     final payslip = _payslips.firstWhere((p) => p['month'] == _selectedMonth);
     
-    // Proportional breakdown calculations
-    final double basic = (payslip['gross'] * 88710.0 / 185492.50);
-    final double da = (payslip['gross'] * 47992.0 / 185492.50);
-    final double hra = (payslip['gross'] * 17742.0 / 185492.50);
+    final auth = context.read<AuthController>();
+    final cleanId = (auth.user?.employeeId ?? '446').trim().replaceAll(RegExp('^0+'), '');
+    final Map<String, dynamic> raw = ProfileController.rawEmployees.firstWhere(
+      (e) => e['empNo'] == cleanId,
+      orElse: () => ProfileController.rawEmployees.first,
+    );
+    final double basic = double.tryParse(raw['basic'].toString().replaceAll(',', '')) ?? 100000.00;
+    final double da = basic * 0.50;
+    final double hra = basic * 0.15;
     final double otherPerks = payslip['gross'] - basic - da - hra;
     
     final double pf = (payslip['deductions'] * 16404.0 / 46274.00);
