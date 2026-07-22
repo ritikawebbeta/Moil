@@ -99,10 +99,38 @@ class _LoginScreenState extends State<LoginScreen>
       //  _employeeIdController.text = "422";
       // _passwordController.text = "1000317";
       // RO1
-       _employeeIdController.text = "446";
-      _passwordController.text = "ADIPT5111G";
-      
+      //Raja sir
+      _employeeIdController.text = "";
+      _passwordController.text = "";
 
+
+
+  // _employeeIdController.text = "16194";
+  //     _passwordController.text = "ACEPT4553B2";
+
+      // _passwordController.text = "ACEPT4553B";
+
+//10095222
+
+  //  _employeeIdController.text = "283";
+  //     _passwordController.text = "ACQPK5213K";
+
+
+
+
+      _employeeIdController.text = "141";
+      _passwordController.text = "ABJPV5442P2";
+      //Swapnil sir
+      // _employeeIdController.text = "540";
+      // _passwordController.text = "BLTPM3281J";
+
+      //B.C.N. Gautam
+      //    _employeeIdController.text = "4428";
+      // _passwordController.text = "AIMPG8474A";
+
+      //Rakesh Tumane
+      //    _employeeIdController.text = "16194";
+      // _passwordController.text = "ACEPT4553B11";
     }
     _animController = AnimationController(
       vsync: this,
@@ -134,17 +162,24 @@ class _LoginScreenState extends State<LoginScreen>
       _passwordController.text.trim(),
     );
     if (success && mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => CompulsoryPasswordChangeDialog(
-          onSuccess: () {
-            if (mounted) {
-              Navigator.pushReplacementNamed(context, '/dashboard');
-            }
-          },
-        ),
-      );
+      if (auth.user?.mustChangePassword == true) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => CompulsoryPasswordChangeDialog(
+            onSuccess: () {
+              if (mounted) {
+                Navigator.pushReplacementNamed(context, '/dashboard');
+              }
+            },
+            onCancel: () {
+              auth.logout();
+            },
+          ),
+        );
+      } else {
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      }
     }
   }
 
@@ -287,8 +322,7 @@ class _LoginScreenState extends State<LoginScreen>
                   v == null || v.isEmpty ? 'Password is required' : null,
             ),
             const SizedBox(height: 8),
-   
-           
+
             const SizedBox(height: 12),
             // Error Message
             Consumer<AuthController>(

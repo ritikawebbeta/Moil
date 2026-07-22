@@ -2,92 +2,49 @@
 
 class EmployeeModel {
   final String id;
-
-  // 1. NAME
   final String name;
-
-  // 2. FATHER / SPOUSE NAME
   final String fatherSpouseName;
-
-  // 3. DESIGNATION
   final String designation;
-
-  // 4. DEPARTMENT
   final String department;
-
-  // 5. PRESENT GRADE
   final String presentGrade;
-
-  // 6. DATE OF BIRTH
   final String dateOfBirth;
-
-  // 7. DATE OF JOINING IN MOIL
   final String joinDate;
-
-  // 8. DATE OF LAST PROMOTION
   final String lastPromotionDate;
-
-  // 9. APPOINTMENT TYPE
   final String appointmentType;
-
-  // 10. CATEGORY
   final String category;
-
-  // 11. BLOOD GROUP
   final String bloodGroup;
-
-  // 12. GENDER
   final String gender;
-
-  // 13. MARITAL STATUS
   final String maritalStatus;
-
-  // 14. EMP.NO / FORM B
   final String employeeId;
-
-  // 15. BASIC (RS)
   final String basicSalary;
-
-  // 16. PRESENT PLACE OF POSTING
   final String presentPlaceOfPosting;
-
-  // 17. DATE OF PRESENT POSTING
   final String presentPostingDate;
-
-  // 18. DATE OF RETIREMENT
   final String retirementDate;
-
-  // 19. MOBILE NO
   final String mobileNumber;
-
-  // 20. E-MAIL
   final String email;
-
-  // 21. UAN NO
   final String uanNo;
-
-  // 22. PAN NO
   final String panNo;
-
-  // 23. AADHAAR NO
   final String aadhaarNo;
-
-  // 24. PRAN NO
   final String pranNo;
-
-  // 25. PF NO / SSPF NO
   final String pfNo;
-
-  // 26. PENSION NO
   final String pensionNo;
 
   // Additional Fields
   final String reportingOfficer;
   final String reportingOfficer1;
+  final String reportingOfficerName;
+  final String reportingOfficer1Name;
   final String address;
   final String emergencyContact;
   final List<Map<String, dynamic>> nominees;
   final List<Map<String, dynamic>> serviceHistory;
+  final List<Map<String, dynamic>> familyMembers;
+
+  // Bank & Payslip Info
+  final String bankAcc;
+  final String bankKey;
+  final String payscale;
+  final String fb;
 
   const EmployeeModel({
     required this.id,
@@ -119,9 +76,197 @@ class EmployeeModel {
     required this.pensionNo,
     required this.reportingOfficer,
     required this.reportingOfficer1,
+    this.reportingOfficerName = '',
+    this.reportingOfficer1Name = '',
     required this.address,
     required this.emergencyContact,
     required this.nominees,
     required this.serviceHistory,
+    this.familyMembers = const [],
+    this.bankAcc = 'N/A',
+    this.bankKey = 'N/A',
+    this.payscale = 'N/A',
+    this.fb = 'N/A',
   });
+
+  static EmployeeModel fromJson(Map<String, dynamic> json) {
+    return EmployeeModel(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      fatherSpouseName: json['fatherSpouseName']?.toString() ?? 'N/A',
+      designation: json['designation']?.toString() ?? '',
+      department: json['department']?.toString() ?? '',
+      presentGrade: json['presentGrade']?.toString() ?? '',
+      dateOfBirth: json['dateOfBirth']?.toString() ?? '',
+      joinDate: json['joinDate']?.toString() ?? '',
+      lastPromotionDate: json['lastPromotionDate']?.toString() ?? '',
+      appointmentType: json['appointmentType']?.toString() ?? '',
+      category: json['category']?.toString() ?? '',
+      bloodGroup: json['bloodGroup']?.toString() ?? '',
+      gender: json['gender']?.toString() ?? '',
+      maritalStatus: json['maritalStatus']?.toString() ?? '',
+      employeeId: json['employeeId']?.toString() ?? json['employee_number']?.toString() ?? json['id']?.toString() ?? '',
+      basicSalary: json['basicSalary']?.toString() ?? '0.00',
+      presentPlaceOfPosting: json['presentPlaceOfPosting']?.toString() ?? '',
+      presentPostingDate: json['presentPostingDate']?.toString() ?? '',
+      retirementDate: json['retirementDate']?.toString() ?? '',
+      mobileNumber: json['mobileNumber']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      uanNo: json['uanNo']?.toString() ?? '',
+      panNo: json['panNo']?.toString() ?? '',
+      aadhaarNo: json['aadhaarNo']?.toString() ?? '',
+      pranNo: json['pranNo']?.toString() ?? '',
+      pfNo: json['pfNo']?.toString() ?? '',
+      pensionNo: json['pensionNo']?.toString() ?? '',
+      reportingOfficer: json['reportingOfficer']?.toString() ?? '',
+      reportingOfficer1: json['reportingOfficer1']?.toString() ?? '',
+      reportingOfficerName: json['reportingOfficerName']?.toString() ?? '',
+      reportingOfficer1Name: json['reportingOfficer1Name']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
+      emergencyContact: json['emergencyContact']?.toString() ?? '',
+      nominees: (json['nominees'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
+      serviceHistory: (json['serviceHistory'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
+      familyMembers: (json['familyMembers'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
+      bankAcc: json['bankAcc']?.toString() ?? 'N/A',
+      bankKey: json['bankKey']?.toString() ?? 'N/A',
+      payscale: json['payscale']?.toString() ?? 'N/A',
+      fb: json['fb']?.toString() ?? 'N/A',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'fatherSpouseName': fatherSpouseName,
+      'designation': designation,
+      'department': department,
+      'presentGrade': presentGrade,
+      'dateOfBirth': dateOfBirth,
+      'joinDate': joinDate,
+      'lastPromotionDate': lastPromotionDate,
+      'appointmentType': appointmentType,
+      'category': category,
+      'bloodGroup': bloodGroup,
+      'gender': gender,
+      'maritalStatus': maritalStatus,
+      'employeeId': employeeId,
+      'basicSalary': basicSalary,
+      'presentPlaceOfPosting': presentPlaceOfPosting,
+      'presentPostingDate': presentPostingDate,
+      'retirementDate': retirementDate,
+      'mobileNumber': mobileNumber,
+      'email': email,
+      'uanNo': uanNo,
+      'panNo': panNo,
+      'aadhaarNo': aadhaarNo,
+      'pranNo': pranNo,
+      'pfNo': pfNo,
+      'pensionNo': pensionNo,
+      'reportingOfficer': reportingOfficer,
+      'reportingOfficer1': reportingOfficer1,
+      'reportingOfficerName': reportingOfficerName,
+      'reportingOfficer1Name': reportingOfficer1Name,
+      'address': address,
+      'emergencyContact': emergencyContact,
+      'nominees': nominees,
+      'serviceHistory': serviceHistory,
+      'familyMembers': familyMembers,
+      'bankAcc': bankAcc,
+      'bankKey': bankKey,
+      'payscale': payscale,
+      'fb': fb,
+    };
+  }
+
+  Map<String, dynamic> toRawMap() {
+    return {
+      'empNo': employeeId,
+      'name': name,
+      'position': designation,
+      'dept': department,
+      'subgroupText': presentGrade,
+      'dob': dateOfBirth,
+      'apptDate': joinDate,
+      'latPromo': lastPromotionDate,
+      'group': appointmentType,
+      'caste': category,
+      'blood': bloodGroup,
+      'gender': gender,
+      'marital': maritalStatus,
+      'basic': basicSalary,
+      'subarea': presentPlaceOfPosting,
+      'actDoj': presentPostingDate,
+      'retireDate': retirementDate,
+      'mobile': mobileNumber,
+      'email': email,
+      'uan': uanNo,
+      'pan': panNo,
+      'aadhar': aadhaarNo,
+      'praan': pranNo,
+      'pfNo': pfNo,
+      'pension': pensionNo,
+      'reportingOfficer': reportingOfficer,
+      'reportingOfficer1': reportingOfficer1,
+      'reportingOfficerName': reportingOfficerName,
+      'reportingOfficer1Name': reportingOfficer1Name,
+      'permAddress': address,
+      'nominees': nominees,
+      'serviceHistory': serviceHistory,
+      'familyMembers': familyMembers,
+      'bankAcc': bankAcc,
+      'bankKey': bankKey,
+      'payscale': payscale,
+      'fb': fb,
+    };
+  }
+
+  EmployeeModel copyWith({
+    String? mobileNumber,
+    String? address,
+    String? emergencyContact,
+  }) {
+    return EmployeeModel(
+      id: id,
+      name: name,
+      fatherSpouseName: fatherSpouseName,
+      designation: designation,
+      department: department,
+      presentGrade: presentGrade,
+      dateOfBirth: dateOfBirth,
+      joinDate: joinDate,
+      lastPromotionDate: lastPromotionDate,
+      appointmentType: appointmentType,
+      category: category,
+      bloodGroup: bloodGroup,
+      gender: gender,
+      maritalStatus: maritalStatus,
+      employeeId: employeeId,
+      basicSalary: basicSalary,
+      presentPlaceOfPosting: presentPlaceOfPosting,
+      presentPostingDate: presentPostingDate,
+      retirementDate: retirementDate,
+      mobileNumber: mobileNumber ?? this.mobileNumber,
+      email: email,
+      uanNo: uanNo,
+      panNo: panNo,
+      aadhaarNo: aadhaarNo,
+      pranNo: pranNo,
+      pfNo: pfNo,
+      pensionNo: pensionNo,
+      reportingOfficer: reportingOfficer,
+      reportingOfficer1: reportingOfficer1,
+      reportingOfficerName: reportingOfficerName,
+      reportingOfficer1Name: reportingOfficer1Name,
+      address: address ?? this.address,
+      emergencyContact: emergencyContact ?? this.emergencyContact,
+      nominees: nominees,
+      serviceHistory: serviceHistory,
+      familyMembers: familyMembers,
+      bankAcc: bankAcc,
+      bankKey: bankKey,
+      payscale: payscale,
+      fb: fb,
+    );
+  }
 }

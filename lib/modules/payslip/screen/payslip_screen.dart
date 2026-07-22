@@ -8,6 +8,7 @@ import '../../../widgets/app_widgets.dart';
 import '../utils/payslip_pdf_helper.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../profile/controller/profile_controller.dart';
+import '../../leave/controller/leave_controller.dart';
 class PayslipScreen extends StatefulWidget {
   const PayslipScreen({super.key});
 
@@ -64,10 +65,10 @@ class _PayslipScreenState extends State<PayslipScreen> {
     final payslip = _payslips.firstWhere((p) => p['month'] == _selectedMonth);
     
     final auth = context.read<AuthController>();
-    final cleanId = (auth.user?.employeeId ?? '446').trim().replaceAll(RegExp('^0+'), '');
+    final cleanId = (auth.user?.employeeId ?? (ProfileController.rawEmployees.isNotEmpty ? ProfileController.rawEmployees.first['empNo']?.toString() : '') ?? '').trim().replaceAll(RegExp('^0+'), '');
     final Map<String, dynamic> raw = ProfileController.rawEmployees.firstWhere(
       (e) => e['empNo'] == cleanId,
-      orElse: () => ProfileController.rawEmployees.first,
+      orElse: () => ProfileController.rawEmployees.isNotEmpty ? ProfileController.rawEmployees.first : <String, dynamic>{},
     );
     final double basic = double.tryParse(raw['basic'].toString().replaceAll(',', '')) ?? 100000.00;
     final double da = basic * 0.50;
@@ -177,76 +178,111 @@ class _PayslipScreenState extends State<PayslipScreen> {
             ),
           const SizedBox(height: 16),
           const Divider(color: AppColors.cardBorder),
-          Table(
-            border: TableBorder.all(color: AppColors.cardBorder, width: 0.5),
-            columnWidths: const {
-              0: FlexColumnWidth(2.5),
-              1: FlexColumnWidth(1.2),
-              2: FlexColumnWidth(2.5),
-              3: FlexColumnWidth(1.2),
-            },
-            children: [
-              TableRow(
-                decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
-                children: [
-                  _tableCell('Earnings / अर्जन', bold: true, align: TextAlign.center),
-                  _tableCell('Amount (₹)', bold: true, align: TextAlign.center),
-                  _tableCell('Deductions / कटौतियाँ', bold: true, align: TextAlign.center),
-                  _tableCell('Amount (₹)', bold: true, align: TextAlign.center),
-                ],
-              ),
-              TableRow(children: [
-                _tableCell('Basic Pay - Exe & NE\nमूल वेतन'),
-                _tableCell(_formatCurrency(basic), align: TextAlign.right),
-                _tableCell('Ee PF contribution\nकर्मचारी PF अंशदान'),
-                _tableCell(_formatCurrency(pf), align: TextAlign.right),
-              ]),
-              TableRow(children: [
-                _tableCell('Dearness Allow - Exe & NE\nमहंगाई भत्ता-दिव्या'),
-                _tableCell(_formatCurrency(da), align: TextAlign.right),
-                _tableCell('Prof Tax - split period\nवृत्ति कर - विभाजन अवधि'),
-                _tableCell('₹ 200.00', align: TextAlign.right),
-              ]),
-              TableRow(children: [
-                _tableCell('House Rent Allow E&NE\nमकान किराया भत्ता'),
-                _tableCell(_formatCurrency(hra), align: TextAlign.right),
-                _tableCell('Income Tax\nआयकर'),
-                _tableCell(_formatCurrency(it), align: TextAlign.right),
-              ]),
-              TableRow(children: [
-                _tableCell('Other Perks\nअन्य भत्ते'),
-                _tableCell(_formatCurrency(otherPerks), align: TextAlign.right),
-                _tableCell('Credit Society Share\nक्रेडिट सोसायटी शेयर'),
-                _tableCell(_formatCurrency(remainingDeductions * 0.8), align: TextAlign.right),
-              ]),
-              TableRow(children: [
-                _tableCell(''),
-                _tableCell(''),
-                _tableCell('Furn & Fixture Recovery\nफर्निचर और फिक्सचर रिकव'),
-                _tableCell(_formatCurrency(remainingDeductions * 0.1), align: TextAlign.right),
-              ]),
-              TableRow(children: [
-                _tableCell(''),
-                _tableCell(''),
-                _tableCell('MEA Subscription fees\nएमईए सदस्यता शुल्क'),
-                _tableCell(_formatCurrency(remainingDeductions * 0.05), align: TextAlign.right),
-              ]),
-              TableRow(children: [
-                _tableCell(''),
-                _tableCell(''),
-                _tableCell('Benevolent Fund\nपरोपकार निधि'),
-                _tableCell(_formatCurrency(remainingDeductions * 0.05), align: TextAlign.right),
-              ]),
-              TableRow(
-                decoration: const BoxDecoration(color: Color(0xFFE2E8F0)),
-                children: [
-                  _tableCell('Total Earnings / कुल अर्जन', bold: true),
-                  _tableCell(_formatCurrency(payslip['gross']), bold: true, align: TextAlign.right),
-                  _tableCell('Total Deductions / कुल कटौतियाँ', bold: true),
-                  _tableCell(_formatCurrency(payslip['deductions']), bold: true, align: TextAlign.right),
-                ],
-              ),
-            ],
+          const SizedBox(height: 12),
+          if (isMobile)
+            Column(
+              children: [
+                _buildMobileBreakdownRow('Basic Pay - Exe & NE', _formatCurrency(basic)),
+                _buildMobileBreakdownRow('Dearness Allow - Exe & NE', _formatCurrency(da)),
+                _buildMobileBreakdownRow('House Rent Allow E&NE', _formatCurrency(hra)),
+                _buildMobileBreakdownRow('Other Perks', _formatCurrency(otherPerks)),
+                _buildMobileBreakdownRow('Ee PF contribution', '-${_formatCurrency(pf)}', isDeduction: true),
+                _buildMobileBreakdownRow('Prof Tax', '-₹ 200.00', isDeduction: true),
+                _buildMobileBreakdownRow('Income Tax', '-${_formatCurrency(it)}', isDeduction: true),
+                _buildMobileBreakdownRow('Other Deductions', '-${_formatCurrency(remainingDeductions)}', isDeduction: true),
+              ],
+            )
+          else
+            Table(
+              border: TableBorder.all(color: AppColors.cardBorder, width: 0.5),
+              columnWidths: const {
+                0: FlexColumnWidth(2.5),
+                1: FlexColumnWidth(1.2),
+                2: FlexColumnWidth(2.5),
+                3: FlexColumnWidth(1.2),
+              },
+              children: [
+                TableRow(
+                  decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
+                  children: [
+                    _tableCell('Earnings / अर्जन', bold: true, align: TextAlign.center),
+                    _tableCell('Amount (₹)', bold: true, align: TextAlign.center),
+                    _tableCell('Deductions / कटौतियाँ', bold: true, align: TextAlign.center),
+                    _tableCell('Amount (₹)', bold: true, align: TextAlign.center),
+                  ],
+                ),
+                TableRow(children: [
+                  _tableCell('Basic Pay - Exe & NE\nमूल वेतन'),
+                  _tableCell(_formatCurrency(basic), align: TextAlign.right),
+                  _tableCell('Ee PF contribution\nकर्मचारी PF अंशदान'),
+                  _tableCell(_formatCurrency(pf), align: TextAlign.right),
+                ]),
+                TableRow(children: [
+                  _tableCell('Dearness Allow - Exe & NE\nमहंगाई भत्ता-दिव्या'),
+                  _tableCell(_formatCurrency(da), align: TextAlign.right),
+                  _tableCell('Prof Tax - split period\nवृत्ति कर - विभाजन अवधि'),
+                  _tableCell('₹ 200.00', align: TextAlign.right),
+                ]),
+                TableRow(children: [
+                  _tableCell('House Rent Allow E&NE\nमकान किराया भत्ता'),
+                  _tableCell(_formatCurrency(hra), align: TextAlign.right),
+                  _tableCell('Income Tax\nआयकर'),
+                  _tableCell(_formatCurrency(it), align: TextAlign.right),
+                ]),
+                TableRow(children: [
+                  _tableCell('Other Perks\nअन्य भत्ते'),
+                  _tableCell(_formatCurrency(otherPerks), align: TextAlign.right),
+                  _tableCell('Credit Society Share\nक्रेडिट सोसायटी शेयर'),
+                  _tableCell(_formatCurrency(remainingDeductions * 0.8), align: TextAlign.right),
+                ]),
+                TableRow(children: [
+                  _tableCell(''),
+                  _tableCell(''),
+                  _tableCell('Furn & Fixture Recovery\nफर्निचर और फिक्सचर रिकव'),
+                  _tableCell(_formatCurrency(remainingDeductions * 0.1), align: TextAlign.right),
+                ]),
+                TableRow(children: [
+                  _tableCell(''),
+                  _tableCell(''),
+                  _tableCell('MEA Subscription fees\nएमईए सदस्यता शुल्क'),
+                  _tableCell(_formatCurrency(remainingDeductions * 0.05), align: TextAlign.right),
+                ]),
+                TableRow(children: [
+                  _tableCell(''),
+                  _tableCell(''),
+                  _tableCell('Benevolent Fund\nपरोपकार निधि'),
+                  _tableCell(_formatCurrency(remainingDeductions * 0.05), align: TextAlign.right),
+                ]),
+                TableRow(
+                  decoration: const BoxDecoration(color: Color(0xFFE2E8F0)),
+                  children: [
+                    _tableCell('Total Earnings / कुल अर्जन', bold: true),
+                    _tableCell(_formatCurrency(payslip['gross']), bold: true, align: TextAlign.right),
+                    _tableCell('Total Deductions / कुल कटौतियाँ', bold: true),
+                    _tableCell(_formatCurrency(payslip['deductions']), bold: true, align: TextAlign.right),
+                  ],
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileBreakdownRow(String label, String value, {bool isDeduction = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Text(
+            value,
+            style: TextStyle(
+              color: isDeduction ? AppColors.error : AppColors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -383,44 +419,94 @@ class _PayslipScreenState extends State<PayslipScreen> {
     showDialog(
       context: context,
       builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.8,
-            height: MediaQuery.of(context).size.height * 0.8,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        double zoomWidth = 600.0;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.8,
+                height: MediaQuery.of(context).size.height * 0.8,
+                padding: const EdgeInsets.all(16),
+                child: Column(
                   children: [
-                    Text('View Payslip - ${payslip['month']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary)),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: AppColors.textSecondary),
-                      onPressed: () => Navigator.pop(context),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('View Payslip - ${payslip['month']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary)),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.zoom_out, color: AppColors.primary),
+                              onPressed: () {
+                                setState(() {
+                                  if (zoomWidth > 300.0) zoomWidth -= 100.0;
+                                });
+                              },
+                              tooltip: 'Zoom Out',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.zoom_in, color: AppColors.primary),
+                              onPressed: () {
+                                setState(() {
+                                  if (zoomWidth < 1200.0) zoomWidth += 100.0;
+                                });
+                              },
+                              tooltip: 'Zoom In',
+                            ),
+                            const SizedBox(width: 12),
+                            IconButton(
+                              icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          final balances = context.read<LeaveController>().balances;
+                          double elVal = 0.0;
+                          double clVal = 0.0;
+                          double hplVal = 0.0;
+                          for (final b in balances) {
+                            if (b.timeAccount.toLowerCase().contains('earned')) {
+                              elVal = b.entitlementMinusPlanned;
+                            } else if (b.timeAccount.toLowerCase().contains('casual')) {
+                              clVal = b.entitlementMinusPlanned;
+                            } else if (b.timeAccount.toLowerCase().contains('hpl') || b.timeAccount.toLowerCase().contains('half')) {
+                              hplVal = b.entitlementMinusPlanned;
+                            }
+                          }
+                          return PdfPreview(
+                            build: (format) => PayslipPdfHelper.generatePayslipPdfBytes(
+                              payslip['month'],
+                              employeeId: auth.user?.employeeId,
+                              gross: payslip['gross'],
+                              deductions: payslip['deductions'],
+                              elBalance: elVal,
+                              clBalance: clVal,
+                              hplBalance: hplVal,
+                            ),
+                            maxPageWidth: zoomWidth,
+                            allowPrinting: true,
+                            allowSharing: true,
+                            canChangePageFormat: false,
+                            canChangeOrientation: false,
+                            canDebug: false,
+                            initialPageFormat: PdfPageFormat.a4,
+                          );
+                        }
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: PdfPreview(
-                    build: (format) => PayslipPdfHelper.generatePayslipPdfBytes(
-                      payslip['month'],
-                      employeeId: auth.user?.employeeId,
-                      gross: payslip['gross'],
-                      deductions: payslip['deductions'],
-                    ),
-                    allowPrinting: true,
-                    allowSharing: true,
-                    canChangePageFormat: false,
-                    canChangeOrientation: false,
-                    initialPageFormat: PdfPageFormat.a4,
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          }
         );
       },
     );

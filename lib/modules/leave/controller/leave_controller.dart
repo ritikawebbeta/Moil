@@ -1,7 +1,11 @@
 // lib/modules/leave/controller/leave_controller.dart
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../../../model/leave_model.dart';
+import '../../../utils/app_config.dart';
 
 enum LeaveStatus { initial, loading, loaded, error }
 
@@ -9,6 +13,7 @@ class LeaveController extends ChangeNotifier {
   LeaveStatus _status = LeaveStatus.initial;
   List<LeaveModel> _leaves = [];
   List<LeaveBalanceModel> _balances = [];
+  List<LeaveModel> _pendingApprovals = [];
   String? _errorMessage;
 
   DateTime _showFrom = DateTime(2026, 2, 1);
@@ -19,6 +24,7 @@ class LeaveController extends ChangeNotifier {
   LeaveStatus get status => _status;
   List<LeaveModel> get leaves => _leaves;
   List<LeaveBalanceModel> get balances => _balances;
+  List<LeaveModel> get pendingApprovals => _pendingApprovals;
   String? get errorMessage => _errorMessage;
 
   DateTime get showFrom => _showFrom;
@@ -48,253 +54,178 @@ class LeaveController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<String?> _getToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJsonStr = prefs.getString('auth_user');
+      if (userJsonStr != null) {
+        final userMap = jsonDecode(userJsonStr);
+        return userMap['token'];
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> fetchLeaves(String employeeId) async {
     _status = LeaveStatus.loading;
     notifyListeners();
 
     try {
-      await Future.delayed(const Duration(seconds: 1));
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/api/leaves?employee_id=$employeeId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
-      _leaves = [
-        LeaveModel(
-          id: '1',
-          employeeId: employeeId,
-          leaveType: 'Official Tour',
-          startDate: DateTime(2026, 5, 11),
-          startTime: '06:00:00',
-          endDate: DateTime(2026, 5, 11),
-          endTime: '23:30:00',
-          duration: 'Full-Day',
-          status: 'Approved',
-          absenceHours: 17.50,
-          used: '1.00 Days',
-          reason: 'Attend financial review audit meeting',
-          remarks: 'Approved. Proceed with travel rules.',
-          appliedOn: DateTime(2026, 5, 10, 10, 30, 0),
-          approvedOn: DateTime(2026, 5, 10, 15, 45, 0),
-        ),
-        LeaveModel(
-          id: '2',
-          employeeId: employeeId,
-          leaveType: 'Official Tour',
-          startDate: DateTime(2026, 7, 5),
-          startTime: '00:00:00',
-          endDate: DateTime(2026, 10, 5),
-          endTime: '00:00:00',
-          duration: 'Full-Day',
-          status: 'Approved',
-          absenceHours: 17.00,
-          used: '90.00 Days',
-          reason: 'Long term project assignment',
-          remarks: 'Approved by board management.',
-          appliedOn: DateTime(2026, 7, 1, 9, 0, 0),
-          approvedOn: DateTime(2026, 7, 2, 11, 20, 0),
-        ),
-        LeaveModel(
-          id: '3',
-          employeeId: employeeId,
-          leaveType: 'Official Tour',
-          startDate: DateTime(2026, 4, 1),
-          startTime: '00:00:00',
-          endDate: DateTime(2026, 4, 4),
-          endTime: '00:00:00',
-          duration: 'Full-Day',
-          status: 'Approved',
-          absenceHours: 34.00,
-          used: '4.00 Days',
-          reason: 'Mine safety audit visit',
-          remarks: 'Recommended and approved.',
-          appliedOn: DateTime(2026, 3, 28, 14, 15, 0),
-          approvedOn: DateTime(2026, 3, 29, 10, 0, 0),
-        ),
-        LeaveModel(
-          id: '4',
-          employeeId: employeeId,
-          leaveType: 'Casual Leave',
-          startDate: DateTime(2026, 3, 26),
-          startTime: '10:00:00',
-          endDate: DateTime(2026, 3, 26),
-          endTime: '14:15:00',
-          duration: 'Half-Day',
-          status: 'Approved',
-          absenceHours: 4.25,
-          used: '0.50 Days',
-          reason: 'Personal urgent work',
-          remarks: 'Granted half day leave.',
-          appliedOn: DateTime(2026, 3, 25, 11, 45, 0),
-          approvedOn: DateTime(2026, 3, 25, 13, 10, 0),
-        ),
-        LeaveModel(
-          id: '5',
-          employeeId: employeeId,
-          leaveType: 'Casual Leave',
-          startDate: DateTime(2026, 3, 2),
-          startTime: '00:00:00',
-          endDate: DateTime(2026, 3, 2),
-          endTime: '00:00:00',
-          duration: 'Full-Day',
-          processor: 'Rakesh Tumane',
-          status: 'Approved',
-          absenceHours: 6.45,
-          used: '1 Days',
-          reason: 'Family function at Nagpur',
-          remarks: 'Approved. Enjoy family function.',
-          appliedOn: DateTime(2026, 2, 28, 10, 5, 0),
-          approvedOn: DateTime(2026, 3, 1, 16, 30, 0),
-        ),
-        LeaveModel(
-          id: '6',
-          employeeId: employeeId,
-          leaveType: 'HPL',
-          startDate: DateTime(2026, 6, 10),
-          startTime: '09:00:00',
-          endDate: DateTime(2026, 6, 12),
-          endTime: '17:30:00',
-          duration: 'Full-Day',
-          status: 'Approved',
-          absenceHours: 24.00,
-          used: '3.00 Days',
-          reason: 'Medical treatment',
-          remarks: 'Approved by medical board recommendation.',
-          appliedOn: DateTime(2026, 6, 8, 9, 0, 0),
-          approvedOn: DateTime(2026, 6, 9, 11, 0, 0),
-        ),
-        LeaveModel(
-          id: '7',
-          employeeId: employeeId,
-          leaveType: 'Earned leave',
-          startDate: DateTime(2026, 8, 10),
-          startTime: '09:00:00',
-          endDate: DateTime(2026, 8, 14),
-          endTime: '17:30:00',
-          duration: 'Full-Day',
-          status: 'Pending (P1 Approved)',
-          absenceHours: 40.00,
-          used: '5.00 Days',
-          reason: 'Family tour and vacation',
-          remarks: 'P1 approved, pending final approval from P2.',
-          appliedOn: DateTime(2026, 7, 8, 10, 30, 0),
-        ),
-        LeaveModel(
-          id: '8',
-          employeeId: employeeId,
-          leaveType: 'Casual Leave',
-          startDate: DateTime(2026, 7, 28),
-          startTime: '09:00:00',
-          endDate: DateTime(2026, 7, 28),
-          endTime: '17:30:00',
-          duration: 'Full-Day',
-          status: 'Pending',
-          absenceHours: 8.00,
-          used: '1.00 Days',
-          reason: 'Domestic repair work',
-          appliedOn: DateTime(2026, 7, 12, 14, 0, 0),
-        ),
-      ];
-
-      _status = LeaveStatus.loaded;
-      notifyListeners();
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        _leaves = data.map((item) => LeaveModel.fromJson(item)).toList();
+        _status = LeaveStatus.loaded;
+      } else {
+        _status = LeaveStatus.error;
+      }
     } catch (e) {
-      _errorMessage = 'Failed to fetch leave data.';
       _status = LeaveStatus.error;
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   Future<void> fetchBalances(String employeeId) async {
     try {
-      await Future.delayed(const Duration(milliseconds: 800));
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/api/leave-balances?employee_id=$employeeId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
-      _balances = [
-        LeaveBalanceModel(
-          timeAccount: 'Earned leave',
-          deductionFrom: DateTime(2026, 1, 1),
-          deductionTo: DateTime(2026, 12, 31),
-          entitlement: 215.50,
-          entitlementMinusPlanned: 185.50,
-        ),
-        LeaveBalanceModel(
-          timeAccount: 'Casual Leave',
-          deductionFrom: DateTime(2026, 1, 1),
-          deductionTo: DateTime(2026, 12, 31),
-          entitlement: 12.00,
-          entitlementMinusPlanned: 10.50,
-        ),
-        LeaveBalanceModel(
-          timeAccount: 'HPL',
-          deductionFrom: DateTime(2026, 1, 1),
-          deductionTo: DateTime(2026, 12, 31),
-          entitlement: 107.00,
-          entitlementMinusPlanned: 107.00,
-        ),
-        LeaveBalanceModel(
-          timeAccount: 'Optional Holiday',
-          deductionFrom: DateTime(2026, 1, 1),
-          deductionTo: DateTime(2026, 12, 31),
-          entitlement: 2.00,
-          entitlementMinusPlanned: 2.00,
-        ),
-      ];
-
-      notifyListeners();
-    } catch (e) {
-      _errorMessage = 'Failed to fetch leave balance.';
-    }
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        _balances = data.map((item) => LeaveBalanceModel.fromJson(item)).toList();
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   Future<bool> applyLeave(LeaveApplicationRequest request) async {
     try {
-      await Future.delayed(const Duration(seconds: 2));
-      // Add mock new leave
-      _leaves.insert(0, LeaveModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        employeeId: request.employeeId,
-        leaveType: request.leaveType,
-        startDate: request.startDate,
-        startTime: request.beginTime,
-        endDate: request.endDate,
-        endTime: request.endTime,
-        duration: request.duration,
-        processor: request.processor,
-        status: 'Pending',
-        reason: request.note,
-        appliedOn: DateTime.now(),
-      ));
-      notifyListeners();
-      return true;
-    } catch (e) {
+      final token = await _getToken();
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/api/leaves/apply'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'leave_type': request.leaveType,
+          'start_date': request.startDate.toIso8601String().split('T')[0],
+          'end_date': request.endDate.toIso8601String().split('T')[0],
+          'start_time': request.beginTime,
+          'end_time': request.endTime,
+          'duration': request.duration,
+          'reason': request.note ?? '',
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        await fetchLeaves(request.employeeId);
+        await fetchBalances(request.employeeId);
+        return true;
+      }
+      return false;
+    } catch (_) {
       return false;
     }
   }
 
-  Future<bool> cancelLeave(String leaveId) async {
+  Future<void> fetchPendingApprovals() async {
+    _status = LeaveStatus.loading;
+    notifyListeners();
+
     try {
-      await Future.delayed(const Duration(seconds: 1));
-      final index = _leaves.indexWhere((l) => l.id == leaveId);
-      if (index != -1) {
-        notifyListeners();
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/api/leaves/pending-approvals'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        _pendingApprovals = data.map((item) => LeaveModel.fromJson(item)).toList();
+        _status = LeaveStatus.loaded;
+      } else {
+        _status = LeaveStatus.error;
       }
-      return true;
     } catch (e) {
-      return false;
+      _status = LeaveStatus.error;
     }
+    notifyListeners();
   }
 
   Future<bool> approveLeave(String leaveId, String remarks) async {
     try {
-      await Future.delayed(const Duration(seconds: 1));
-      return true;
-    } catch (e) {
+      final token = await _getToken();
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/api/leaves/approve'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'leave_id': leaveId,
+          'remarks': remarks,
+        }),
+      );
+      if (response.statusCode == 200) {
+        _pendingApprovals.removeWhere((l) => l.id == leaveId);
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (_) {
       return false;
     }
   }
 
   Future<bool> rejectLeave(String leaveId, String remarks) async {
     try {
-      await Future.delayed(const Duration(seconds: 1));
-      return true;
-    } catch (e) {
+      final token = await _getToken();
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/api/leaves/reject'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'leave_id': leaveId,
+          'remarks': remarks,
+        }),
+      );
+      if (response.statusCode == 200) {
+        _pendingApprovals.removeWhere((l) => l.id == leaveId);
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (_) {
       return false;
     }
+  }
+
+  List<dynamic> _teamCalendar = [];
+  List<dynamic> get teamCalendar => _teamCalendar;
+
+  Future<void> fetchTeamCalendar() async {
+    try {
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/api/leaves/team-calendar'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        _teamCalendar = jsonDecode(response.body);
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 }

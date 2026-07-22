@@ -12,6 +12,7 @@ import '../../tour/controller/tour_controller.dart';
 import '../../../model/leave_model.dart';
 import '../../../model/tour_model.dart';
 import '../../../widgets/app_widgets.dart';
+import 'approval_history_screen.dart';
 
 class ApprovalScreen extends StatefulWidget {
   const ApprovalScreen({super.key});
@@ -27,7 +28,7 @@ class _ApprovalScreenState extends State<ApprovalScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -43,15 +44,17 @@ class _ApprovalScreenState extends State<ApprovalScreen>
       appBar: CustomAppBar(
         title: 'Pending Approvals',
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.warning.withOpacity(0.2)),
-            ),
-           
+          IconButton(
+            icon: const Icon(Icons.history_rounded, color: AppColors.primary),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ApprovalHistoryScreen(),
+                ),
+              );
+            },
+            tooltip: 'Approval History',
           ),
         ],
       ),
@@ -74,7 +77,6 @@ class _ApprovalScreenState extends State<ApprovalScreen>
               tabs: const [
                 Tab(text: 'Leave Approvals'),
                 Tab(text: 'Tour Approvals'),
-                // Tab(text: 'System Approvals'),
               ],
             ),
           ),
@@ -84,7 +86,6 @@ class _ApprovalScreenState extends State<ApprovalScreen>
               children: [
                 _LeaveApprovalList(),
                 _TourApprovalList(),
-                _SystemApprovalList(),
               ],
             ),
           ),
@@ -100,58 +101,42 @@ class _LeaveApprovalList extends StatefulWidget {
 }
 
 class _LeaveApprovalListState extends State<_LeaveApprovalList> {
-  late List<LeaveModel> _pendingLeaves;
-
   @override
   void initState() {
     super.initState();
-    final auth = context.read<AuthController>();
-    final currentUser = auth.user;
-
-    final allLeaves = [
-      LeaveModel(
-        id: 'l4',
-        employeeId: '540 (Swapnil Kanthiram Manpe)',
-        leaveType: 'Casual Leave',
-        startDate: DateTime(2026, 7, 15),
-        startTime: '09:00:00',
-        endDate: DateTime(2026, 7, 16),
-        endTime: '17:30:00',
-        duration: 'Full-Day',
-        status: 'Pending',
-        reason: 'Personal home shifting work',
-      ),
-    ];
-
-    final currentUserId = currentUser?.employeeId;
-    _pendingLeaves = allLeaves.where((l) {
-      final parts = l.employeeId.split(' ');
-      final empId = parts.first.replaceAll('(', '').replaceAll(')', '').trim();
-      final empMap = ProfileController.rawEmployees.firstWhere(
-        (e) => e['empNo'] == empId,
-        orElse: () => <String, dynamic>{},
-      );
-      if (empMap.isEmpty) return false;
-      final ro = empMap['reportingOfficer'] ?? '';
-      final ro1 = empMap['reportingOfficer1'] ?? '';
-      return ro == currentUserId || ro1 == currentUserId;
-    }).toList();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<LeaveController>().fetchPendingApprovals();
+    });
   }
 
-  void _handleAction(String id, String action) {
-    setState(() {
-      _pendingLeaves.removeWhere((l) => l.id == id);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Leave request $action successfully!'),
-      backgroundColor: action == 'approved' ? AppColors.success : AppColors.error,
-      behavior: SnackBarBehavior.floating,
-    ));
+  void _handleAction(String id, String action, String remarks) async {
+    final controller = context.read<LeaveController>();
+    bool success = false;
+    if (action == 'approved') {
+      success = await controller.approveLeave(id, remarks);
+    } else {
+      success = await controller.rejectLeave(id, remarks);
+    }
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(success ? 'Leave request $action successfully!' : 'Failed to process request.'),
+        backgroundColor: success && action == 'approved' ? AppColors.success : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_pendingLeaves.isEmpty) {
+    final leaveController = context.watch<LeaveController>();
+    final leavesToShow = leaveController.pendingApprovals;
+
+    if (leaveController.status == LeaveStatus.loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (leavesToShow.isEmpty) {
       return const EmptyState(
         icon: Icons.done_all_rounded,
         title: 'All Clear!',
@@ -161,28 +146,47 @@ class _LeaveApprovalListState extends State<_LeaveApprovalList> {
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _pendingLeaves.length,
+      itemCount: leavesToShow.length,
       itemBuilder: (context, index) {
         return _LeaveApprovalCard(
-          leave: _pendingLeaves[index],
-          onApprove: (id) => _handleAction(id, 'approved'),
-          onReject: (id) => _handleAction(id, 'rejected'),
+          leave: leavesToShow[index],
+          onApprove: (id, remarks) => _handleAction(id, 'approved', remarks),
+          onReject: (id, remarks) => _handleAction(id, 'rejected', remarks),
         );
       },
     );
   }
 }
 
-class _LeaveApprovalCard extends StatelessWidget {
+class _LeaveApprovalCard extends StatefulWidget {
   final LeaveModel leave;
-  final Function(String) onApprove;
-  final Function(String) onReject;
+  final Function(String, String) onApprove;
+  final Function(String, String) onReject;
 
   const _LeaveApprovalCard({
     required this.leave,
     required this.onApprove,
     required this.onReject,
   });
+
+  @override
+  State<_LeaveApprovalCard> createState() => _LeaveApprovalCardState();
+}
+
+class _LeaveApprovalCardState extends State<_LeaveApprovalCard> {
+  late TextEditingController _remarksController;
+
+  @override
+  void initState() {
+    super.initState();
+    _remarksController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _remarksController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -194,25 +198,26 @@ class _LeaveApprovalCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              LeaveTypeBadge(type: leave.leaveType),
+              LeaveTypeBadge(type: widget.leave.leaveType),
               const Spacer(),
-              StatusBadge(status: leave.status),
+              StatusBadge(status: widget.leave.status),
             ],
           ),
           const SizedBox(height: 12),
-          InfoRow(label: 'Employee', value: leave.employeeId),
+          InfoRow(label: 'Employee', value: widget.leave.employeeId),
           InfoRow(
             label: 'Duration',
-            value: '${DateFormat('dd-MM-yyyy').format(leave.startDate)} – ${DateFormat('dd-MM-yyyy').format(leave.endDate)}',
+            value: '${DateFormat('dd-MM-yyyy').format(widget.leave.startDate)} – ${DateFormat('dd-MM-yyyy').format(widget.leave.endDate)}',
           ),
-          InfoRow(label: 'Type', value: leave.duration),
-          if (leave.reason != null) InfoRow(label: 'Reason', value: leave.reason!),
+          InfoRow(label: 'Type', value: widget.leave.duration),
+          if (widget.leave.reason != null) InfoRow(label: 'Reason', value: widget.leave.reason!),
           const SizedBox(height: 14),
           const Divider(color: AppColors.cardBorder),
           const SizedBox(height: 10),
-          const TextField(
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
-            decoration: InputDecoration(
+          TextField(
+            controller: _remarksController,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            decoration: const InputDecoration(
               hintText: 'Add remarks (optional)...',
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               isDense: true,
@@ -227,7 +232,7 @@ class _LeaveApprovalCard extends StatelessWidget {
                   label: 'Approve',
                   color: AppColors.success,
                   icon: Icons.check_circle_outline,
-                  onTap: () => onApprove(leave.id),
+                  onTap: () => widget.onApprove(widget.leave.id, _remarksController.text),
                 ),
               ),
               const SizedBox(width: 12),
@@ -236,7 +241,7 @@ class _LeaveApprovalCard extends StatelessWidget {
                   label: 'Reject',
                   color: AppColors.error,
                   icon: Icons.cancel_outlined,
-                  onTap: () => onReject(leave.id),
+                  onTap: () => widget.onReject(widget.leave.id, _remarksController.text),
                 ),
               ),
             ],
@@ -253,90 +258,45 @@ class _TourApprovalList extends StatefulWidget {
 }
 
 class _TourApprovalListState extends State<_TourApprovalList> {
-  late List<TourModel> _pendingTours;
-
   @override
   void initState() {
     super.initState();
-    final auth = context.read<AuthController>();
-    final currentUser = auth.user;
-
-    final allTours = [
-      TourModel(
-        id: 't1',
-        employeeId: '540 (Swapnil Kanthiram Manpe)',
-        tourType: 'Official Tour',
-        destination: 'Mumbai',
-        startDate: DateTime(2026, 7, 15),
-        endDate: DateTime(2026, 7, 18),
-        travelPurpose: 'System Audit at Regional Office',
-        transportMode: 'Air Travel',
-        status: 'Pending',
-      ),
-      TourModel(
-        id: 't2',
-        employeeId: '4428 (B.C.N. Gautam)',
-        tourType: 'Official Tour',
-        destination: 'New Delhi',
-        startDate: DateTime(2026, 7, 22),
-        endDate: DateTime(2026, 7, 25),
-        travelPurpose: 'Joint System Integration Meeting',
-        transportMode: 'Air Travel',
-        status: 'Pending',
-      ),
-      TourModel(
-        id: 't3',
-        employeeId: '4410 (Ranjeet Singh Chouhan)',
-        tourType: 'Official Tour',
-        destination: 'Kolkata',
-        startDate: DateTime(2026, 7, 28),
-        endDate: DateTime(2026, 7, 31),
-        travelPurpose: 'Strategic Financial Audit',
-        transportMode: 'Air Travel',
-        status: 'Pending',
-      ),
-      TourModel(
-        id: 't4',
-        employeeId: '17110 (Sameer Banerjee)',
-        tourType: 'Official Tour',
-        destination: 'Pune',
-        startDate: DateTime(2026, 8, 2),
-        endDate: DateTime(2026, 8, 5),
-        travelPurpose: 'Tax compliance meeting',
-        transportMode: 'Train',
-        status: 'Pending',
-      ),
-    ];
-
-    final currentUserId = currentUser?.employeeId;
-    _pendingTours = allTours.where((t) {
-      final parts = t.employeeId.split(' ');
-      final empId = parts.first.replaceAll('(', '').replaceAll(')', '').trim();
-      final empMap = ProfileController.rawEmployees.firstWhere(
-        (e) => e['empNo'] == empId,
-        orElse: () => <String, dynamic>{},
-      );
-      if (empMap.isEmpty) return false;
-      final ro = empMap['reportingOfficer'] ?? '';
-      final ro1 = empMap['reportingOfficer1'] ?? '';
-      return ro == currentUserId || ro1 == currentUserId;
-    }).toList();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<TourController>().fetchPendingApprovals();
+    });
   }
 
-  void _handleAction(String id, String action) {
-    setState(() {
-      _pendingTours.removeWhere((t) => t.id == id);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Tour request $action successfully!'),
-      backgroundColor: action == 'approved' ? AppColors.success : AppColors.error,
-      behavior: SnackBarBehavior.floating,
-    ));
+  void _handleAction(String id, String action, String remarks) async {
+    final controller = context.read<TourController>();
+    bool success = false;
+    if (action == 'approved') {
+      success = await controller.approveTour(id, remarks);
+    } else {
+      success = await controller.rejectTour(id, remarks);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(success ? 'Tour request $action successfully!' : 'Failed to process request.'),
+        backgroundColor: success && action == 'approved' ? AppColors.success : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ));
+      if (success) {
+        controller.fetchPendingApprovals();
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_pendingTours.isEmpty) {
+    final tourController = context.watch<TourController>();
+    final toursToShow = tourController.pendingApprovals;
+
+    if (tourController.status == TourStatus.loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (toursToShow.isEmpty) {
       return const EmptyState(
         icon: Icons.done_all_rounded,
         title: 'All Clear!',
@@ -346,28 +306,47 @@ class _TourApprovalListState extends State<_TourApprovalList> {
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _pendingTours.length,
+      itemCount: toursToShow.length,
       itemBuilder: (context, index) {
         return _TourApprovalCard(
-          tour: _pendingTours[index],
-          onApprove: (id) => _handleAction(id, 'approved'),
-          onReject: (id) => _handleAction(id, 'rejected'),
+          tour: toursToShow[index],
+          onApprove: (id, remarks) => _handleAction(id, 'approved', remarks),
+          onReject: (id, remarks) => _handleAction(id, 'rejected', remarks),
         );
       },
     );
   }
 }
 
-class _TourApprovalCard extends StatelessWidget {
+class _TourApprovalCard extends StatefulWidget {
   final TourModel tour;
-  final Function(String) onApprove;
-  final Function(String) onReject;
+  final Function(String, String) onApprove;
+  final Function(String, String) onReject;
 
   const _TourApprovalCard({
     required this.tour,
     required this.onApprove,
     required this.onReject,
   });
+
+  @override
+  State<_TourApprovalCard> createState() => _TourApprovalCardState();
+}
+
+class _TourApprovalCardState extends State<_TourApprovalCard> {
+  late TextEditingController _remarksController;
+
+  @override
+  void initState() {
+    super.initState();
+    _remarksController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _remarksController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -386,27 +365,28 @@ class _TourApprovalCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: AppColors.primary.withOpacity(0.2)),
                 ),
-                child: Text(tour.tourType, style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600)),
+                child: Text(widget.tour.tourType, style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600)),
               ),
               const Spacer(),
-              StatusBadge(status: tour.status),
+              StatusBadge(status: widget.tour.status),
             ],
           ),
           const SizedBox(height: 12),
-          InfoRow(label: 'Employee', value: tour.employeeId),
-          InfoRow(label: 'Destination', value: tour.destination),
+          InfoRow(label: 'Employee', value: widget.tour.employeeId),
+          InfoRow(label: 'Destination', value: widget.tour.destination),
           InfoRow(
             label: 'Duration',
-            value: '${DateFormat('dd-MM-yyyy').format(tour.startDate)} – ${DateFormat('dd-MM-yyyy').format(tour.endDate)}',
+            value: '${DateFormat('dd-MM-yyyy').format(widget.tour.startDate)} – ${DateFormat('dd-MM-yyyy').format(widget.tour.endDate)}',
           ),
-          InfoRow(label: 'Purpose', value: tour.travelPurpose),
-          InfoRow(label: 'Transport', value: tour.transportMode),
+          InfoRow(label: 'Purpose', value: widget.tour.travelPurpose),
+          InfoRow(label: 'Transport', value: widget.tour.transportMode),
           const SizedBox(height: 14),
           const Divider(color: AppColors.cardBorder),
           const SizedBox(height: 10),
-          const TextField(
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
-            decoration: InputDecoration(
+          TextField(
+            controller: _remarksController,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            decoration: const InputDecoration(
               hintText: 'Add remarks (optional)...',
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               isDense: true,
@@ -418,12 +398,12 @@ class _TourApprovalCard extends StatelessWidget {
             children: [
               Expanded(child: _ApproveBtn(
                 label: 'Approve', color: AppColors.success, icon: Icons.check_circle_outline,
-                onTap: () => onApprove(tour.id),
+                onTap: () => widget.onApprove(widget.tour.id, _remarksController.text),
               )),
               const SizedBox(width: 12),
               Expanded(child: _ApproveBtn(
                 label: 'Reject', color: AppColors.error, icon: Icons.cancel_outlined,
-                onTap: () => onReject(tour.id),
+                onTap: () => widget.onReject(widget.tour.id, _remarksController.text),
               )),
             ],
           ),
@@ -465,70 +445,4 @@ class _ApproveBtn extends StatelessWidget {
   }
 }
 
-class _SystemApprovalList extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        GlassCard(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Row(
-              //   children: [
-              //     // Container(
-              //     //   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              //     //   decoration: BoxDecoration(
-              //     //     color: AppColors.error.withOpacity(0.08),
-              //     //     borderRadius: BorderRadius.circular(6),
-              //     //     border: Border.all(color: AppColors.error.withOpacity(0.2)),
-              //     //   ),
-              //     //   child: const Text('Password Change Required',
-              //     //       style: TextStyle(color: AppColors.error, fontSize: 11, fontWeight: FontWeight.w600)),
-              //     // ),
-              //     const Spacer(),
-              //     const StatusBadge(status: 'Pending'),
-              //   ],
-              // ),
-              const SizedBox(height: 12),
-              const InfoRow(label: 'Employee', value: 'Ranjeet Singh Chouhan (4410)'),
-              const InfoRow(label: 'Reason', value: 'Compulsory system reset requirement'),
-              const SizedBox(height: 14),
-              const Divider(color: AppColors.cardBorder),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ApproveBtn(
-                      label: 'Open Change Dialog',
-                      color: AppColors.primary,
-                      icon: Icons.security_rounded,
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          barrierDismissible: true,
-                          builder: (ctx) => CompulsoryPasswordChangeDialog(
-                            dismissible: true,
-                            onSuccess: () {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                                content: Text('System approval completed!'),
-                                backgroundColor: AppColors.success,
-                                behavior: SnackBarBehavior.floating,
-                              ));
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
+// _SystemApprovalList removed.

@@ -16,4 +16,15 @@ class HolidayModel {
     this.department,
     this.isNational = false,
   });
+
+  factory HolidayModel.fromJson(Map<String, dynamic> json) {
+    return HolidayModel(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      date: json['date'] != null ? DateTime.parse(json['date']) : DateTime.now(),
+      type: json['type'] ?? 'Optional',
+      department: json['department'],
+      isNational: json['isNational'] ?? false,
+    );
+  }
 }

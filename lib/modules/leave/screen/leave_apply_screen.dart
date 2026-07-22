@@ -1,6 +1,7 @@
 // lib/modules/leave/screen/leave_apply_screen.dart
 // Matches SAP Leave Applied form: Type of Leave + General Data
 
+import 'package:employee_management/modules/profile/controller/profile_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -27,7 +28,8 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
   String _beginTime = '00:00';
   String _endTime = '00:00';
   String _duration = 'Full-Day';
-  String _processor = 'Manish M Malewar';
+  String _processor = '-';
+  String _processor1 = '-';
   final _noteController = TextEditingController();
   bool _isSubmitting = false;
 
@@ -74,15 +76,38 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthController>();
-      final empId = auth.user?.employeeId ?? '';
-      setState(() {
-        if (empId == '446') {
-          _processor = 'Rakesh Tumane';
-        } else if (['540', '4410', '4428', '4733', '419'].contains(empId)) {
-          _processor = 'Raja Talathoti & Rakesh Tumane';
-        } else {
-          _processor = 'Raja Talathoti';
+      final u = auth.user;
+
+      String processor = '-';
+      String processor1 = '-';
+
+      if (u != null) {
+        final roId = u.reportingOfficer ?? '';
+        final ro1Id = u.reportingOfficer1 ?? '';
+        final roName = u.reportingOfficerName ?? '';
+        final ro1Name = u.reportingOfficer1Name ?? '';
+
+        final cleanRoId = roId.trim().replaceAll(RegExp('^0+'), '');
+        final cleanRo1Id = ro1Id.trim().replaceAll(RegExp('^0+'), '');
+
+        bool hasRo = roId.isNotEmpty && roId != '0' && roId != 'N/A';
+        bool hasRo1 = ro1Id.isNotEmpty && ro1Id != '0' && ro1Id != 'N/A';
+
+        if (hasRo) {
+          processor = (roName.isNotEmpty && roName != '0' && roName.toLowerCase() != 'n/a')
+              ? '$roName ($cleanRoId)'
+              : cleanRoId;
         }
+        if (hasRo1) {
+          processor1 = (ro1Name.isNotEmpty && ro1Name != '0' && ro1Name.toLowerCase() != 'n/a')
+              ? '$ro1Name ($cleanRo1Id)'
+              : cleanRo1Id;
+        }
+      }
+
+      setState(() {
+        _processor = processor;
+        _processor1 = processor1;
       });
     });
   }
@@ -146,7 +171,11 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                               child: Text(type),
                             ))
                         .toList(),
-                    onChanged: (v) => setState(() => _selectedLeaveType = v!),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _selectedLeaveType = v);
+                      }
+                    },
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -213,24 +242,26 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                // Begin Time
-                _buildFormRow(
-                  label: 'Begin Time',
-                  child: _TimeField(
-                    value: _beginTime,
-                    onTap: () => _pickTime(true),
+                if (_selectedLeaveType == 'HPL' || _selectedLeaveType == 'CHPL') ...[
+                  const SizedBox(height: 12),
+                  // Begin Time
+                  _buildFormRow(
+                    label: 'Begin Time',
+                    child: _TimeField(
+                      value: _beginTime,
+                      onTap: () => _pickTime(true),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                // End Time
-                _buildFormRow(
-                  label: 'End Time',
-                  child: _TimeField(
-                    value: _endTime,
-                    onTap: () => _pickTime(false),
+                  const SizedBox(height: 12),
+                  // End Time
+                  _buildFormRow(
+                    label: 'End Time',
+                    child: _TimeField(
+                      value: _endTime,
+                      onTap: () => _pickTime(false),
+                    ),
                   ),
-                ),
+                ],
                 const SizedBox(height: 12),
                 // Leave Duration
                 _buildFormRow(
@@ -281,6 +312,30 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                       children: [
                         Text(
                           _processor,
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                        ),
+                        const Icon(Icons.search, color: AppColors.textSecondary, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Processor 1
+                _buildFormRow(
+                  label: 'Processor 1',
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.inputBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.inputBorder),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _processor1,
                           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                         ),
                         const Icon(Icons.search, color: AppColors.textSecondary, size: 18),
@@ -358,7 +413,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
             onSurface: AppColors.textPrimary,
           ),
         ),
-        child: child!,
+        child: child ?? const SizedBox(),
       ),
     );
     if (picked != null) {
@@ -391,7 +446,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
             onSurface: AppColors.textPrimary,
           ),
         ),
-        child: child!,
+        child: child ?? const SizedBox(),
       ),
     );
     if (picked != null) {
@@ -440,9 +495,32 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final auth = context.read<AuthController>();
+    final ro = auth.user?.reportingOfficer?.trim();
+    final ro1 = auth.user?.reportingOfficer1?.trim();
+    final hasRo = ro != null && ro.isNotEmpty && ro != '0' && ro != 'N/A';
+    final hasRo1 = ro1 != null && ro1.isNotEmpty && ro1 != '0' && ro1 != 'N/A';
+
+    if (!hasRo && !hasRo1) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Text('Missing Reporting Officers', style: TextStyle(color: AppColors.error, fontSize: 16, fontWeight: FontWeight.bold)),
+          content: const Text('Please connect to HR office.', style: TextStyle(fontSize: 13)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
-    final auth = context.read<AuthController>();
     final request = LeaveApplicationRequest(
       employeeId: auth.user?.employeeId ?? '',
       leaveType: _selectedLeaveType,
@@ -472,7 +550,10 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
-      if (success) _resetForm();
+      if (success) {
+        _resetForm();
+        context.read<LeaveController>().setActiveTabIndex(0);
+      }
     }
   }
 

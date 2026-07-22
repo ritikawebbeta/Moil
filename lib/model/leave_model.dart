@@ -10,6 +10,7 @@ class LeaveModel {
   final String endTime;
   final String duration;
   final String? processor;
+  final String? processor1;
   final String status;
   final double? absenceHours;
   final String? used;
@@ -28,6 +29,7 @@ class LeaveModel {
     required this.endTime,
     required this.duration,
     this.processor,
+    this.processor1,
     required this.status,
     this.absenceHours,
     this.used,
@@ -39,22 +41,23 @@ class LeaveModel {
 
   factory LeaveModel.fromJson(Map<String, dynamic> json) {
     return LeaveModel(
-      id: json['id'] ?? '',
-      employeeId: json['employeeId'] ?? '',
-      leaveType: json['leaveType'] ?? '',
-      startDate: DateTime.parse(json['startDate']),
-      startTime: json['startTime'] ?? '00:00:00',
-      endDate: DateTime.parse(json['endDate']),
-      endTime: json['endTime'] ?? '00:00:00',
-      duration: json['duration'] ?? 'Full-Day',
-      processor: json['processor'],
-      status: json['status'] ?? 'Pending',
-      absenceHours: json['absenceHours']?.toDouble(),
-      used: json['used'],
-      reason: json['reason'],
-      remarks: json['remarks'],
-      appliedOn: json['appliedOn'] != null ? DateTime.parse(json['appliedOn']) : null,
-      approvedOn: json['approvedOn'] != null ? DateTime.parse(json['approvedOn']) : null,
+      id: json['id']?.toString() ?? '',
+      employeeId: json['employeeId']?.toString() ?? '',
+      leaveType: json['leaveType']?.toString() ?? '',
+      startDate: DateTime.tryParse(json['startDate']?.toString() ?? '') ?? DateTime.now(),
+      startTime: json['startTime']?.toString() ?? '00:00:00',
+      endDate: DateTime.tryParse(json['endDate']?.toString() ?? '') ?? DateTime.now(),
+      endTime: json['endTime']?.toString() ?? '00:00:00',
+      duration: json['duration']?.toString() ?? 'Full-Day',
+      processor: json['processor']?.toString(),
+      processor1: json['processor1']?.toString(),
+      status: json['status']?.toString() ?? 'Pending',
+      absenceHours: (json['absenceHours'] as num?)?.toDouble(),
+      used: json['used']?.toString(),
+      reason: json['reason']?.toString(),
+      remarks: json['remarks']?.toString(),
+      appliedOn: json['appliedOn'] != null ? DateTime.tryParse(json['appliedOn'].toString()) : null,
+      approvedOn: json['approvedOn'] != null ? DateTime.tryParse(json['approvedOn'].toString()) : null,
     );
   }
 
@@ -69,6 +72,7 @@ class LeaveModel {
       'endTime': endTime,
       'duration': duration,
       'processor': processor,
+      'processor1': processor1,
       'status': status,
       'absenceHours': absenceHours,
       'used': used,
@@ -97,11 +101,11 @@ class LeaveBalanceModel {
 
   factory LeaveBalanceModel.fromJson(Map<String, dynamic> json) {
     return LeaveBalanceModel(
-      timeAccount: json['timeAccount'] ?? '',
-      deductionFrom: DateTime.parse(json['deductionFrom']),
-      deductionTo: DateTime.parse(json['deductionTo']),
-      entitlement: json['entitlement']?.toDouble() ?? 0.0,
-      entitlementMinusPlanned: json['entitlementMinusPlanned']?.toDouble() ?? 0.0,
+      timeAccount: json['timeAccount']?.toString() ?? '',
+      deductionFrom: DateTime.tryParse(json['deductionFrom']?.toString() ?? '') ?? DateTime(2026, 1, 1),
+      deductionTo: DateTime.tryParse(json['deductionTo']?.toString() ?? '') ?? DateTime(2026, 12, 31),
+      entitlement: (json['entitlement'] as num?)?.toDouble() ?? 0.0,
+      entitlementMinusPlanned: (json['entitlementMinusPlanned'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

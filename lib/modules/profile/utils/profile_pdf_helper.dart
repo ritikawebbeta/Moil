@@ -7,8 +7,15 @@ class ProfilePdfHelper {
   static Future<void> printEmployeeProfilePdf(EmployeeModel emp) async {
     final doc = pw.Document();
 
-    final fontRegular = await PdfGoogleFonts.hindRegular();
-    final fontBold = await PdfGoogleFonts.hindBold();
+    pw.Font fontRegular;
+    pw.Font fontBold;
+    try {
+      fontRegular = await PdfGoogleFonts.hindRegular();
+      fontBold = await PdfGoogleFonts.hindBold();
+    } catch (_) {
+      fontRegular = pw.Font.helvetica();
+      fontBold = pw.Font.helveticaBold();
+    }
 
     final theme = pw.ThemeData.withFont(
       base: fontRegular,
@@ -32,11 +39,7 @@ class ProfilePdfHelper {
 
     pw.ImageProvider? avatarImg;
     final empId = emp.employeeId.trim().replaceAll(RegExp('^0+'), '');
-    if (empId == '446') {
-      try {
-        avatarImg = await imageFromAssetBundle('assets/images/raja_talathoti.jpg');
-      } catch (_) {}
-    } else if (empId == '16194') {
+    if (empId == '16194') {
       try {
         avatarImg = await imageFromAssetBundle('assets/images/rakesh_tumane.jpg');
       } catch (_) {}
@@ -271,7 +274,7 @@ class ProfilePdfHelper {
                 pw.TableRow(
                   children: [
                     cellText('1', size: 8),
-                    cellText(emp.id == '446' ? 'D.C.M.E., \'A\' LEVEL, \'B\' LEVEL(MCA)' : 'B.COM., C.A.', size: 8),
+                    cellText('B.COM., C.A.', size: 8),
                   ],
                 ),
               ],
@@ -314,43 +317,19 @@ class ProfilePdfHelper {
                     cellText('GENDER', bold: true, size: 8),
                   ],
                 ),
-                if (emp.id == '446') ...[
-                  pw.TableRow(children: [
-                    cellText('1', size: 8),
-                    cellText('Anitha Talathoti', size: 8),
-                    cellText('Spouse', size: 8),
-                    cellText('06-08-1988', size: 8),
-                    cellText('Female', size: 8),
-                  ]),
-                  pw.TableRow(children: [
-                    cellText('2', size: 8),
-                    cellText('Srinivasa Rao Talathoti', size: 8),
-                    cellText('Father', size: 8),
-                    cellText('04-05-1953', size: 8),
-                    cellText('Male', size: 8),
-                  ]),
-                  pw.TableRow(children: [
-                    cellText('3', size: 8),
-                    cellText('Chiranjeevi Talathoti', size: 8),
-                    cellText('Mother', size: 8),
-                    cellText('16-01-1960', size: 8),
-                    cellText('Female', size: 8),
-                  ]),
-                  pw.TableRow(children: [
-                    cellText('4', size: 8),
-                    cellText('Pavitra Talathoti', size: 8),
-                    cellText('Child', size: 8),
-                    cellText('12-01-2009', size: 8),
-                    cellText('Female', size: 8),
-                  ]),
-                  pw.TableRow(children: [
-                    cellText('5', size: 8),
-                    cellText('Vikranth Talathoti', size: 8),
-                    cellText('Child', size: 8),
-                    cellText('26-12-2013', size: 8),
-                    cellText('Male', size: 8),
-                  ]),
-                ] else ...[
+                if (emp.familyMembers.isNotEmpty)
+                  ...emp.familyMembers.asMap().entries.map((e) {
+                    final idx = e.key + 1;
+                    final fam = e.value;
+                    return pw.TableRow(children: [
+                      cellText('$idx', size: 8),
+                      cellText(fam['name'] ?? '', size: 8),
+                      cellText(fam['relation'] ?? '', size: 8),
+                      cellText(fam['dob'] ?? '', size: 8),
+                      cellText(fam['gender'] ?? '', size: 8),
+                    ]);
+                  }).toList()
+                else ...[
                   pw.TableRow(children: [
                     cellText('1', size: 8),
                     cellText(emp.fatherSpouseName, size: 8),
@@ -465,7 +444,7 @@ class ProfilePdfHelper {
                     text: pw.TextSpan(
                       children: [
                         pw.TextSpan(text: 'LOCAL ADDRESS: ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)),
-                        pw.TextSpan(text: emp.id == '446' ? 'House No 54 (g+1) Orange city park kamptee road kamptee 441002 IN' : emp.address, style: pw.TextStyle(fontSize: 8.5)),
+                        pw.TextSpan(text: emp.address, style: pw.TextStyle(fontSize: 8.5)),
                       ],
                     ),
                   ),
@@ -474,7 +453,7 @@ class ProfilePdfHelper {
                     text: pw.TextSpan(
                       children: [
                         pw.TextSpan(text: 'EMERGENCY ADDRESS: ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)),
-                        pw.TextSpan(text: emp.id == '446' ? 'Srinivasa Rao Epuru(Vil-Po), Guntur(Dt) 522301 IN' : emp.address, style: pw.TextStyle(fontSize: 8.5)),
+                        pw.TextSpan(text: emp.address, style: pw.TextStyle(fontSize: 8.5)),
                       ],
                     ),
                   ),

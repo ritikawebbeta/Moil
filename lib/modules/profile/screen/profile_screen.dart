@@ -27,10 +27,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthController>();
-      if (auth.user != null) {
+      final user = auth.user;
+      if (user != null) {
         context
             .read<ProfileController>()
-            .fetchEmployeeProfile(auth.user!.employeeId);
+            .fetchEmployeeProfile(user.employeeId);
       }
     });
   }
@@ -60,7 +61,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             backgroundColor: AppColors.background,
             appBar: CustomAppBar(
               title: 'My Profile',
-              showBack: Navigator.of(context).canPop(),
+              showBack: false,
               actions: [
                 if (emp != null)
                   IconButton(
@@ -183,45 +184,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
     };
 
     final List<Map<String, String>> familyList = [];
-    if (data['spouse'] != 'N/A' && data['spouse'].toString().isNotEmpty) {
-      familyList.add({
-        'name': data['spouse'],
-        'relation': 'Spouse',
-        'dob': data['spouseDob'],
-        'gender': 'Female',
-      });
-    }
-    if (data['father'] != 'N/A' && data['father'].toString().isNotEmpty) {
-      familyList.add({
-        'name': data['father'],
-        'relation': 'Father',
-        'dob': data['fatherDob'],
-        'gender': 'Male',
-      });
-    }
-    if (data['mother'] != 'N/A' && data['mother'].toString().isNotEmpty) {
-      familyList.add({
-        'name': data['mother'],
-        'relation': 'Mother',
-        'dob': data['motherDob'],
-        'gender': 'Female',
-      });
-    }
-    if (data['child1'] != 'N/A' && data['child1'].toString().isNotEmpty) {
-      familyList.add({
-        'name': data['child1'],
-        'relation': 'Child',
-        'dob': data['childDob1'],
-        'gender': 'Female',
-      });
-    }
-    if (data['child2'] != 'N/A' && data['child2'].toString().isNotEmpty) {
-      familyList.add({
-        'name': data['child2'],
-        'relation': 'Child',
-        'dob': data['childDob2'],
-        'gender': 'Male',
-      });
+    if (emp.familyMembers.isNotEmpty) {
+      for (var f in emp.familyMembers) {
+        familyList.add({
+          'name': f['name']?.toString() ?? '',
+          'relation': f['relation']?.toString() ?? '',
+          'dob': f['dob']?.toString() ?? '',
+          'gender': f['gender']?.toString() ?? '',
+        });
+      }
+    } else {
+      if (data['spouse'] != 'N/A' && data['spouse'].toString().isNotEmpty) {
+        familyList.add({
+          'name': data['spouse'],
+          'relation': 'Spouse',
+          'dob': data['spouseDob'],
+          'gender': 'Female',
+        });
+      }
+      if (data['father'] != 'N/A' && data['father'].toString().isNotEmpty) {
+        familyList.add({
+          'name': data['father'],
+          'relation': 'Father',
+          'dob': data['fatherDob'],
+          'gender': 'Male',
+        });
+      }
+      if (data['mother'] != 'N/A' && data['mother'].toString().isNotEmpty) {
+        familyList.add({
+          'name': data['mother'],
+          'relation': 'Mother',
+          'dob': data['motherDob'],
+          'gender': 'Female',
+        });
+      }
+      if (data['child1'] != 'N/A' && data['child1'].toString().isNotEmpty) {
+        familyList.add({
+          'name': data['child1'],
+          'relation': 'Child',
+          'dob': data['childDob1'],
+          'gender': 'Female',
+        });
+      }
+      if (data['child2'] != 'N/A' && data['child2'].toString().isNotEmpty) {
+        familyList.add({
+          'name': data['child2'],
+          'relation': 'Child',
+          'dob': data['childDob2'],
+          'gender': 'Male',
+        });
+      }
     }
 
     Widget cellText(String text, {bool bold = false, TextAlign align = TextAlign.left, Color? bgColor}) {
@@ -635,9 +647,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: (() {
                 final id = emp.employeeId.trim().replaceAll(RegExp('^0+'), '');
-                if (id == '446') {
-                  return Image.asset('assets/images/raja_talathoti.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else if (id == '16194') {
+                if (id == '16194') {
                   return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
                 } else if (id == '17110') {
                   return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
@@ -1095,71 +1105,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showChangePassword() {
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      backgroundColor: AppColors.cardBg,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Align(
-        alignment: Alignment.bottomCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
-        padding: EdgeInsets.fromLTRB(
-            24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Change Password',
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700)),
-            const SizedBox(height: 16),
-            const TextField(
-              obscureText: true,
-              style: TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                  labelText: 'Current Password',
-                  prefixIcon:
-                      Icon(Icons.lock_outline, color: AppColors.primary)),
-            ),
-            const SizedBox(height: 12),
-            const TextField(
-              obscureText: true,
-              style: TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                  labelText: 'New Password',
-                  prefixIcon:
-                      Icon(Icons.lock_reset_rounded, color: AppColors.primary)),
-            ),
-            const SizedBox(height: 12),
-            const TextField(
-              obscureText: true,
-              style: TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                  labelText: 'Confirm Password',
-                  prefixIcon:
-                      Icon(Icons.lock_rounded, color: AppColors.primary)),
-            ),
-            const SizedBox(height: 20),
-            PrimaryButton(
-              label: 'Update Password',
-              icon: Icons.save_rounded,
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('Password updated successfully!'),
-                  backgroundColor: AppColors.success,
-                ));
-              },
-            ),
-          ],
-        ),
-          ),
-        ),
-      ));
+      barrierDismissible: true,
+      builder: (context) => CompulsoryPasswordChangeDialog(
+        dismissible: true,
+        onSuccess: () {},
+      ),
+    );
   }
 
   String _formatRawDate(String? raw) {

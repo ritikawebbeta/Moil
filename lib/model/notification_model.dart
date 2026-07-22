@@ -16,4 +16,15 @@ class NotificationModel {
     required this.timestamp,
     required this.isRead,
   });
+
+  factory NotificationModel.fromJson(Map<String, dynamic> json) {
+    return NotificationModel(
+      id: json['id'] ?? '',
+      title: json['title'] ?? '',
+      message: json['message'] ?? '',
+      type: json['type'] ?? '',
+      timestamp: json['timestamp'] != null ? DateTime.parse(json['timestamp']) : DateTime.now(),
+      isRead: json['isRead'] ?? false,
+    );
+  }
 }

@@ -11,6 +11,7 @@ import '../../../widgets/app_widgets.dart';
 import '../../../model/leave_model.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../profile/controller/profile_controller.dart';
+import '../../../model/user_model.dart';
 
 class LeaveCalendarScreen extends StatefulWidget {
   const LeaveCalendarScreen({super.key});
@@ -20,7 +21,7 @@ class LeaveCalendarScreen extends StatefulWidget {
 }
 
 class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
@@ -37,20 +38,28 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
     'Gautam Bose',
   ];
 
+  bool _getIsReportingOfficer(UserModel? user) {
+    if (user == null) return false;
+    final loggedInEmpNo = user.employeeId.trim().replaceAll(RegExp('^0+'), '');
+    return ProfileController.rawEmployees.any((emp) {
+      final ro = (emp['reportingOfficer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+      final ro1 = (emp['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+      return ro == loggedInEmpNo || ro1 == loggedInEmpNo;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    final auth = context.read<AuthController>();
-    final user = auth.user;
-    final loggedInEmpNo = user?.employeeId;
-    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
-        emp['reportingOfficer'] == loggedInEmpNo ||
-        emp['reportingOfficer1'] == loggedInEmpNo);
-    _tabController = TabController(length: isReportingOfficer ? 2 : 1, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
 
     _tempViewMode = _viewMode;
     _tempMonth = _focusedDay.month;
     _tempYear = _focusedDay.year;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<LeaveController>().fetchTeamCalendar();
+    });
   }
 
   @override
@@ -62,10 +71,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthController>().user;
-    final loggedInEmpNo = user?.employeeId;
-    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
-        emp['reportingOfficer'] == loggedInEmpNo ||
-        emp['reportingOfficer1'] == loggedInEmpNo);
+    final isReportingOfficer = _getIsReportingOfficer(user);
 
     if (!isReportingOfficer) {
       return _buildPersonalCalendar();
@@ -359,14 +365,66 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
 
     final auth = context.read<AuthController>();
     final currentUser = auth.user;
-    final loggedInEmpNo = currentUser?.employeeId;
-    final List<String> teamList = ProfileController.rawEmployees
-        .where((emp) =>
-            emp['reportingOfficer'] == loggedInEmpNo ||
-            emp['reportingOfficer1'] == loggedInEmpNo)
-        .map((emp) => emp['name'] as String)
-        .toList();
-    final teamToDisplay = teamList.isNotEmpty ? teamList : _teamMembers;
+    final cleanCurrentUserId = (currentUser?.employeeId ?? '').trim().replaceAll(RegExp('^0+'), '');
+
+    final leaveController = context.watch<LeaveController>();
+    final dbTeamCalendar = leaveController.teamCalendar;
+
+    final List<Map<String, dynamic>> teamMembersWithLeaves = [];
+
+    if (dbTeamCalendar.isNotEmpty) {
+      for (var item in dbTeamCalendar) {
+        final name = item['name']?.toString() ?? 'Unknown';
+        final List<dynamic> leavesList = item['leaves'] ?? [];
+        final List<int> leaveDays = [];
+
+        for (var l in leavesList) {
+          try {
+            final start = DateTime.parse(l['startDate']);
+            final end = DateTime.parse(l['endDate']);
+            
+            DateTime current = start;
+            while (current.isBefore(end) || current.isAtSameMomentAs(end)) {
+              if (current.year == _focusedDay.year && current.month == _focusedDay.month) {
+                leaveDays.add(current.day);
+              }
+              current = current.add(const Duration(days: 1));
+            }
+          } catch (_) {}
+        }
+
+        teamMembersWithLeaves.add({
+          'name': name,
+          'leaveDays': leaveDays,
+        });
+      }
+    } else {
+      final mockRanges = {
+        'Swapnil Kanthiram Manpe': [5, 6, 7],
+        'Ranjeet Singh Chouhan': [12, 13],
+        'B.C.N. Gautam': [19, 20, 21],
+        'Radheshyam Chandra': [25],
+      };
+
+      final List<String> teamList = cleanCurrentUserId.isEmpty
+          ? []
+          : ProfileController.rawEmployees
+              .where((emp) {
+                final ro = (emp['reportingOfficer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+                final ro1 = (emp['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+                return ro == cleanCurrentUserId || ro1 == cleanCurrentUserId;
+              })
+              .map((emp) => emp['name']?.toString() ?? 'Unknown')
+              .toList();
+      final teamToDisplay = teamList.isNotEmpty ? teamList : _teamMembers;
+
+      for (var name in teamToDisplay) {
+        teamMembersWithLeaves.add({
+          'name': name,
+          'leaveDays': mockRanges[name] ?? <int>[],
+        });
+      }
+    }
 
     return GlassCard(
       padding: EdgeInsets.zero,
@@ -386,8 +444,10 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                 _buildDateHeaderRow(daysInMonth, firstDay),
                 const Divider(height: 1, color: AppColors.cardBorder),
                 // Team member rows
-                ...teamToDisplay.asMap().entries.map((e) {
-                  return _buildTeamMemberRow(e.value, daysInMonth, firstDay, e.key.isEven);
+                ...teamMembersWithLeaves.asMap().entries.map((e) {
+                  final name = e.value['name']?.toString() ?? '';
+                  final leaveDays = List<int>.from(e.value['leaveDays'] ?? []);
+                  return _buildTeamMemberRow(name, leaveDays, daysInMonth, firstDay, e.key.isEven);
                 }),
               ],
             ),
@@ -445,15 +505,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
     );
   }
 
-  Widget _buildTeamMemberRow(String name, int daysInMonth, DateTime firstDay, bool isEven) {
-    // Mock leave data per member
-    final leaveRanges = {
-      'Swapnil Kanthiram Manpe': [5, 6, 7],
-      'Ranjeet Singh Chouhan': [12, 13],
-      'B.C.N. Gautam': [19, 20, 21],
-      'Radheshyam Chandra': [25],
-    };
-
+  Widget _buildTeamMemberRow(String name, List<int> leaveDays, int daysInMonth, DateTime firstDay, bool isEven) {
     return Column(
       children: [
         Container(
@@ -475,7 +527,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                 final day = i + 1;
                 final date = DateTime(firstDay.year, firstDay.month, day);
                 final isWeekend = date.weekday == DateTime.sunday;
-                final hasLeave = (leaveRanges[name] ?? []).contains(day);
+                final hasLeave = leaveDays.contains(day);
 
                 return Container(
                   width: 28,

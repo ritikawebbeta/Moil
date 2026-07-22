@@ -19,6 +19,7 @@ import '../../../model/leave_model.dart';
 import '../../profile/controller/profile_controller.dart';
 import '../../tour/controller/tour_controller.dart';
 import '../../../model/tour_model.dart';
+import '../../../model/user_model.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,10 +29,54 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  DateTime _earnedLeaveDate = DateTime(2026, 1, 1);
-  DateTime _casualLeaveDate = DateTime(2026, 1, 1);
-  DateTime _hplDate = DateTime(2026, 1, 1);
-  DateTime _optionalLeaveDate = DateTime(2026, 1, 1);
+  DateTime _earnedLeaveDate = DateTime.now();
+  DateTime _casualLeaveDate = DateTime.now();
+  DateTime _hplDate = DateTime.now();
+  DateTime _optionalLeaveDate = DateTime.now();
+
+  int _visibleLeavesCount = 5;
+  int _visibleToursCount = 5;
+
+  void _checkReportingOfficers(UserModel user) {
+    final ro = (user.reportingOfficer ?? '').trim().replaceAll(RegExp('^0+'), '');
+    final ro1 = (user.reportingOfficer1 ?? '').trim().replaceAll(RegExp('^0+'), '');
+    
+    final roName = (user.reportingOfficerName ?? '').trim();
+    final ro1Name = (user.reportingOfficer1Name ?? '').trim();
+
+    bool hasRo = ro.isNotEmpty && ro != '0' && ro != 'N/A';
+    bool hasRo1 = ro1.isNotEmpty && ro1 != '0' && ro1 != 'N/A';
+
+    bool isRoNameMissing = hasRo && (roName.isEmpty || roName == ro || roName == '0' || roName.toLowerCase() == 'n/a');
+    bool isRo1NameMissing = hasRo1 && (ro1Name.isEmpty || ro1Name == ro1 || ro1Name == '0' || ro1Name.toLowerCase() == 'n/a');
+
+    bool bothMissing = !hasRo && !hasRo1;
+    bool nameMissing = isRoNameMissing || isRo1NameMissing;
+
+    if (bothMissing || nameMissing) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: AppColors.error),
+              SizedBox(width: 8),
+              Text('Configuration Alert'),
+            ],
+          ),
+          content: const Text('Please contact Head Office to configure your Reporting Officers.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -39,12 +84,20 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthController>();
       if (auth.user != null) {
-        context
-            .read<ProfileController>()
-            .fetchEmployeeProfile(auth.user!.employeeId);
-        context.read<LeaveController>().fetchLeaves(auth.user!.employeeId);
-        context.read<LeaveController>().fetchBalances(auth.user!.employeeId);
-        context.read<TourController>().fetchTours(auth.user!.employeeId);
+        final profileCtrl = context.read<ProfileController>();
+        if (profileCtrl.employee == null) {
+          profileCtrl.fetchEmployeeProfile(auth.user!.employeeId);
+        }
+        final tourCtrl = context.read<TourController>();
+        if (tourCtrl.tours.isEmpty) {
+          tourCtrl.fetchTours(auth.user!.employeeId);
+        }
+
+        final leaveCtrl = context.read<LeaveController>();
+        leaveCtrl.fetchLeaves(auth.user!.employeeId);
+        leaveCtrl.fetchBalances(auth.user!.employeeId);
+
+        _checkReportingOfficers(auth.user!);
       }
     });
   }
@@ -147,9 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: (() {
                 final id = (user?.employeeId ?? '').trim().replaceAll(RegExp('^0+'), '');
-                if (id == '446') {
-                  return Image.asset('assets/images/raja_talathoti.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else if (id == '16194') {
+                if (id == '16194') {
                   return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
                 } else if (id == '17110') {
                   return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
@@ -416,7 +467,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   dialogBackgroundColor: AppColors.backgroundSecondary,
                 ),
-                child: child!,
+                child: child ?? const SizedBox(),
               );
             },
           );
@@ -584,11 +635,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final isWeb = width > 800;
 
     final navBarController = context.read<BottomNavBarController>();
-    final user = context.watch<AuthController>().user;
-    final loggedInEmpNo = user?.employeeId;
-    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
-        emp['reportingOfficer'] == loggedInEmpNo ||
-        emp['reportingOfficer1'] == loggedInEmpNo);
+    context.watch<ProfileController>();
 
     final modules = [
       _ModuleItem(
@@ -655,41 +702,39 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         },
       ),
-      if (isReportingOfficer)
-        _ModuleItem(
-          title: 'Directory',
-          subtitle: 'Employee List',
-          icon: Icons.people_rounded,
-          color: const Color(0xFF0F766E),
-          onTap: () {
-            if (isWeb) {
-              navBarController.setSelectedIndex(4);
-            } else {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const EmployeeDirectoryScreen()),
-              );
-            }
-          },
-        ),
-      if (isReportingOfficer)
-        _ModuleItem(
-          title: 'Approvals',
-          subtitle: 'Pending Actions',
-          icon: Icons.approval_rounded,
-          color: const Color(0xFF8B5CF6),
-          onTap: () {
-            if (isWeb) {
-              navBarController.setSelectedIndex(7);
-            } else {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ApprovalScreen()),
-              );
-            }
-          },
-        ),
+      _ModuleItem(
+        title: 'Directory',
+        subtitle: 'Employee List',
+        icon: Icons.people_rounded,
+        color: const Color(0xFF0F766E),
+        onTap: () {
+          if (isWeb) {
+            navBarController.setSelectedIndex(4);
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const EmployeeDirectoryScreen()),
+            );
+          }
+        },
+      ),
+      _ModuleItem(
+        title: 'Approvals',
+        subtitle: 'Pending Actions',
+        icon: Icons.approval_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () {
+          if (isWeb) {
+            navBarController.setSelectedIndex(7);
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ApprovalScreen()),
+            );
+          }
+        },
+      ),
       _ModuleItem(
         title: 'Profile',
         subtitle: 'My Account',
@@ -725,13 +770,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (width > 1200) {
       crossAxisCount = 8;
-      childAspectRatio = 1.1;
+      childAspectRatio = 0.95;
     } else if (width > 700) {
       crossAxisCount = 4;
-      childAspectRatio = 1.25;
+      childAspectRatio = 1.05;
     } else {
       crossAxisCount = 3;
-      childAspectRatio = 0.95;
+      childAspectRatio = 0.78;
     }
 
     return Container(
@@ -755,39 +800,39 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: m.onTap,
                 child: GlassCard(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: isWeb ? 36 : 42,
-                        height: isWeb ? 36 : 42,
+                        width: isWeb ? 40 : 48,
+                        height: isWeb ? 40 : 48,
                         decoration: BoxDecoration(
                           color: m.color.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: m.color.withOpacity(0.15)),
                         ),
                         child:
-                            Icon(m.icon, color: m.color, size: isWeb ? 18 : 20),
+                            Icon(m.icon, color: m.color, size: isWeb ? 20 : 24),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 10),
                       Text(
                         m.title,
                         style: const TextStyle(
                           color: AppColors.textPrimary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
                         ),
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 1),
+                      const SizedBox(height: 3),
                       Text(
                         m.subtitle,
                         style: const TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 8,
+                          fontSize: 13,
                         ),
                         textAlign: TextAlign.center,
                         maxLines: 1,
@@ -807,8 +852,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildRecentLeaves(BuildContext context) {
     final leaveController = context.watch<LeaveController>();
     final recentLeaves = leaveController.leaves;
-    final double width = MediaQuery.of(context).size.width;
-    final bool isWeb = width > 800;
+    final leavesToShow = recentLeaves.take(_visibleLeavesCount).toList();
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 24, 20, 0),
@@ -836,24 +880,31 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+            )
+          else ...[
+            Column(
+              children: leavesToShow
+                  .map((leave) => _LeaveListTile(leave: leave))
+                  .toList(),
             ),
-          // else if (isWeb)
-          //   Wrap(
-          //     spacing: 12,
-          //     runSpacing: 12,
-          //     children: recentLeaves.map((leave) {
-          //       return SizedBox(
-          //         width: width > 1200 ? (width - 80) / 3 : (width - 60) / 2,
-          //         child: _LeaveListTile(leave: leave),
-          //       );
-          //     }).toList(),
-          //   )
-          // else
-          Column(
-            children: recentLeaves
-                .map((leave) => _LeaveListTile(leave: leave))
-                .toList(),
-          ),
+            if (recentLeaves.length > _visibleLeavesCount) ...[
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => setState(() => _visibleLeavesCount += 5),
+                  icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
+                  label: const Text(
+                    'Read More',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );
@@ -862,8 +913,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildRecentTours(BuildContext context) {
     final tourController = context.watch<TourController>();
     final tours = tourController.tours;
-    final double width = MediaQuery.of(context).size.width;
-    final bool isWeb = width > 800;
+    final toursToShow = tours.take(_visibleToursCount).toList();
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 24, 20, 0),
@@ -891,22 +941,29 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+            )
+          else ...[
+            Column(
+              children: toursToShow.map((tour) => _TourListTile(tour: tour)).toList(),
             ),
-          // else if (isWeb)
-          //   Wrap(
-          //     spacing: 12,
-          //     runSpacing: 12,
-          //     children: tours.map((tour) {
-          //       return SizedBox(
-          //         width: width > 1200 ? (width - 80) / 3 : (width - 60) / 2,
-          //         child: _TourListTile(tour: tour),
-          //       );
-          //     }).toList(),
-          //   )
-          // else
-          Column(
-            children: tours.map((tour) => _TourListTile(tour: tour)).toList(),
-          ),
+            if (tours.length > _visibleToursCount) ...[
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => setState(() => _visibleToursCount += 5),
+                  icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
+                  label: const Text(
+                    'Read More',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );
@@ -979,7 +1036,7 @@ class _StatCard extends StatelessWidget {
                         title,
                         style: const TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 12,
+                          fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
                         maxLines: 1,
@@ -1003,7 +1060,7 @@ class _StatCard extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 10,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
@@ -1046,8 +1103,8 @@ class _LeaveListTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 60,
+              height: 60,
               decoration: BoxDecoration(
                 color: AppColors.primary.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(10),
@@ -1067,7 +1124,7 @@ class _LeaveListTile extends StatelessWidget {
                     leave.leaveType,
                     style: const TextStyle(
                       color: AppColors.textPrimary,
-                      fontSize: 13,
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1076,7 +1133,7 @@ class _LeaveListTile extends StatelessWidget {
                     '${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)}',
                     style: const TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 11,
+                      fontSize: 14,
                     ),
                   ),
                 ],
@@ -1121,7 +1178,7 @@ class _TourListTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${tour.tourType} to ${tour.destination}',
+                    '${tour.destination}',
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 13,

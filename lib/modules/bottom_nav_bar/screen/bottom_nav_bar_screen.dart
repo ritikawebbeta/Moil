@@ -5,7 +5,6 @@ import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
 import '../../notifications/controller/notification_controller.dart';
 import '../../leave/controller/leave_controller.dart';
-import '../../tour/controller/tour_controller.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../controller/bottom_nav_bar_controller.dart';
 import '../../home/screen/home_screen.dart';
@@ -22,6 +21,7 @@ import '../../profile/screen/employee_directory_screen.dart';
 import '../../payslip/screen/payslip_screen.dart';
 import '../../holiday/screen/holiday_screen.dart';
 import '../../approval/screen/approval_screen.dart';
+import '../../../model/user_model.dart';
 
 class BottomNavBarScreen extends StatefulWidget {
   const BottomNavBarScreen({super.key});
@@ -97,16 +97,23 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
     final controller = context.read<BottomNavBarController>();
     final index = controller.selectedIndex;
     
-    // If not viewing directory (index 4), restore logged-in employee leaves, balances, and tours context
-    if (index != 4) {
-      final auth = context.read<AuthController>();
-      if (auth.user != null) {
-        final empId = auth.user!.employeeId;
-        context.read<LeaveController>().fetchLeaves(empId);
-        context.read<LeaveController>().fetchBalances(empId);
-        context.read<TourController>().fetchTours(empId);
+    // Fetch Directory only when Directory tab (index 4) is selected
+    if (index == 4) {
+      final profileCtrl = context.read<ProfileController>();
+      if (profileCtrl.employees.isEmpty && !profileCtrl.isLoading) {
+        profileCtrl.fetchAllEmployees();
       }
     }
+  }
+
+  bool _getIsReportingOfficer(UserModel? user) {
+    if (user == null) return false;
+    final loggedInEmpNo = user.employeeId.trim().replaceAll(RegExp('^0+'), '');
+    return ProfileController.rawEmployees.any((emp) {
+      final ro = (emp['reportingOfficer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+      final ro1 = (emp['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+      return ro == loggedInEmpNo || ro1 == loggedInEmpNo;
+    });
   }
 
   void _showLogoutConfirmation(BuildContext context) {
@@ -381,10 +388,7 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
 
   Widget _buildSidebar(BottomNavBarController navBarController, int selectedIndex) {
     final user = context.watch<AuthController>().user;
-    final loggedInEmpNo = user?.employeeId;
-    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
-        emp['reportingOfficer'] == loggedInEmpNo ||
-        emp['reportingOfficer1'] == loggedInEmpNo);
+    final isReportingOfficer = _getIsReportingOfficer(user);
 
     return Container(
       width: _isSidebarCollapsed ? 70 : 250,
@@ -419,10 +423,10 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(
-                          Icons.business_rounded,
-                          color: AppColors.primary,
-                          size: 20,
+                        child: Image.asset(
+                          'assets/images/moil_logo.png',
+                          width: 20,
+                          height: 20,
                         ),
                       ),
                     ],
@@ -435,10 +439,10 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(
-                          Icons.business_rounded,
-                          color: AppColors.primary,
-                          size: 24,
+                        child: Image.asset(
+                          'assets/images/moil_logo.png',
+                          width: 24,
+                          height: 24,
                         ),
                       ),
                       const SizedBox(width: 12),

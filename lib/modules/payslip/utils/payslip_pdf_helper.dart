@@ -29,11 +29,21 @@ class PayslipPdfHelper {
     String? employeeId,
     double? gross,
     double? deductions,
+    double? elBalance,
+    double? clBalance,
+    double? hplBalance,
   }) async {
     final doc = pw.Document();
 
-    final fontRegular = await PdfGoogleFonts.hindRegular();
-    final fontBold = await PdfGoogleFonts.hindBold();
+    pw.Font fontRegular;
+    pw.Font fontBold;
+    try {
+      fontRegular = await PdfGoogleFonts.hindRegular();
+      fontBold = await PdfGoogleFonts.hindBold();
+    } catch (_) {
+      fontRegular = pw.Font.helvetica();
+      fontBold = pw.Font.helveticaBold();
+    }
 
     final theme = pw.ThemeData.withFont(
       base: fontRegular,
@@ -41,10 +51,10 @@ class PayslipPdfHelper {
     );
 
     // Dynamic Employee Resolution
-    final cleanId = (employeeId ?? '446').trim().replaceAll(RegExp('^0+'), '');
+    final cleanId = (employeeId ?? (ProfileController.rawEmployees.isNotEmpty ? ProfileController.rawEmployees.first['empNo']?.toString() : '') ?? '').trim().replaceAll(RegExp('^0+'), '');
     final Map<String, dynamic> raw = ProfileController.rawEmployees.firstWhere(
       (e) => e['empNo'] == cleanId,
-      orElse: () => ProfileController.rawEmployees.first,
+      orElse: () => ProfileController.rawEmployees.isNotEmpty ? ProfileController.rawEmployees.first : <String, dynamic>{},
     );
 
     final double basicVal = double.tryParse(raw['basic'].toString().replaceAll(',', '')) ?? 100000.00;
@@ -477,9 +487,9 @@ class PayslipPdfHelper {
                   pw.TableRow(
                     children: [
                       cellText('Balance', alignment: pw.Alignment.center),
-                      cellText(cleanId == '446' ? '185.50' : '263.50', alignment: pw.Alignment.center),
-                      cellText(cleanId == '446' ? '10.50' : '6.50', alignment: pw.Alignment.center),
-                      cellText(cleanId == '446' ? '107.00' : '315.00', alignment: pw.Alignment.center),
+                      cellText((elBalance ?? 0.0).toStringAsFixed(2), alignment: pw.Alignment.center),
+                      cellText((clBalance ?? 0.0).toStringAsFixed(2), alignment: pw.Alignment.center),
+                      cellText((hplBalance ?? 0.0).toStringAsFixed(2), alignment: pw.Alignment.center),
                       cellText('0.00', alignment: pw.Alignment.center),
                       cellText('2.00', alignment: pw.Alignment.center),
                       cellText('0.00', alignment: pw.Alignment.center),

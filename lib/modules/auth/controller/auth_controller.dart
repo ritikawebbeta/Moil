@@ -3,8 +3,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../../../model/user_model.dart';
-
+import '../../../utils/app_config.dart';
 import '../../profile/controller/profile_controller.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
@@ -45,67 +46,57 @@ class AuthController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+
     try {
-      // Simulate API call delay
-      await Future.delayed(const Duration(seconds: 1));
-
-      final employeeIdTrimmed = employeeId.trim();
-      final passwordTrimmed = password.trim();
-
-      if (employeeIdTrimmed.isEmpty || passwordTrimmed.isEmpty) {
-        _errorMessage = 'Employee number and PAN card password cannot be empty.';
-        _status = AuthStatus.error;
-        notifyListeners();
-        return false;
-      }
-
-      // Strict index check in raw employee list
-      final matchIndex = ProfileController.rawEmployees.indexWhere(
-        (e) => e['empNo'] == employeeIdTrimmed
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/api/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'employee_number': employeeId.trim(),
+          'password': password.trim(),
+        }),
       );
 
-      if (matchIndex == -1) {
-        _errorMessage = 'Employee number not found. Access denied.';
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        final Map<String, dynamic> emp = data['employee'];
+
+        _user = UserModel(
+          id: emp['employee_number']?.toString() ?? '',
+          employeeId: emp['employee_number']?.toString() ?? '',
+          name: emp['name']?.toString() ?? '',
+          email: emp['email']?.toString() ?? '',
+          department: emp['department']?.toString() ?? '',
+          designation: emp['position']?.toString() ?? '',
+          role: emp['group']?.toString() ?? 'Employee',
+          reportingOfficer: emp['reporting_officer']?.toString(),
+          reportingOfficerName: emp['reporting_officer_name']?.toString(),
+          reportingOfficer1: emp['reporting_officer_1']?.toString(),
+          reportingOfficer1Name: emp['reporting_officer_1_name']?.toString(),
+          mobileNumber: emp['mobile']?.toString(),
+          address: '',
+          emergencyContact: '',
+          token: data['token']?.toString() ?? '',
+          permissions: const ['leave.view', 'leave.apply', 'tour.view', 'tour.apply', 'payslip.view', 'holiday.view'],
+          mustChangePassword: data['must_change_password'] ?? emp['must_change_password'] ?? false,
+        );
+
+        _status = AuthStatus.authenticated;
+        
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_user', jsonEncode(_user!.toJson()));
+        
+        notifyListeners();
+        return true;
+      } else {
+        final Map<String, dynamic> errorData = jsonDecode(response.body);
+        _errorMessage = errorData['error'] ?? 'Invalid Employee Number or Password';
         _status = AuthStatus.error;
         notifyListeners();
         return false;
       }
-
-      final match = ProfileController.rawEmployees[matchIndex];
-
-      // Strict PAN check as password (case-insensitive comparison)
-      final correctPan = (match['pan'] ?? '').toString().trim().toLowerCase();
-      if (correctPan != passwordTrimmed.toLowerCase()) {
-        _errorMessage = 'Incorrect PAN number password. Access denied.';
-        _status = AuthStatus.error;
-        notifyListeners();
-        return false;
-      }
-
-      _user = UserModel(
-        id: match['empNo'] ?? '446',
-        employeeId: match['empNo'] ?? '446',
-        name: match['name'] ?? 'Raja Talathoti',
-        email: match['email'] ?? 'raja_talathoti@moil.nic.in',
-        department: match['dept'] ?? 'System',
-        designation: match['position'] ?? 'Deputy General Manager-System',
-        role: match['empRoll'] ?? 'RO',
-        reportingOfficer: match['empRoll'] ?? 'RO',
-        mobileNumber: match['mobile'] ?? '123456789',
-        address: match['permAddress'] ?? 'Bhavan',
-        emergencyContact: match['emergAddress'] ?? 'EA Bhavan',
-        token: 'mock_jwt_token_12345',
-        permissions: ['leave.view', 'leave.apply', 'tour.view', 'tour.apply', 'payslip.view', 'holiday.view'],
-      );
-      _status = AuthStatus.authenticated;
-      
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('auth_user', jsonEncode(_user!.toJson()));
-      
-      notifyListeners();
-      return true;
     } catch (e) {
-      _errorMessage = 'Connection or authentication failed.';
+      _errorMessage = 'Connection failed. Please check your internet or server.';
       _status = AuthStatus.error;
       notifyListeners();
       return false;
@@ -115,15 +106,39 @@ class AuthController extends ChangeNotifier {
   Future<void> logout() async {
     _status = AuthStatus.unauthenticated;
     _user = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_user');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('auth_user');
+    } catch (_) {}
     notifyListeners();
   }
 
   Future<bool> changePassword(String oldPassword, String newPassword) async {
     try {
-      await Future.delayed(const Duration(seconds: 1));
-      return true;
+      final prefs = await SharedPreferences.getInstance();
+      final userJsonStr = prefs.getString('auth_user');
+      if (userJsonStr == null) return false;
+      final userMap = jsonDecode(userJsonStr);
+      final token = userMap['token'];
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/api/change-password'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'new_password': newPassword,
+        }),
+      );
+
+      final success = response.statusCode == 200;
+      if (success && _user != null) {
+        _user = _user!.copyWith(mustChangePassword: false);
+        await prefs.setString('auth_user', jsonEncode(_user!.toJson()));
+        notifyListeners();
+      }
+      return success;
     } catch (e) {
       return false;
     }

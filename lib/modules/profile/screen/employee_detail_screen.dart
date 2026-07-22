@@ -34,6 +34,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
     super.initState();
     _tabController = TabController(length: 4, vsync: this, initialIndex: widget.initialTabIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ProfileController>().fetchEmployeeProfile(widget.employee.employeeId);
       context.read<LeaveController>().fetchLeaves(widget.employee.employeeId);
       context.read<TourController>().fetchTours(widget.employee.employeeId);
     });
@@ -48,8 +49,9 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       final authController = context.read<AuthController>();
       
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (authController.user != null) {
-          final empId = authController.user!.employeeId;
+        final user = authController.user;
+        if (user != null) {
+          final empId = user.employeeId;
           leaveController.fetchLeaves(empId);
           leaveController.fetchBalances(empId);
           tourController.fetchTours(empId);
@@ -138,7 +140,12 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
   }
 
   Widget _buildProfileTab() {
-    final emp = widget.employee;
+    final profileController = context.watch<ProfileController>();
+    final detailedEmp = profileController.employee;
+    final emp = (detailedEmp != null && detailedEmp.employeeId == widget.employee.employeeId)
+        ? detailedEmp
+        : widget.employee;
+
     final rawList = ProfileController.rawEmployees;
     final Map<String, dynamic> raw = rawList.firstWhere(
       (e) => e['empNo'] == emp.employeeId,
@@ -222,45 +229,56 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
     };
 
     final List<Map<String, String>> familyList = [];
-    if (data['spouse'] != 'N/A' && data['spouse'].toString().isNotEmpty) {
-      familyList.add({
-        'name': data['spouse'],
-        'relation': 'Spouse',
-        'dob': data['spouseDob'],
-        'gender': 'Female',
-      });
-    }
-    if (data['father'] != 'N/A' && data['father'].toString().isNotEmpty) {
-      familyList.add({
-        'name': data['father'],
-        'relation': 'Father',
-        'dob': data['fatherDob'],
-        'gender': 'Male',
-      });
-    }
-    if (data['mother'] != 'N/A' && data['mother'].toString().isNotEmpty) {
-      familyList.add({
-        'name': data['mother'],
-        'relation': 'Mother',
-        'dob': data['motherDob'],
-        'gender': 'Female',
-      });
-    }
-    if (data['child1'] != 'N/A' && data['child1'].toString().isNotEmpty) {
-      familyList.add({
-        'name': data['child1'],
-        'relation': 'Child',
-        'dob': data['childDob1'],
-        'gender': 'Female',
-      });
-    }
-    if (data['child2'] != 'N/A' && data['child2'].toString().isNotEmpty) {
-      familyList.add({
-        'name': data['child2'],
-        'relation': 'Child',
-        'dob': data['childDob2'],
-        'gender': 'Male',
-      });
+    if (emp.familyMembers.isNotEmpty) {
+      for (var f in emp.familyMembers) {
+        familyList.add({
+          'name': f['name']?.toString() ?? '',
+          'relation': f['relation']?.toString() ?? '',
+          'dob': f['dob']?.toString() ?? '',
+          'gender': f['gender']?.toString() ?? '',
+        });
+      }
+    } else {
+      if (data['spouse'] != 'N/A' && data['spouse'].toString().isNotEmpty) {
+        familyList.add({
+          'name': data['spouse'],
+          'relation': 'Spouse',
+          'dob': data['spouseDob'],
+          'gender': 'Female',
+        });
+      }
+      if (data['father'] != 'N/A' && data['father'].toString().isNotEmpty) {
+        familyList.add({
+          'name': data['father'],
+          'relation': 'Father',
+          'dob': data['fatherDob'],
+          'gender': 'Male',
+        });
+      }
+      if (data['mother'] != 'N/A' && data['mother'].toString().isNotEmpty) {
+        familyList.add({
+          'name': data['mother'],
+          'relation': 'Mother',
+          'dob': data['motherDob'],
+          'gender': 'Female',
+        });
+      }
+      if (data['child1'] != 'N/A' && data['child1'].toString().isNotEmpty) {
+        familyList.add({
+          'name': data['child1'],
+          'relation': 'Child',
+          'dob': data['childDob1'],
+          'gender': 'Female',
+        });
+      }
+      if (data['child2'] != 'N/A' && data['child2'].toString().isNotEmpty) {
+        familyList.add({
+          'name': data['child2'],
+          'relation': 'Child',
+          'dob': data['childDob2'],
+          'gender': 'Male',
+        });
+      }
     }
 
     Widget cellText(String text, {bool bold = false, TextAlign align = TextAlign.left, Color? bgColor}) {
@@ -674,9 +692,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
               ),
               child: (() {
                 final id = emp.employeeId.trim().replaceAll(RegExp('^0+'), '');
-                if (id == '446') {
-                  return Image.asset('assets/images/raja_talathoti.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else if (id == '16194') {
+                if (id == '16194') {
                   return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
                 } else if (id == '17110') {
                   return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
@@ -1003,7 +1019,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                     if (leave.absenceHours != null) ...[
                       const SizedBox(height: 4),
                       Text(
-                        'Absence Hours: ${leave.absenceHours!.toStringAsFixed(2)}',
+                        'Absence Hours: ${(leave.absenceHours ?? 0).toStringAsFixed(2)}',
                         style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
                       ),
                     ],

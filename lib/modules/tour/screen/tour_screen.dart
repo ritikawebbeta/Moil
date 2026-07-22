@@ -1,6 +1,7 @@
 // lib/modules/tour/screen/tour_screen.dart
 
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -11,6 +12,7 @@ import 'package:printing/printing.dart';
 import '../../../utils/app_colors.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../profile/controller/profile_controller.dart';
+import '../../../model/user_model.dart';
 import '../controller/tour_controller.dart';
 import '../../../model/tour_model.dart';
 import '../../../widgets/app_widgets.dart';
@@ -31,11 +33,14 @@ class _TourScreenState extends State<TourScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 7, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthController>();
-      if (auth.user != null) {
-        context.read<TourController>().fetchTours(auth.user!.employeeId);
+      final user = auth.user;
+      if (user != null) {
+        final tourCtrl = context.read<TourController>();
+        tourCtrl.fetchTours(user.employeeId);
+        tourCtrl.fetchTeamCalendar();
       }
     });
   }
@@ -124,10 +129,6 @@ class _TourScreenState extends State<TourScreen>
               tabs: [
                 Tab(text: 'All My Trips (${tourController.tours.length})'),
                 Tab(text: 'All My Travel Requests (${tourController.tours.length})'),
-                const Tab(text: 'All My Travel Plans (2)'),
-                const Tab(text: 'All My Expense Reports (2)'),
-                const Tab(text: 'Pending Exp. Reports (1)'),
-                const Tab(text: 'Credit Card Imports (2)'),
                 const Tab(text: 'Calendar'),
               ],
             ),
@@ -144,10 +145,6 @@ class _TourScreenState extends State<TourScreen>
                   onEdit: (tour) => _startApply(tour: tour),
                   onNew: () => _startApply(),
                 ),
-                const _TravelPlansTab(),
-                const _ExpenseReportsTab(),
-                const _PendingReportsTab(),
-                const _CreditCardImportsTab(),
                 const _TourCalendarTab(),
               ],
             ),
@@ -206,49 +203,49 @@ class _TravelPlansTab extends StatelessWidget {
 }
 
 // ─── Expense Reports Tab ──────────────────────────────────────────
-class _ExpenseReportsTab extends StatelessWidget {
-  const _ExpenseReportsTab();
-  @override
-  Widget build(BuildContext context) {
-    final expenses = [
-      {'title': 'Travel Claim: Mumbai Tour', 'amount': 'Rs 14,500.00', 'date': '20.05.2026', 'status': 'Approved'},
-      {'title': 'Travel Claim: Hyderabad Tour', 'amount': 'Rs 8,200.00', 'date': '12.04.2026', 'status': 'Approved'},
-    ];
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: expenses.length,
-      itemBuilder: (context, index) {
-        final e = expenses[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: GlassCard(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(e['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                    StatusBadge(status: e['status']!),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Claimed Amount: ${e['amount']!}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                    Text('Paid on: ${e['date']!}', style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
+// class _ExpenseReportsTab extends StatelessWidget {
+//   const _ExpenseReportsTab();
+//   @override
+//   Widget build(BuildContext context) {
+//     // final expenses = [
+//     //   {'title': 'Travel Claim: Mumbai Tour', 'amount': 'Rs 14,500.00', 'date': '20.05.2026', 'status': 'Approved'},
+//     //   {'title': 'Travel Claim: Hyderabad Tour', 'amount': 'Rs 8,200.00', 'date': '12.04.2026', 'status': 'Approved'},
+//     // ];
+//     return ListView.builder(
+//       padding: const EdgeInsets.all(16),
+//       itemCount: expenses.length,
+//       itemBuilder: (context, index) {
+//         final e = expenses[index];
+//         return Padding(
+//           padding: const EdgeInsets.only(bottom: 12),
+//           child: GlassCard(
+//             padding: const EdgeInsets.all(14),
+//             child: Column(
+//               crossAxisAlignment: CrossAxisAlignment.start,
+//               children: [
+//                 Row(
+//                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//                   children: [
+//                     Text(e['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
+//                     StatusBadge(status: e['status']!),
+//                   ],
+//                 ),
+//                 const SizedBox(height: 8),
+//                 Row(
+//                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//                   children: [
+//                     Text('Claimed Amount: ${e['amount']!}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+//                     Text('Paid on: ${e['date']!}', style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+//                   ],
+//                 ),
+//               ],
+//             ),
+//           ),
+//         );
+//       },
+//     );
+//   }
+// }
 
 // ─── Pending Reports Tab ──────────────────────────────────────────
 class _PendingReportsTab extends StatelessWidget {
@@ -523,22 +520,30 @@ class _TourCalendarTab extends StatefulWidget {
 }
 
 class _TourCalendarTabState extends State<_TourCalendarTab>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _subTabController;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   CalendarFormat _calendarFormat = CalendarFormat.month;
+  String _tempViewMode = 'Month';
+  String _viewMode = 'Month';
+  int _tempMonth = DateTime.now().month;
+  int _tempYear = DateTime.now().year;
+
+  bool _getIsReportingOfficer(UserModel? user) {
+    if (user == null) return false;
+    final loggedInEmpNo = user.employeeId.trim().replaceAll(RegExp('^0+'), '');
+    return ProfileController.rawEmployees.any((emp) {
+      final ro = (emp['reportingOfficer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+      final ro1 = (emp['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+      return ro == loggedInEmpNo || ro1 == loggedInEmpNo;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-    final auth = context.read<AuthController>();
-    final user = auth.user;
-    final loggedInEmpNo = user?.employeeId;
-    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
-        emp['reportingOfficer'] == loggedInEmpNo ||
-        emp['reportingOfficer1'] == loggedInEmpNo);
-    _subTabController = TabController(length: isReportingOfficer ? 2 : 1, vsync: this);
+    _subTabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -561,10 +566,7 @@ class _TourCalendarTabState extends State<_TourCalendarTab>
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final user = auth.user;
-    final loggedInEmpNo = user?.employeeId;
-    final isReportingOfficer = ProfileController.rawEmployees.any((emp) =>
-        emp['reportingOfficer'] == loggedInEmpNo ||
-        emp['reportingOfficer1'] == loggedInEmpNo);
+    final isReportingOfficer = _getIsReportingOfficer(user);
 
     if (!isReportingOfficer) {
       return _buildPersonalCalendar();
@@ -723,23 +725,342 @@ class _TourCalendarTabState extends State<_TourCalendarTab>
     );
   }
 
+  List<Map<String, dynamic>> _getTeamEventsForDay(DateTime day, List<Map<String, dynamic>> teamCal) {
+    final List<Map<String, dynamic>> events = [];
+    for (var member in teamCal) {
+      final tours = member['tours'] as List?;
+      if (tours != null) {
+        for (var t in tours) {
+          final startStr = t['startDate']?.toString() ?? '';
+          final endStr = t['endDate']?.toString() ?? '';
+          final start = DateTime.tryParse(startStr);
+          final end = DateTime.tryParse(endStr);
+          if (start != null && end != null) {
+            final startDay = DateTime(start.year, start.month, start.day);
+            final endDay = DateTime(end.year, end.month, end.day);
+            final current = DateTime(day.year, day.month, day.day);
+            if ((current.isAtSameMomentAs(startDay) || current.isAfter(startDay)) &&
+                (current.isAtSameMomentAs(endDay) || current.isBefore(endDay))) {
+              events.add({
+                'employee_number': member['employee_number']?.toString() ?? '',
+                'name': member['name']?.toString() ?? 'Employee',
+                'destination': t['destination']?.toString() ?? 'N/A',
+                'travelPurpose': t['travelPurpose']?.toString() ?? 'Official Work',
+                'tourType': t['tourType']?.toString() ?? 'Official Tour',
+                'status': t['status']?.toString() ?? 'Approved',
+                'startDate': start,
+                'endDate': end,
+              });
+            }
+          }
+        }
+      }
+    }
+    return events;
+  }
+
   Widget _buildTeamCalendar() {
-    return const SingleChildScrollView(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: GlassCard(
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 40),
-          child: Column(
+      child: Column(
+        children: [
+          _buildTeamCalendarControls(),
+          const SizedBox(height: 12),
+          _buildTeamCalendarGrid(),
+          const SizedBox(height: 12),
+          _buildLegend(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamCalendarControls() {
+    return GlassCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          _buildControlChip(
+            label: 'View:', 
+            value: _tempViewMode, 
+            options: const ['Month', 'Week'],
+            onSelect: (v) => setState(() => _tempViewMode = v)
+          ),
+          const SizedBox(width: 8),
+          _buildControlChip(
+            label: 'Month:', 
+            value: DateFormat('MMMM').format(DateTime(_tempYear, _tempMonth, 1)),
+            options: List.generate(12, (i) => DateFormat('MMMM').format(DateTime(_tempYear, i + 1, 1))),
+            onSelect: (v) {
+              final monthIndex = DateFormat('MMMM').parse(v).month;
+              setState(() => _tempMonth = monthIndex);
+            }
+          ),
+          const SizedBox(width: 4),
+          _buildControlChip(
+            label: '', 
+            value: _tempYear.toString(),
+            options: const ['2025', '2026', '2027'],
+            onSelect: (v) => setState(() => _tempYear = int.parse(v))
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _viewMode = _tempViewMode;
+                _focusedDay = DateTime(_tempYear, _tempMonth, 1);
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text('Apply', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlChip({
+    required String label,
+    required String value,
+    required List<String> options,
+    required void Function(String) onSelect,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (label.isNotEmpty)
+          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+        if (label.isNotEmpty) const SizedBox(width: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.inputBg,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: AppColors.inputBorder),
+          ),
+          child: DropdownButton<String>(
+            value: value,
+            isDense: true,
+            underline: const SizedBox(),
+            dropdownColor: AppColors.cardBg,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 11),
+            icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary, size: 14),
+            items: options.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
+            onChanged: (v) => onSelect(v!),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTeamCalendarGrid() {
+    final daysInMonth = DateUtils.getDaysInMonth(_focusedDay.year, _focusedDay.month);
+    final firstDay = DateTime(_focusedDay.year, _focusedDay.month, 1);
+
+    final tourController = context.watch<TourController>();
+    final dbTeamCalendar = tourController.teamCalendar;
+
+    final List<Map<String, dynamic>> teamMembersWithTours = [];
+
+    for (var item in dbTeamCalendar) {
+      final name = item['name']?.toString() ?? 'Unknown';
+      final List<dynamic> toursList = item['tours'] ?? [];
+      final List<int> tourDays = [];
+
+      for (var t in toursList) {
+        try {
+          final start = DateTime.parse(t['startDate']);
+          final end = DateTime.parse(t['endDate']);
+          
+          DateTime current = start;
+          while (current.isBefore(end) || current.isAtSameMomentAs(end)) {
+            if (current.year == _focusedDay.year && current.month == _focusedDay.month) {
+              tourDays.add(current.day);
+            }
+            current = current.add(const Duration(days: 1));
+          }
+        } catch (_) {}
+      }
+
+      teamMembersWithTours.add({
+        'name': name,
+        'tourDays': tourDays,
+      });
+    }
+
+    return GlassCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: '${DateFormat('MMMM yyyy').format(_focusedDay)} Team Calendar',
+            icon: Icons.people_outline_rounded,
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDateHeaderRow(daysInMonth, firstDay),
+                const Divider(height: 1, color: AppColors.cardBorder),
+                if (teamMembersWithTours.isEmpty)
+                  Container(
+                    width: 160 + daysInMonth * 28.0,
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: const Center(
+                      child: Text('No team members found', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                    ),
+                  )
+                else
+                  ...teamMembersWithTours.asMap().entries.map((e) {
+                    final name = e.value['name']?.toString() ?? '';
+                    final tourDays = List<int>.from(e.value['tourDays'] ?? []);
+                    return _buildTeamMemberRow(name, tourDays, daysInMonth, firstDay, e.key.isEven);
+                  }),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateHeaderRow(int daysInMonth, DateTime firstDay) {
+    return Container(
+      color: AppColors.backgroundTertiary,
+      child: Row(
+        children: [
+          Container(
+            width: 160,
+            padding: const EdgeInsets.all(8),
+            child: const Text(
+              'Name',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ...List.generate(daysInMonth, (i) {
+            final day = i + 1;
+            final date = DateTime(firstDay.year, firstDay.month, day);
+            final isWeekend = date.weekday == DateTime.sunday;
+            return Container(
+              width: 28,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                children: [
+                  Text(
+                    DateFormat('E').format(date).substring(0, 3),
+                    style: TextStyle(
+                      color: isWeekend ? AppColors.error.withOpacity(0.7) : AppColors.textSecondary,
+                      fontSize: 8,
+                    ),
+                  ),
+                  Text(
+                    '$day',
+                    style: TextStyle(
+                      color: isWeekend ? AppColors.error.withOpacity(0.7) : AppColors.textPrimary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamMemberRow(String name, List<int> tourDays, int daysInMonth, DateTime firstDay, bool isEven) {
+    return Column(
+      children: [
+        Container(
+          color: isEven ? AppColors.background.withOpacity(0.3) : Colors.transparent,
+          child: Row(
             children: [
-              Icon(Icons.people_outline_rounded, size: 48, color: AppColors.textHint),
-              SizedBox(height: 12),
-              Text('Team Travel Calendar', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-              SizedBox(height: 4),
-              Text('Currently all team members are on-site.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              Container(
+                width: 160,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                child: Text(
+                  name,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 11),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              ...List.generate(daysInMonth, (i) {
+                final day = i + 1;
+                final date = DateTime(firstDay.year, firstDay.month, day);
+                final isWeekend = date.weekday == DateTime.sunday;
+                final hasTour = tourDays.contains(day);
+
+                return Container(
+                  width: 28,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isWeekend
+                        ? AppColors.textHint.withOpacity(0.1)
+                        : hasTour
+                            ? AppColors.officialTour.withOpacity(0.3)
+                            : Colors.transparent,
+                    border: Border(
+                      left: BorderSide(color: AppColors.cardBorder.withOpacity(0.3), width: 0.5),
+                    ),
+                  ),
+                );
+              }),
             ],
           ),
         ),
+        const Divider(height: 1, color: AppColors.cardBorder),
+      ],
+    );
+  }
+
+  Widget _buildLegend() {
+    return const GlassCard(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _LegendItem(color: AppColors.officialTour, label: 'Official Tour'),
+          _LegendItem(color: Colors.grey, label: 'Weekend'),
+        ],
       ),
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _LegendItem({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+        ),
+      ],
     );
   }
 }
@@ -2303,8 +2624,31 @@ class _ApplyTourTabState extends State<_ApplyTourTab> {
 
   // ─── Form Submission & Draft Saving ──────────────────────────────
   Future<void> _submitForm() async {
-    setState(() => _isSubmitting = true);
     final auth = context.read<AuthController>();
+    final ro = auth.user?.reportingOfficer?.trim();
+    final ro1 = auth.user?.reportingOfficer1?.trim();
+    final hasRo = ro != null && ro.isNotEmpty && ro != '0' && ro != 'N/A';
+    final hasRo1 = ro1 != null && ro1.isNotEmpty && ro1 != '0' && ro1 != 'N/A';
+
+    if (!hasRo && !hasRo1) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Text('Missing Reporting Officers', style: TextStyle(color: AppColors.error, fontSize: 16, fontWeight: FontWeight.bold)),
+          content: const Text('Please connect to HR office.', style: TextStyle(fontSize: 13)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
 
     final startDateTime = DateTime(
       _startDate.year,
@@ -2502,7 +2846,7 @@ class _TourCalendarDialogState extends State<_TourCalendarDialog> {
         padding: const EdgeInsets.all(16),
         child: Consumer<TourController>(
           builder: (context, controller, _) {
-            final eventsOnSelectedDay = _getEventsForDay(_selectedDay!, controller.tours);
+            final eventsOnSelectedDay = _getEventsForDay(_selectedDay ?? DateTime.now(), controller.tours);
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -2640,7 +2984,7 @@ class _TourCalendarDialogState extends State<_TourCalendarDialog> {
                         const SizedBox(height: 16),
                         // Selected day events list
                         Text(
-                          DateFormat('dd MMMM yyyy').format(_selectedDay!),
+                          DateFormat('dd MMMM yyyy').format(_selectedDay ?? DateTime.now()),
                           style: const TextStyle(
                             color: AppColors.primary,
                             fontSize: 13,
@@ -2730,10 +3074,13 @@ class _TourCalendarDialogState extends State<_TourCalendarDialog> {
   }
 }
 
-class _TravelRequisitionDialog extends StatelessWidget {
+class _TravelRequisitionDialog extends StatefulWidget {
   final TourModel tour;
 
   const _TravelRequisitionDialog({super.key, required this.tour});
+
+  @override
+  State<_TravelRequisitionDialog> createState() => _TravelRequisitionDialogState();
 
   static String _getCostCenter(String costAssignment) {
     if (costAssignment.contains('Cost Center')) {
@@ -2745,8 +3092,36 @@ class _TravelRequisitionDialog extends StatelessWidget {
     return costAssignment;
   }
 
-  static Future<void> printTourDocument(BuildContext context, TourModel tour, String userName, String employeeId) async {
+  static Future<Uint8List> generateTourPdfBytes(TourModel tour, String userName, String employeeId) async {
     final doc = pw.Document();
+
+    final empParts = tour.employeeId.split(' ');
+    final empId = empParts.isNotEmpty ? empParts.first.replaceAll('(', '').replaceAll(')', '').trim() : '';
+    
+    final empMap = ProfileController.rawEmployees.firstWhere(
+      (e) => e['empNo'] == empId,
+      orElse: () => <String, dynamic>{},
+    );
+    
+    String reportingManager = 'Usha Singh';
+    if (empMap.isNotEmpty) {
+      final roId = empMap['reportingOfficer']?.toString() ?? '';
+      final roName = empMap['reportingOfficerName']?.toString() ?? '';
+      if (roName.isNotEmpty) {
+        reportingManager = roName;
+      } else {
+        final cleanRoId = roId.trim().replaceAll(RegExp('^0+'), '');
+        final roMap = ProfileController.rawEmployees.firstWhere(
+          (e) => e['empNo'] == cleanRoId,
+          orElse: () => <String, dynamic>{},
+        );
+        if (roMap.isNotEmpty) {
+          reportingManager = roMap['name'] ?? roId;
+        } else {
+          reportingManager = roId.isNotEmpty ? roId : 'Usha Singh';
+        }
+      }
+    }
 
     doc.addPage(
       pw.Page(
@@ -2840,7 +3215,7 @@ class _TravelRequisitionDialog extends StatelessWidget {
                 _buildPdfSectionHeader('Comments'),
                 pw.Text(tour.remarks ?? '', style: const pw.TextStyle(fontSize: 10)),
                 _buildPdfSectionHeader('Approvers'),
-                _buildPdfRow('Reporting Manager', 'Usha Singh'),
+                _buildPdfRow('Reporting Manager', reportingManager),
                 _buildPdfRow('Department Head', tour.status == 'Approved' ? (tour.processor ?? 'HOD User') : ''),
                 _buildPdfRow('Verified - Finance Officer', ''),
                 _buildPdfRow('Approved - Finance Head', ''),
@@ -2855,8 +3230,13 @@ class _TravelRequisitionDialog extends StatelessWidget {
       ),
     );
 
+    return doc.save();
+  }
+
+  static Future<void> printTourDocument(BuildContext context, TourModel tour, String userName, String employeeId) async {
+    final bytes = await generateTourPdfBytes(tour, userName, employeeId);
     await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => doc.save(),
+      onLayout: (PdfPageFormat format) async => bytes,
       name: 'Travel_Requisition_${tour.id}.pdf',
     );
   }
@@ -2902,48 +3282,10 @@ class _TravelRequisitionDialog extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildSectionHeader(String title) {
-    return Container(
-      width: double.infinity,
-      color: Colors.grey.shade300,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      margin: const EdgeInsets.only(top: 10, bottom: 6),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: Colors.black87,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRow(String key, String value, {double keyWidth = 110}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: keyWidth,
-            child: Text(
-              key,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black87),
-            ),
-          ),
-          const Text(' : ', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87)),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 10, color: Colors.black87),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+class _TravelRequisitionDialogState extends State<_TravelRequisitionDialog> {
+  double _zoomWidth = 600.0;
 
   @override
   Widget build(BuildContext context) {
@@ -2951,153 +3293,66 @@ class _TravelRequisitionDialog extends StatelessWidget {
     final userName = auth.user?.name ?? 'Raja Talathoti';
     final employeeId = auth.user?.employeeId ?? '00000265';
 
-    final requisitionDateStr = DateFormat('dd-MMM-yy').format(tour.appliedOn ?? DateTime.now());
-    final fromDateStr = DateFormat('dd-MMM-yy').format(tour.startDate);
-    final toDateStr = DateFormat('dd-MMM-yy').format(tour.endDate);
-    final fromTimeStr = DateFormat('hh:mm:ss a').format(tour.startDate);
-    final toTimeStr = DateFormat('hh:mm:ss a').format(tour.endDate);
-
     return Dialog(
       backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
-        width: MediaQuery.of(context).size.width * 0.95,
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
-        ),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade400, width: 1.5),
-        ),
+        width: MediaQuery.of(context).size.width * 0.8,
+        height: MediaQuery.of(context).size.height * 0.8,
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.print, size: 20, color: AppColors.primary),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => printTourDocument(context, tour, userName, employeeId),
+                const Text(
+                  'View Travel Requisition',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary),
                 ),
-                const SizedBox(width: 12),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => Navigator.pop(context),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.zoom_out, color: AppColors.primary),
+                      onPressed: () {
+                        setState(() {
+                          if (_zoomWidth > 300.0) _zoomWidth -= 100.0;
+                        });
+                      },
+                      tooltip: 'Zoom Out',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.zoom_in, color: AppColors.primary),
+                      onPressed: () {
+                        setState(() {
+                          if (_zoomWidth < 1200.0) _zoomWidth += 100.0;
+                        });
+                      },
+                      tooltip: 'Zoom In',
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
                 ),
               ],
             ),
+            const SizedBox(height: 12),
             Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    Center(
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 50,
-                            height: 50,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Color(0xFF0F2080),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'मॉयल\nMOIL',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'MOIL LIMITED',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
-                          ),
-                          const Text(
-                            'Travel Requisition',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(color: Colors.black87, thickness: 1.2),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildRow('Trip No', tour.id),
-                              _buildRow('Name', userName),
-                              _buildRow('Emp Grp', employeeId),
-                              _buildRow('Purpose of journey', tour.travelPurpose),
-                              _buildRow('Date of Requisition', requisitionDateStr),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildRow('Emp No', tour.employeeId),
-                              _buildRow('Basic Pay', '1,27,960'),
-                              _buildRow('Department', 'Industrial Relations, Trai'),
-                              _buildRow('Cost Center', _getCostCenter(tour.costAssignment)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    _buildSectionHeader('Journey Details'),
-                    _buildRow('Destination', tour.destination),
-                    Row(
-                      children: [
-                        Expanded(child: _buildRow('From Date', fromDateStr)),
-                        Expanded(child: _buildRow('To Date', toDateStr)),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Expanded(child: _buildRow('From Time', fromTimeStr)),
-                        Expanded(child: _buildRow('To Time', toTimeStr)),
-                      ],
-                    ),
-                    _buildSectionHeader('Conveyance Details'),
-                    _buildRow('Mode of Conveyance', tour.transportMode),
-                    _buildSectionHeader('Advance Details'),
-                    _buildRow('Advance Required', tour.advances > 0 ? 'Yes' : 'No'),
-                    _buildRow('Advance Amount (In Rupees)', tour.advances > 0 ? tour.advances.toStringAsFixed(2) : '0.00'),
-                    _buildSectionHeader('Comments'),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              tour.remarks ?? '',
-                              style: const TextStyle(fontSize: 10, color: Colors.black87),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _buildSectionHeader('Approvers'),
-                    _buildRow('Reporting Manager', 'Usha Singh'),
-                    _buildRow('Department Head', tour.status == 'Approved' ? (tour.processor ?? 'HOD User') : ''),
-                    _buildRow('Verified - Finance Officer', ''),
-                    _buildRow('Approved - Finance Head', ''),
-                    _buildRow('Agent', ''),
-                    _buildSectionHeader('Request Status'),
-                    _buildRow('Status', tour.status),
-                    _buildRow('Date of Approval', tour.status == 'Approved' ? '07.03.2026' : 'N/A'),
-                  ],
+              child: PdfPreview(
+                build: (format) => _TravelRequisitionDialog.generateTourPdfBytes(
+                  widget.tour,
+                  userName,
+                  employeeId,
                 ),
+                maxPageWidth: _zoomWidth,
+                allowPrinting: true,
+                allowSharing: true,
+                canChangePageFormat: false,
+                canChangeOrientation: false,
+                canDebug: false,
+                initialPageFormat: PdfPageFormat.a4,
               ),
             ),
           ],

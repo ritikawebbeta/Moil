@@ -31,9 +31,10 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthController>();
-      if (auth.user != null) {
-        context.read<LeaveController>().fetchLeaves(auth.user!.employeeId);
-        context.read<LeaveController>().fetchBalances(auth.user!.employeeId);
+      final user = auth.user;
+      if (user != null) {
+        context.read<LeaveController>().fetchLeaves(user.employeeId);
+        context.read<LeaveController>().fetchBalances(user.employeeId);
       }
 
       final leaveController = context.read<LeaveController>();
@@ -53,6 +54,7 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
   }
 
   void _onTabChanged() {
+    if (!mounted) return;
     final controller = context.read<LeaveController>();
     if (controller.activeTabIndex != _tabController.index) {
       controller.setActiveTabIndex(_tabController.index);
@@ -60,6 +62,7 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
   }
 
   void _onLeaveControllerChanged() {
+    if (!mounted) return;
     final controller = context.read<LeaveController>();
     if (controller.activeTabIndex != _tabController.index) {
       _tabController.animateTo(controller.activeTabIndex);

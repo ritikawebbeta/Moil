@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:flutter/foundation.dart';
+
 // Controllers
 import 'modules/auth/controller/auth_controller.dart';
 import 'modules/leave/controller/leave_controller.dart';
@@ -14,6 +16,8 @@ import 'modules/profile/controller/profile_controller.dart';
 import 'modules/notifications/controller/notification_controller.dart';
 import 'modules/holiday/controller/holiday_controller.dart';
 import 'modules/bottom_nav_bar/controller/bottom_nav_bar_controller.dart';
+import 'modules/connectivity/controller/connectivity_controller.dart';
+import 'widgets/no_internet_wrapper.dart';
 
 // Screens
 import 'modules/auth/screen/login_screen.dart';
@@ -26,32 +30,46 @@ import 'modules/profile/screen/profile_screen.dart';
 import 'modules/notifications/screen/notifications_screen.dart';
 import 'modules/approval/screen/approval_screen.dart';
 
+import 'dart:convert';
+
 // Utilities
 import 'utils/app_colors.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock to portrait mode
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  // Load raw employees asset data before starting the app!
+  try {
+    final jsonStr = await rootBundle.loadString('assets/data/employees.json');
+    final List<dynamic> list = jsonDecode(jsonStr);
+    ProfileController.rawEmployees = list.cast<Map<String, dynamic>>();
+  } catch (e) {
+    debugPrint('Error loading raw employees: $e');
+  }
 
-  // Set system UI overlay style
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFFFFFFFF),
-      systemNavigationBarIconBrightness: Brightness.dark,
-    ),
-  );
+  if (!kIsWeb) {
+    try {
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+          systemNavigationBarColor: Color(0xFFFFFFFF),
+          systemNavigationBarIconBrightness: Brightness.dark,
+        ),
+      );
+    } catch (_) {}
+  }
 
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => ConnectivityController()),
         ChangeNotifierProvider(create: (_) => AuthController()),
         ChangeNotifierProvider(create: (_) => LeaveController()),
         ChangeNotifierProvider(create: (_) => TourController()),
@@ -75,6 +93,7 @@ class EmployeeManagementApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       scrollBehavior: CustomScrollBehavior(),
       theme: _buildTheme(),
+      builder: (context, child) => NoInternetWrapper(child: child ?? const SizedBox()),
       initialRoute: '/login',
       routes: {
         '/': (_) => const LoginScreen(),
@@ -172,14 +191,7 @@ class AuthGuard extends StatelessWidget {
       );
     }
     if (!auth.isAuthenticated) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushReplacementNamed(context, '/login');
-      });
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const LoginScreen();
     }
     return child;
   }

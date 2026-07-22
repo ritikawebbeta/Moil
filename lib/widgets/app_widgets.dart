@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../utils/app_colors.dart';
 import '../modules/bottom_nav_bar/controller/bottom_nav_bar_controller.dart';
+import '../modules/auth/controller/auth_controller.dart';
 
 // ─── Gradient Background ─────────────────────────────────────────
 class GradientBackground extends StatelessWidget {
@@ -66,32 +67,87 @@ class StatusBadge extends StatelessWidget {
 
   const StatusBadge({super.key, required this.status});
 
+  String get _displayLabel {
+    switch (status.trim().toUpperCase()) {
+      case 'NEW':
+        return 'New';
+      case 'DRAFT':
+        return 'Raw Version';
+      case 'DELETED':
+        return 'Deleted from the Database';
+      case 'SENT':
+        return 'Sent';
+      case 'WITHDRAWN':
+        return 'Withdrawn';
+      case 'APPROVED':
+        return 'Approved';
+      case 'REJECTED':
+        return 'Rejected';
+      case 'ERROR':
+        return 'Has Errors';
+      case 'POSTED':
+        return 'Posted';
+      case 'STOPPED':
+        return 'Stopped Automatically';
+      default:
+        return status;
+    }
+  }
+
   Color get _bgColor {
-    switch (status.toLowerCase()) {
-      case 'approved':
+    switch (status.trim().toUpperCase()) {
+      case 'APPROVED':
+      case 'POSTED':
         return AppColors.success.withOpacity(0.12);
-      case 'pending':
+      case 'PENDING':
         return AppColors.warning.withOpacity(0.12);
-      case 'rejected':
+      case 'REJECTED':
+      case 'ERROR':
         return AppColors.error.withOpacity(0.12);
-      case 'cancelled':
+      case 'DRAFT':
+      case 'WITHDRAWN':
+      case 'DELETED':
+      case 'STOPPED':
+      case 'CANCELLED':
         return AppColors.textMuted.withOpacity(0.12);
       default:
+        final lower = status.toLowerCase();
+        if (lower.contains('approved')) {
+          return AppColors.success.withOpacity(0.12);
+        } else if (lower.contains('pending')) {
+          return AppColors.warning.withOpacity(0.12);
+        } else if (lower.contains('rejected') || lower.contains('error')) {
+          return AppColors.error.withOpacity(0.12);
+        }
         return AppColors.info.withOpacity(0.12);
     }
   }
 
   Color get _textColor {
-    switch (status.toLowerCase()) {
-      case 'approved':
+    switch (status.trim().toUpperCase()) {
+      case 'APPROVED':
+      case 'POSTED':
         return AppColors.success;
-      case 'pending':
+      case 'PENDING':
         return AppColors.warning;
-      case 'rejected':
+      case 'REJECTED':
+      case 'ERROR':
         return AppColors.error;
-      case 'cancelled':
+      case 'DRAFT':
+      case 'WITHDRAWN':
+      case 'DELETED':
+      case 'STOPPED':
+      case 'CANCELLED':
         return AppColors.textMuted;
       default:
+        final lower = status.toLowerCase();
+        if (lower.contains('approved')) {
+          return AppColors.success;
+        } else if (lower.contains('pending')) {
+          return AppColors.warning;
+        } else if (lower.contains('rejected') || lower.contains('error')) {
+          return AppColors.error;
+        }
         return AppColors.info;
     }
   }
@@ -109,7 +165,7 @@ class StatusBadge extends StatelessWidget {
           border: Border.all(color: _textColor.withOpacity(0.3), width: 1),
         ),
         child: Text(
-          status,
+          _displayLabel,
           style: TextStyle(
             color: _textColor,
             fontSize: 11,
@@ -512,12 +568,14 @@ class InfoRow extends StatelessWidget {
 // ─── Compulsory Password Change Dialog ──────────────────────────
 class CompulsoryPasswordChangeDialog extends StatefulWidget {
   final VoidCallback onSuccess;
+  final VoidCallback? onCancel;
   final bool dismissible;
 
   const CompulsoryPasswordChangeDialog({
     super.key,
     required this.onSuccess,
-    this.dismissible = false,
+    this.onCancel,
+    this.dismissible = true,
   });
 
   @override
@@ -540,11 +598,6 @@ class _CompulsoryPasswordChangeDialogState
   @override
   void initState() {
     super.initState();
-    if (kDebugMode) {
-      _currentPasswordController.text = "1009522";
-      _newPasswordController.text = "10095222";
-      _confirmPasswordController.text = "10095222";
-    }
   }
 
   @override
@@ -580,11 +633,15 @@ class _CompulsoryPasswordChangeDialogState
                           ),
                         ),
                       ),
-                      if (widget.dismissible)
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.pop(context),
-                        ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          if (widget.onCancel != null) {
+                            widget.onCancel!();
+                          }
+                        },
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -680,15 +737,38 @@ class _CompulsoryPasswordChangeDialogState
                     onPressed: () {
                       
                       if (_formKey.currentState!.validate()) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Password updated successfully!'),
-                            backgroundColor: AppColors.success,
-                            behavior: SnackBarBehavior.floating,
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (ctx) => const Center(
+                            child: CircularProgressIndicator(color: AppColors.primary),
                           ),
                         );
-                        Navigator.pop(context);
-                        widget.onSuccess();
+                        context.read<AuthController>().changePassword(
+                          _currentPasswordController.text,
+                          _newPasswordController.text,
+                        ).then((success) {
+                          Navigator.pop(context); // Pop loading indicator
+                          if (success) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Password updated successfully!'),
+                                backgroundColor: AppColors.success,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            Navigator.pop(context); // Pop dialog
+                            widget.onSuccess();
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Failed to update password. Please check your current password.'),
+                                backgroundColor: AppColors.error,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        });
                       }
                     },
                     child: const Text(

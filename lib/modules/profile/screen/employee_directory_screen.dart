@@ -26,6 +26,16 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
   String _filterDept = '';
   String _filterStatus = '';
 
+  final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _horizontalScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -66,20 +76,27 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                       return const Center(child: CircularProgressIndicator(color: AppColors.primary));
                     }
 
-                    // 1. Strict Organization Hierarchy Filters
+                    // 1. Strict Organization Hierarchy Filters (Show only subordinates under logged-in officer)
                     final List<Map<String, dynamic>> rawList = ProfileController.rawEmployees.where((m) {
-                      final empNo = m['empNo'];
-                      if (empNo == currentUser?.employeeId) return false;
-                      if (currentUser?.employeeId == '16194') return true; // Rakesh Tumane sees all
-                      final ro = m['reportingOfficer'] ?? '';
-                      final ro1 = m['reportingOfficer1'] ?? '';
-                      return ro == currentUser?.employeeId || ro1 == currentUser?.employeeId;
+                      final empNo = m['empNo']?.toString().trim().replaceAll(RegExp('^0+'), '') ?? '';
+                      final cleanCurrentUserId = (currentUser?.employeeId ?? '').trim().replaceAll(RegExp('^0+'), '');
+                      if (cleanCurrentUserId.isEmpty) return false;
+                      if (empNo == cleanCurrentUserId) return false;
+                      if (cleanCurrentUserId == '16194') return true; // Rakesh Tumane sees all
+                      final ro = (m['reportingOfficer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+                      final ro1 = (m['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+                      return ro == cleanCurrentUserId || ro1 == cleanCurrentUserId;
                     }).toList();
 
                     final List<dynamic> modelList = controller.employees.where((e) {
-                      if (e.employeeId == currentUser?.employeeId) return false;
-                      if (currentUser?.employeeId == '16194') return true; // Rakesh Tumane sees all
-                      return e.reportingOfficer == currentUser?.employeeId || e.reportingOfficer1 == currentUser?.employeeId;
+                      final empNo = e.employeeId.trim().replaceAll(RegExp('^0+'), '');
+                      final cleanCurrentUserId = (currentUser?.employeeId ?? '').trim().replaceAll(RegExp('^0+'), '');
+                      if (cleanCurrentUserId.isEmpty) return false;
+                      if (empNo == cleanCurrentUserId) return false;
+                      if (cleanCurrentUserId == '16194') return true; // Rakesh Tumane sees all
+                      final ro = e.reportingOfficer.trim().replaceAll(RegExp('^0+'), '');
+                      final ro1 = e.reportingOfficer1.trim().replaceAll(RegExp('^0+'), '');
+                      return ro == cleanCurrentUserId || ro1 == cleanCurrentUserId;
                     }).toList();
 
                     bool matchMultiTerm(String value, String filter) {
@@ -296,9 +313,7 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                       ),
                       child: (() {
                         final id = emp.employeeId.trim().replaceAll(RegExp('^0+'), '');
-                        if (id == '446') {
-                          return Image.asset('assets/images/raja_talathoti.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                        } else if (id == '16194') {
+                        if (id == '16194') {
                           return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
                         } else if (id == '17110') {
                           return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
@@ -381,11 +396,24 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
         padding: EdgeInsets.zero,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.vertical,
+          child: Scrollbar(
+            controller: _verticalScrollController,
+            thumbVisibility: true,
+            trackVisibility: true,
+            interactive: true,
             child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
+              controller: _verticalScrollController,
+              scrollDirection: Axis.vertical,
+              child: Scrollbar(
+                controller: _horizontalScrollController,
+                thumbVisibility: true,
+                trackVisibility: true,
+                interactive: true,
+                notificationPredicate: (notif) => notif.depth == 0,
+                child: SingleChildScrollView(
+                  controller: _horizontalScrollController,
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
                 showCheckboxColumn: true,
                 headingRowColor: WidgetStateProperty.all(AppColors.primary.withOpacity(0.06)),
                 headingTextStyle: const TextStyle(
@@ -453,9 +481,7 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                                   ),
                                   child: (() {
                                     final id = (m['empNo'] ?? '').toString().trim().replaceAll(RegExp('^0+'), '');
-                                    if (id == '446') {
-                                      return Image.asset('assets/images/raja_talathoti.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                                    } else if (id == '16194') {
+                                    if (id == '16194') {
                                       return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
                                     } else if (id == '17110') {
                                       return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
@@ -528,6 +554,8 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                 }).toList(),
               ),
             ),
+          ),
+          ),
           ),
         ),
       ),

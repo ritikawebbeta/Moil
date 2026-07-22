@@ -48,39 +48,44 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
     return match['name'] ?? cleanId;
   }
 
-  Map<String, String> _getProcessorNames(String rawEmpId, String status) {
-    final empId = rawEmpId.split(' ').first.replaceAll('(', '').replaceAll(')', '').trim();
-    String p1 = '-';
-    String p = '-';
+  Map<String, String> _getProcessorNames(LeaveModel leave) {
+    String p = leave.processor ?? '-';
+    String p1 = leave.processor1 ?? '-';
 
-    if (empId == '446') {
-      p1 = '-';
-      if (status == 'Approved') {
-        p = 'Rakesh Tumane';
-      }
-    } else if (['540', '4410', '4428', '4733', '419'].contains(empId)) {
-      if (status == 'Approved') {
-        p1 = 'Raja Talathoti';
-        p = 'Rakesh Tumane';
-      } else if (status.contains('P1 Approved') || status.contains('P1 approved')) {
-        p1 = 'Raja Talathoti';
-        p = '-';
-      }
-    } else {
-      if (status == 'Approved') {
-        p1 = 'Raja Talathoti';
-        p = 'Rakesh Tumane';
-      } else if (status.contains('P1 Approved') || status.contains('P1 approved')) {
-        p1 = 'Raja Talathoti';
-        p = '-';
+    if (p == '-' || p1 == '-') {
+      final empId = leave.employeeId.split(' ').first.replaceAll('(', '').replaceAll(')', '').trim();
+      final empMap = ProfileController.rawEmployees.firstWhere(
+        (e) => e['empNo'] == empId,
+        orElse: () => <String, dynamic>{},
+      );
+
+      if (empMap.isNotEmpty) {
+        final roId = empMap['reportingOfficer']?.toString() ?? '';
+        final ro1Id = empMap['reportingOfficer1']?.toString() ?? '';
+
+        final roMap = ProfileController.rawEmployees.firstWhere(
+          (e) => e['empNo'] == roId,
+          orElse: () => <String, dynamic>{},
+        );
+        final ro1Map = ProfileController.rawEmployees.firstWhere(
+          (e) => e['empNo'] == ro1Id,
+          orElse: () => <String, dynamic>{},
+        );
+
+        final roName = roMap.isNotEmpty ? roMap['name'] : (roId.isNotEmpty && roId != '0' ? roId : '-');
+        final ro1Name = ro1Map.isNotEmpty ? ro1Map['name'] : (ro1Id.isNotEmpty && ro1Id != '0' ? ro1Id : '-');
+
+        if (p == '-') p = roName;
+        if (p1 == '-') p1 = ro1Name;
       }
     }
+
     return {'processor1': p1, 'processor': p};
   }
 
   Future<void> _printLeavePdf(LeaveModel leave) async {
     final doc = pw.Document();
-    final procInfo = _getProcessorNames(leave.employeeId, leave.status);
+    final procInfo = _getProcessorNames(leave);
 
     doc.addPage(
       pw.Page(
@@ -370,7 +375,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                       color: AppColors.primary, size: 14),
                   const SizedBox(width: 6),
                   Text(
-                    DateFormat('dd-MM-yyyy').format(_tempShowFrom!),
+                    DateFormat('dd-MM-yyyy').format(_tempShowFrom ?? controller.showFrom),
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 12,
@@ -383,7 +388,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
           ),
           const SizedBox(width: 12),
           _ApplyButton(onTap: () {
-            controller.updateShowFrom(_tempShowFrom!);
+            controller.updateShowFrom(_tempShowFrom ?? controller.showFrom);
           }),
         ],
       ),
@@ -406,7 +411,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
               onSurface: AppColors.textPrimary,
             ),
           ),
-          child: child!,
+        child: child ?? const SizedBox(),
         );
       },
     );
@@ -418,9 +423,10 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
   }
 
   Widget _buildLeaveTable(LeaveController controller) {
+    final quotaTypes = ['earned leave', 'casual leave', 'hpl', 'optional holiday', 'optional leave', 'half pay leave'];
     final filteredLeaves = controller.leaves.where((leave) {
-      return !leave.startDate.isBefore(controller.showFrom) &&
-          leave.leaveType.toLowerCase() != 'official tour';
+      final isQuotaType = quotaTypes.contains(leave.leaveType.toLowerCase());
+      return !leave.startDate.isBefore(controller.showFrom) && isQuotaType;
     }).toList();
 
     final isMobile = MediaQuery.of(context).size.width < 900;
@@ -443,7 +449,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
         itemCount: filteredLeaves.length,
         itemBuilder: (context, index) {
           final leave = filteredLeaves[index];
-          final procInfo = _getProcessorNames(leave.employeeId, leave.status);
+          final procInfo = _getProcessorNames(leave);
           final cleanEmpId = leave.employeeId.split(' ').first.replaceAll('(', '').replaceAll(')', '').trim();
 
           return Card(
@@ -461,10 +467,15 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Leave ID: ${leave.id}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13),
+                      Expanded(
+                        child: Text(
+                          'Leave ID: ${leave.id}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       StatusBadge(status: leave.status),
                     ],
                   ),
@@ -578,7 +589,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                 ...filteredLeaves.asMap().entries.map((e) {
                   final leave = e.value;
                   final isEven = e.key.isEven;
-                  final procInfo = _getProcessorNames(leave.employeeId, leave.status);
+                  final procInfo = _getProcessorNames(leave);
                   final cleanEmpId = leave.employeeId.split(' ').first.replaceAll('(', '').replaceAll(')', '').trim();
 
                   return Container(
@@ -676,7 +687,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                   const Text('Time Account', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                   const SizedBox(width: 8),
                   _DropdownChip(
-                    value: _tempTimeAccount!,
+                    value: _tempTimeAccount ?? controller.selectedTimeAccount,
                     items: const ['All Types', 'Earned leave', 'Casual Leave', 'HPL', 'Optional Holiday'],
                     onChanged: (v) {
                       setState(() {
@@ -701,15 +712,15 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                         children: [
                           const Icon(Icons.calendar_today_outlined, color: AppColors.primary, size: 12),
                           const SizedBox(width: 4),
-                          Text(DateFormat('dd-MM-yyyy').format(_tempTimeAccountShowFrom!), style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+                          Text(DateFormat('dd-MM-yyyy').format(_tempTimeAccountShowFrom ?? controller.timeAccountShowFrom), style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   _ApplyButton(onTap: () {
-                    controller.updateSelectedTimeAccount(_tempTimeAccount!);
-                    controller.updateTimeAccountShowFrom(_tempTimeAccountShowFrom!);
+                    controller.updateSelectedTimeAccount(_tempTimeAccount ?? controller.selectedTimeAccount);
+                    controller.updateTimeAccountShowFrom(_tempTimeAccountShowFrom ?? controller.timeAccountShowFrom);
                   }),
                 ],
               ),
@@ -737,7 +748,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
             onSurface: AppColors.textPrimary,
           ),
         ),
-        child: child!,
+        child: child ?? const SizedBox(),
       ),
     );
     if (picked != null) {
@@ -930,14 +941,19 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
   Widget _buildMobileRow(String label, String value, {Color? valueColor}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-        Text(
-          value,
-          style: TextStyle(
-            color: valueColor ?? AppColors.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: valueColor ?? AppColors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],
