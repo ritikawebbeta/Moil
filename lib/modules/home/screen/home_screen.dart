@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../../utils/app_colors.dart';
+import '../../../widgets/employee_avatar_widget.dart';
 import '../../../widgets/app_widgets.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../leave/controller/leave_controller.dart';
@@ -188,32 +189,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.08),
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primary.withOpacity(0.15)),
-              ),
-              child: (() {
-                final id = (user?.employeeId ?? '').trim().replaceAll(RegExp('^0+'), '');
-                if (id == '16194') {
-                  return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else if (id == '17110') {
-                  return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else if (id == '540') {
-                  return Image.asset('assets/images/swapnil_manpe.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else if (id == '4410') {
-                  return Image.asset('assets/images/ranjeet_chouhan.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else if (id == '4428') {
-                  return Image.asset('assets/images/bcn_gautam.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else {
-                  return const Icon(Icons.person_rounded, color: AppColors.primary, size: 20);
-                }
-              }()),
+          GestureDetector(
+            onTap: () {
+              final navCtrl = context.read<BottomNavBarController>();
+              navCtrl.setSelectedIndex(3);
+            },
+            child: EmployeeAvatarWidget(
+              empNo: user?.employeeId ?? '',
+              width: 44,
+              height: 44,
+              borderRadius: BorderRadius.circular(22),
+              showBorder: true,
             ),
           ),
           const SizedBox(width: 12),
@@ -776,7 +762,7 @@ class _HomeScreenState extends State<HomeScreen> {
       childAspectRatio = 1.05;
     } else {
       crossAxisCount = 3;
-      childAspectRatio = 0.78;
+      childAspectRatio = 0.74;
     }
 
     return Container(
@@ -832,10 +818,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         m.subtitle,
                         style: const TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 13,
+                          fontSize: 10,
                         ),
                         textAlign: TextAlign.center,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],

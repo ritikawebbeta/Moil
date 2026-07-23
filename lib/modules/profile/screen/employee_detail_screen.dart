@@ -3,8 +3,10 @@ import 'package:employee_management/modules/profile/controller/profile_controlle
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/profile_pdf_helper.dart';
 import '../../../utils/app_colors.dart';
+import '../../../widgets/employee_avatar_widget.dart';
 import '../../../widgets/app_widgets.dart';
 import '../../../model/employee_model.dart';
 import '../../leave/controller/leave_controller.dart';
@@ -156,8 +158,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       'empNo': raw['empNo'] ?? emp.employeeId,
       'name': raw['name'] ?? emp.name,
       'status': raw['status'] ?? 'Active',
-      'group': raw['group'] ?? emp.appointmentType,
-      'subgroup': raw['subgroup'] ?? emp.presentGrade,
+      'group': raw['group'] ?? (emp.employeeGroup != 'N/A' ? emp.employeeGroup : emp.appointmentType),
+      'subgroup': raw['subgroup'] ?? emp.employeeSubgroup,
       'subgroupText': raw['subgroupText'] ?? emp.presentGrade,
       'position': raw['position'] ?? emp.designation,
       'seniority': raw['seniority'] ?? 'N/A',
@@ -170,7 +172,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       'basic': raw['basic'] ?? emp.basicSalary,
       'apptDate': _formatRawDate(raw['apptDate'] ?? emp.joinDate),
       'dosl': _formatRawDate(raw['dosl']),
-      'dopp': _formatRawDate(raw['dopp']),
+      'dopp': _formatRawDate(raw['dopp'] ?? emp.dopp),
       'retireDate': _formatRawDate(raw['retireDate'] ?? emp.retirementDate),
       'caste': raw['caste'] ?? emp.category,
       'marital': raw['marital'] ?? emp.maritalStatus,
@@ -192,6 +194,12 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       'oldMed': raw['oldMed'] ?? 'N/A',
       'penalty': raw['penalty'] ?? 'N/A',
       'epf': raw['epf'] ?? 'N/A',
+      'ro': (emp.reportingOfficer == '0' || emp.reportingOfficer == 'N/A' || emp.reportingOfficer.isEmpty)
+          ? 'N/A'
+          : (emp.reportingOfficerName.isNotEmpty ? '${emp.reportingOfficer} - ${emp.reportingOfficerName}' : emp.reportingOfficer),
+      'ro1': (emp.reportingOfficer1 == '0' || emp.reportingOfficer1 == 'N/A' || emp.reportingOfficer1.isEmpty)
+          ? 'N/A'
+          : (emp.reportingOfficer1Name.isNotEmpty ? '${emp.reportingOfficer1} - ${emp.reportingOfficer1Name}' : emp.reportingOfficer1),
       'pfNo': raw['pfNo'] ?? emp.pfNo,
       'pensionPf': raw['pensionPf'] ?? 'N/A',
       'purchasePrice': raw['purchasePrice'] ?? 'N/A',
@@ -235,7 +243,13 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
           'name': f['name']?.toString() ?? '',
           'relation': f['relation']?.toString() ?? '',
           'dob': f['dob']?.toString() ?? '',
-          'gender': f['gender']?.toString() ?? '',
+          'gender': (() {
+            final g = f['gender']?.toString() ?? '';
+            if (g == '1') return 'Male';
+            if (g == '2') return 'Female';
+            return g;
+          }()),
+          'age': f['age']?.toString() ?? _calculateAgeFromStr(f['dob']?.toString()),
         });
       }
     } else {
@@ -245,6 +259,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
           'relation': 'Spouse',
           'dob': data['spouseDob'],
           'gender': 'Female',
+          'age': _calculateAgeFromStr(data['spouseDob']),
         });
       }
       if (data['father'] != 'N/A' && data['father'].toString().isNotEmpty) {
@@ -253,6 +268,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
           'relation': 'Father',
           'dob': data['fatherDob'],
           'gender': 'Male',
+          'age': _calculateAgeFromStr(data['fatherDob']),
         });
       }
       if (data['mother'] != 'N/A' && data['mother'].toString().isNotEmpty) {
@@ -261,6 +277,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
           'relation': 'Mother',
           'dob': data['motherDob'],
           'gender': 'Female',
+          'age': _calculateAgeFromStr(data['motherDob']),
         });
       }
       if (data['child1'] != 'N/A' && data['child1'].toString().isNotEmpty) {
@@ -269,6 +286,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
           'relation': 'Child',
           'dob': data['childDob1'],
           'gender': 'Female',
+          'age': _calculateAgeFromStr(data['childDob1']),
         });
       }
       if (data['child2'] != 'N/A' && data['child2'].toString().isNotEmpty) {
@@ -277,6 +295,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
           'relation': 'Child',
           'dob': data['childDob2'],
           'gender': 'Male',
+          'age': _calculateAgeFromStr(data['childDob2']),
         });
       }
     }
@@ -444,6 +463,14 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
               cellText('PENSION NO', bold: true),
               cellText(': ${data['pensionPf']}'),
             ]),
+            TableRow(children: [
+              cellText('REPORTING OFFICER (L1)', bold: true),
+              cellText(': ${data['ro']}'),
+            ]),
+            TableRow(children: [
+              cellText('REPORTING OFFICER 1 (L2)', bold: true),
+              cellText(': ${data['ro1']}'),
+            ]),
           ],
         );
       } else {
@@ -533,6 +560,12 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
               cellText(': ${data['marital']}'),
               cellText('PENSION NO', bold: true),
               cellText(': ${data['pensionPf']}'),
+            ]),
+            TableRow(children: [
+              cellText('REPORTING OFFICER (L1)', bold: true),
+              cellText(': ${data['ro']}'),
+              cellText('REPORTING OFFICER 1 (L2)', bold: true),
+              cellText(': ${data['ro1']}'),
             ]),
           ],
         );
@@ -684,37 +717,11 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
 
           // Centered Avatar Photo Frame
           Center(
-            child: Container(
+            child: EmployeeAvatarWidget(
+              empNo: emp.employeeId,
               width: 100,
               height: 110,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade400, width: 1),
-              ),
-              child: (() {
-                final id = emp.employeeId.trim().replaceAll(RegExp('^0+'), '');
-                if (id == '16194') {
-                  return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else if (id == '17110') {
-                  return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else if (id == '540') {
-                  return Image.asset('assets/images/swapnil_manpe.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else if (id == '4410') {
-                  return Image.asset('assets/images/ranjeet_chouhan.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else if (id == '4428') {
-                  return Image.asset('assets/images/bcn_gautam.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                } else {
-                  return Container(
-                    color: Colors.grey.shade100,
-                    child: const Center(
-                      child: Text(
-                        'Passport Size\nPhoto',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 8, color: Colors.grey),
-                      ),
-                    ),
-                  );
-                }
-              }()),
+              showBorder: true,
             ),
           ),
           const SizedBox(height: 16),
@@ -757,11 +764,12 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
             child: Table(
               border: TableBorder.all(color: Colors.grey.shade300, width: 0.5),
               columnWidths: const {
-                0: FixedColumnWidth(50),
+                0: FixedColumnWidth(40),
                 1: FlexColumnWidth(2.5),
-                2: FlexColumnWidth(2.5),
-                3: FlexColumnWidth(2),
-                4: FlexColumnWidth(1.5),
+                2: FlexColumnWidth(2.2),
+                3: FlexColumnWidth(1.8),
+                4: FlexColumnWidth(1.2),
+                5: FlexColumnWidth(1.2),
               },
               children: [
                 TableRow(
@@ -771,6 +779,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                     cellText('NAME OF THE MEMBER', bold: true),
                     cellText('RELATIONSHIP WITH THE EMPLOYEE', bold: true),
                     cellText('DATE OF BIRTH', bold: true),
+                    cellText('AGE', bold: true),
                     cellText('GENDER', bold: true),
                   ],
                 ),
@@ -783,12 +792,14 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                       cellText(member['name'] ?? ''),
                       cellText(member['relation'] ?? ''),
                       cellText(member['dob'] ?? ''),
+                      cellText(member['age'] ?? 'N/A'),
                       cellText(member['gender'] ?? ''),
                     ]);
                   }).toList()
                 else
                   TableRow(children: [
                     cellText('1'),
+                    cellText('N/A'),
                     cellText('N/A'),
                     cellText('N/A'),
                     cellText('N/A'),
@@ -836,7 +847,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                       cellText(nom['name'] ?? ''),
                       cellText(nom['relation'] ?? ''),
                       cellText(nom['dob'] ?? ''),
-                      cellText('${nom['percentage']}%'),
+                      cellText(''),
                     ]);
                   }).toList()
                 else
@@ -846,7 +857,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                     cellText('N/A'),
                     cellText('N/A'),
                     cellText('N/A'),
-                    cellText('N/A'),
+                    cellText(''),
                   ]),
               ],
             ),
@@ -870,9 +881,9 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                     children: [
                       const TextSpan(text: 'PERMANENT ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black87)),
                       TextSpan(text: '${data['permAddress']}\n', style: const TextStyle(fontSize: 10, color: Colors.black87)),
-                      const TextSpan(text: 'LOCAL ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black87)),
+                      const TextSpan(text: 'TEMPORARY ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black87)),
                       TextSpan(text: '${data['tempAddress']}\n', style: const TextStyle(fontSize: 10, color: Colors.black87)),
-                      const TextSpan(text: 'EMERGENCY ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black87)),
+                      const TextSpan(text: 'CURRENT ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black87)),
                       TextSpan(text: '${data['emergAddress']}', style: const TextStyle(fontSize: 10, color: Colors.black87)),
                     ],
                   ),
@@ -1490,5 +1501,33 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
         );
       },
     );
+  }
+
+  String _calculateAgeFromStr(String? dobStr) {
+    if (dobStr == null || dobStr == 'N/A' || dobStr.isEmpty) return 'N/A';
+    try {
+      final cleanDob = dobStr.replaceAll('/', '-');
+      final parts = cleanDob.split('-');
+      if (parts.length >= 3) {
+        final day = int.parse(parts[0]);
+        final month = int.parse(parts[1]);
+        String yearStr = parts[2];
+        if (yearStr.contains(' ')) {
+          yearStr = yearStr.split(' ')[0];
+        }
+        int year = int.parse(yearStr);
+        if (year < 100) {
+          year += (year > 30 ? 1900 : 2000);
+        }
+        final dob = DateTime(year, month, day);
+        final today = DateTime.now();
+        int age = today.year - dob.year;
+        if (today.month < dob.month || (today.month == dob.month && today.day < dob.day)) {
+          age--;
+        }
+        return age.toString();
+      }
+    } catch (_) {}
+    return 'N/A';
   }
 }

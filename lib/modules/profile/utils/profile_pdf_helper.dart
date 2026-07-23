@@ -161,7 +161,7 @@ class ProfilePdfHelper {
                   cellText('DEPARTMENT', bold: true),
                   cellText(': ${emp.department}'),
                   cellText('DATE OF PRESENT POSTING', bold: true),
-                  cellText(': ${emp.presentPostingDate}'),
+                  cellText(': ${emp.dopp}'),
                 ]),
                 pw.TableRow(children: [
                   cellText('PRESENT GRADE', bold: true),
@@ -390,7 +390,7 @@ class ProfilePdfHelper {
                       cellText(nom['name'] ?? '', size: 8),
                       cellText(nom['relation'] ?? '', size: 8),
                       cellText(nom['dob'] ?? '', size: 8),
-                      cellText(nom['percentage'] ?? '', size: 8),
+                      cellText('', size: 8),
                     ]);
                   }).toList()
                 else ...[
@@ -400,7 +400,7 @@ class ProfilePdfHelper {
                     cellText('N/A', size: 8),
                     cellText('N/A', size: 8),
                     cellText('N/A', size: 8),
-                    cellText('100.00', size: 8),
+                    cellText('', size: 8),
                   ]),
                 ],
               ],

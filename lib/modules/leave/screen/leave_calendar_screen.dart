@@ -464,7 +464,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
         children: [
           // Name column
           Container(
-            width: 160,
+            width: 220,
             padding: const EdgeInsets.all(8),
             child: const Text(
               'Name',
@@ -514,12 +514,13 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
             children: [
               // Name
               Container(
-                width: 160,
+                width: 220,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                 child: Text(
                   name,
                   style: const TextStyle(color: AppColors.textPrimary, fontSize: 11),
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                  overflow: TextOverflow.fade,
                 ),
               ),
               // Day cells

@@ -6,6 +6,7 @@ import '../../../widgets/app_widgets.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../controller/profile_controller.dart';
 import 'employee_detail_screen.dart';
+import '../../../widgets/employee_avatar_widget.dart';
 import '../utils/profile_pdf_helper.dart';
 
 class EmployeeDirectoryScreen extends StatefulWidget {
@@ -352,6 +353,22 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                         ),
                         const SizedBox(height: 3),
                         Text(
+                          'Group: ${emp.employeeGroup} · Subgroup: ${emp.employeeSubgroup}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'Present Posting: ${emp.dopp}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
                           'Emp Code: ${emp.employeeId}',
                           style: const TextStyle(
                             color: AppColors.textHint,
@@ -397,22 +414,22 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: Scrollbar(
-            controller: _verticalScrollController,
+            controller: _horizontalScrollController,
             thumbVisibility: true,
             trackVisibility: true,
             interactive: true,
+            notificationPredicate: (notif) => notif.depth == 0,
             child: SingleChildScrollView(
-              controller: _verticalScrollController,
-              scrollDirection: Axis.vertical,
+              controller: _horizontalScrollController,
+              scrollDirection: Axis.horizontal,
               child: Scrollbar(
-                controller: _horizontalScrollController,
+                controller: _verticalScrollController,
                 thumbVisibility: true,
                 trackVisibility: true,
                 interactive: true,
-                notificationPredicate: (notif) => notif.depth == 0,
                 child: SingleChildScrollView(
-                  controller: _horizontalScrollController,
-                  scrollDirection: Axis.horizontal,
+                  controller: _verticalScrollController,
+                  scrollDirection: Axis.vertical,
                   child: DataTable(
                 showCheckboxColumn: true,
                 headingRowColor: WidgetStateProperty.all(AppColors.primary.withOpacity(0.06)),
@@ -470,32 +487,11 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  width: 24,
-                                  height: 24,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withOpacity(0.08),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: (() {
-                                    final id = (m['empNo'] ?? '').toString().trim().replaceAll(RegExp('^0+'), '');
-                                    if (id == '16194') {
-                                      return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                                    } else if (id == '17110') {
-                                      return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                                    } else if (id == '540') {
-                                      return Image.asset('assets/images/swapnil_manpe.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                                    } else if (id == '4410') {
-                                      return Image.asset('assets/images/ranjeet_chouhan.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                                    } else if (id == '4428') {
-                                      return Image.asset('assets/images/bcn_gautam.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                                    } else {
-                                      return const Icon(Icons.person_rounded, color: AppColors.primary, size: 14);
-                                    }
-                                  }()),
-                                ),
+                              EmployeeAvatarWidget(
+                                empNo: (m['empNo'] ?? '').toString(),
+                                width: 26,
+                                height: 26,
+                                borderRadius: BorderRadius.circular(13),
                               ),
                               const SizedBox(width: 8),
                               Text(

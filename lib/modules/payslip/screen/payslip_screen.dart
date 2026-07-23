@@ -126,56 +126,36 @@ class _PayslipScreenState extends State<PayslipScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          if (isMobile)
-            Column(
-              children: [
-                _SalaryCard(
+          Row(
+            children: [
+              Expanded(
+                child: _SalaryCard(
                   label: 'Gross Salary',
                   amount: _formatCurrency(payslip['gross']),
                   color: AppColors.success,
                   icon: Icons.account_balance_wallet_outlined,
                 ),
-                const SizedBox(height: 12),
-                _SalaryCard(
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SalaryCard(
                   label: 'Deductions',
                   amount: _formatCurrency(payslip['deductions']),
                   color: AppColors.error,
                   icon: Icons.remove_circle_outline,
                 ),
-                const SizedBox(height: 12),
-                _SalaryCard(
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SalaryCard(
                   label: 'Net Pay',
                   amount: _formatCurrency(payslip['net']),
                   color: AppColors.primary,
                   icon: Icons.payments_outlined,
                 ),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(child: _SalaryCard(
-                  label: 'Gross Salary',
-                  amount: _formatCurrency(payslip['gross']),
-                  color: AppColors.success,
-                  icon: Icons.account_balance_wallet_outlined,
-                )),
-                const SizedBox(width: 12),
-                Expanded(child: _SalaryCard(
-                  label: 'Deductions',
-                  amount: _formatCurrency(payslip['deductions']),
-                  color: AppColors.error,
-                  icon: Icons.remove_circle_outline,
-                )),
-                const SizedBox(width: 12),
-                Expanded(child: _SalaryCard(
-                  label: 'Net Pay',
-                  amount: _formatCurrency(payslip['net']),
-                  color: AppColors.primary,
-                  icon: Icons.payments_outlined,
-                )),
-              ],
-            ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           const Divider(color: AppColors.cardBorder),
           const SizedBox(height: 12),
@@ -524,19 +504,29 @@ class _SalaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 22),
+          Icon(icon, color: color, size: 20),
           const SizedBox(height: 6),
-          Text(amount, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w800)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(amount, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w800)),
+          ),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9), textAlign: TextAlign.center),
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );

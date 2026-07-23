@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../utils/app_config.dart';
 import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
@@ -80,6 +82,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
       return;
     }
 
+    final currentUserId = context.read<AuthController>().user?.employeeId;
     final profileController = context.read<ProfileController>();
     if (profileController.employees.isEmpty) {
       await profileController.fetchAllEmployees();
@@ -93,7 +96,6 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
         : null;
 
     final cleanSearchCode = searchCode.trim().replaceAll(RegExp('^0+'), '');
-    final currentUserId = context.read<AuthController>().user?.employeeId;
 
     // Check if employee is in Organization Hierarchy (reports to current user)
     final empMap = ProfileController.rawEmployees.firstWhere(
@@ -113,7 +115,35 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
     double dbBalance = 0.0;
     bool fetchSuccess = false;
 
-    if (isTeamMember) {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJsonStr = prefs.getString('auth_user');
+      String? token;
+      if (userJsonStr != null) {
+        token = jsonDecode(userJsonStr)['token'];
+      }
+      if (token != null) {
+        final response = await http.get(
+          Uri.parse('${AppConfig.baseUrl}/api/leave-balances?employee_id=$cleanSearchCode'),
+          headers: {'Authorization': 'Bearer $token'},
+        );
+        if (response.statusCode == 200) {
+          final List<dynamic> balancesList = jsonDecode(response.body);
+          final elBalanceObj = balancesList.firstWhere(
+            (b) => b['timeAccount']?.toString().toLowerCase().contains('earned') == true || b['typeId']?.toString() == '1000',
+            orElse: () => null,
+          );
+          if (elBalanceObj != null) {
+            dbBalance = double.tryParse(elBalanceObj['entitlementMinusPlanned']?.toString() ?? '0') ?? 0.0;
+            fetchSuccess = true;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching actual leave balance: $e');
+    }
+
+    if (!fetchSuccess && isTeamMember) {
       dbBalance = 120.00;
       fetchSuccess = true;
     }

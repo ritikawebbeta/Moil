@@ -100,13 +100,13 @@ class _LoginScreenState extends State<LoginScreen>
       // _passwordController.text = "1000317";
       // RO1
       //Raja sir
-      _employeeIdController.text = "";
-      _passwordController.text = "";
+      // _employeeIdController.text = "446";
+      // _passwordController.text = "ADIPT5111G2";
 
 
 
-  // _employeeIdController.text = "16194";
-  //     _passwordController.text = "ACEPT4553B2";
+  _employeeIdController.text = "16194";
+      _passwordController.text = "ACEPT4553B2";
 
       // _passwordController.text = "ACEPT4553B";
 
@@ -118,8 +118,8 @@ class _LoginScreenState extends State<LoginScreen>
 
 
 
-      _employeeIdController.text = "141";
-      _passwordController.text = "ABJPV5442P2";
+      // _employeeIdController.text = "141";
+      // _passwordController.text = "ABJPV5442P2";
       //Swapnil sir
       // _employeeIdController.text = "540";
       // _passwordController.text = "BLTPM3281J";

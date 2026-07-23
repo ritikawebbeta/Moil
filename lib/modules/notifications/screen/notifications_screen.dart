@@ -8,8 +8,21 @@ import '../controller/notification_controller.dart';
 import '../../../model/notification_model.dart';
 import '../../../widgets/app_widgets.dart';
 
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
+
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<NotificationController>().fetchNotifications();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,21 +44,30 @@ class NotificationsScreen extends StatelessWidget {
       ),
       body: Consumer<NotificationController>(
         builder: (context, controller, _) {
-          if (controller.notifications.isEmpty) {
-            return const EmptyState(
-              icon: Icons.notifications_none_outlined,
-              title: 'No Notifications',
-              subtitle: 'You have no notifications at this time.',
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: controller.notifications.length,
-            itemBuilder: (context, index) {
-              final notif = controller.notifications[index];
-              return _NotifCard(notif: notif, onTap: () => controller.markAsRead(notif.id));
-            },
+          return RefreshIndicator(
+            onRefresh: () => controller.fetchNotifications(),
+            color: AppColors.primary,
+            child: controller.notifications.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      SizedBox(height: 120),
+                      EmptyState(
+                        icon: Icons.notifications_none_outlined,
+                        title: 'No Notifications',
+                        subtitle: 'You have no notifications at this time.',
+                      ),
+                    ],
+                  )
+                : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    itemCount: controller.notifications.length,
+                    itemBuilder: (context, index) {
+                      final notif = controller.notifications[index];
+                      return _NotifCard(notif: notif, onTap: () => controller.markAsRead(notif.id));
+                    },
+                  ),
           );
         },
       ),
@@ -60,23 +82,28 @@ class _NotifCard extends StatelessWidget {
   const _NotifCard({required this.notif, required this.onTap});
 
   Color get _iconColor {
-    switch (notif.type) {
-      case 'leave_approved': return AppColors.success;
-      case 'tour_approved': return const Color(0xFF06B6D4);
-      case 'leave_pending': return AppColors.warning;
-      case 'payslip': return AppColors.primary;
-      default: return AppColors.textSecondary;
-    }
+    final t = notif.type.toLowerCase();
+    final title = notif.title.toLowerCase();
+
+    if (title.contains('approved')) return AppColors.success;
+    if (title.contains('rejected')) return AppColors.error;
+    if (title.contains('submitted') || title.contains('applied') || title.contains('pending')) return AppColors.warning;
+
+    if (t.contains('leave') || title.contains('leave')) return AppColors.primary;
+    if (t.contains('tour') || title.contains('tour')) return const Color(0xFF06B6D4);
+    
+    return AppColors.textSecondary;
   }
 
   IconData get _icon {
-    switch (notif.type) {
-      case 'leave_approved': return Icons.event_available_rounded;
-      case 'tour_approved': return Icons.flight_takeoff_rounded;
-      case 'leave_pending': return Icons.pending_actions_rounded;
-      case 'payslip': return Icons.receipt_long_rounded;
-      default: return Icons.notifications_rounded;
-    }
+    final t = notif.type.toLowerCase();
+    final title = notif.title.toLowerCase();
+
+    if (t.contains('tour') || title.contains('tour')) return Icons.flight_takeoff_rounded;
+    if (t.contains('leave') || title.contains('leave')) return Icons.event_available_rounded;
+    if (t.contains('payslip') || title.contains('payslip')) return Icons.receipt_long_rounded;
+
+    return Icons.notifications_rounded;
   }
 
   @override
@@ -161,8 +188,9 @@ class _NotifCard extends StatelessWidget {
   String _formatTime(DateTime dt) {
     final now = DateTime.now();
     final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return DateFormat('dd-MM-yyyy').format(dt);
+    return DateFormat('dd-MM-yyyy HH:mm').format(dt);
   }
 }

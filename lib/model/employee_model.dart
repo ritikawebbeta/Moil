@@ -40,6 +40,14 @@ class EmployeeModel {
   final List<Map<String, dynamic>> serviceHistory;
   final List<Map<String, dynamic>> familyMembers;
 
+  // New address & DB fields
+  final String permanentAddress;
+  final String temporaryAddress;
+  final String emergencyAddress;
+  final String employeeGroup;
+  final String employeeSubgroup;
+  final String dopp;
+
   // Bank & Payslip Info
   final String bankAcc;
   final String bankKey;
@@ -87,6 +95,12 @@ class EmployeeModel {
     this.bankKey = 'N/A',
     this.payscale = 'N/A',
     this.fb = 'N/A',
+    this.permanentAddress = 'N/A',
+    this.temporaryAddress = 'N/A',
+    this.emergencyAddress = 'N/A',
+    this.employeeGroup = 'N/A',
+    this.employeeSubgroup = 'N/A',
+    this.dopp = 'N/A',
   });
 
   static EmployeeModel fromJson(Map<String, dynamic> json) {
@@ -110,10 +124,10 @@ class EmployeeModel {
       presentPlaceOfPosting: json['presentPlaceOfPosting']?.toString() ?? '',
       presentPostingDate: json['presentPostingDate']?.toString() ?? '',
       retirementDate: json['retirementDate']?.toString() ?? '',
-      mobileNumber: json['mobileNumber']?.toString() ?? '',
+      mobileNumber: json['mobileNumber']?.toString() ?? json['mobile']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       uanNo: json['uanNo']?.toString() ?? '',
-      panNo: json['panNo']?.toString() ?? '',
+      panNo: json['panNo']?.toString() ?? json['pan_number']?.toString() ?? '',
       aadhaarNo: json['aadhaarNo']?.toString() ?? '',
       pranNo: json['pranNo']?.toString() ?? '',
       pfNo: json['pfNo']?.toString() ?? '',
@@ -122,7 +136,7 @@ class EmployeeModel {
       reportingOfficer1: json['reportingOfficer1']?.toString() ?? '',
       reportingOfficerName: json['reportingOfficerName']?.toString() ?? '',
       reportingOfficer1Name: json['reportingOfficer1Name']?.toString() ?? '',
-      address: json['address']?.toString() ?? '',
+      address: json['address']?.toString() ?? json['permanentAddress']?.toString() ?? json['permanent_address']?.toString() ?? '',
       emergencyContact: json['emergencyContact']?.toString() ?? '',
       nominees: (json['nominees'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
       serviceHistory: (json['serviceHistory'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
@@ -131,6 +145,12 @@ class EmployeeModel {
       bankKey: json['bankKey']?.toString() ?? 'N/A',
       payscale: json['payscale']?.toString() ?? 'N/A',
       fb: json['fb']?.toString() ?? 'N/A',
+      permanentAddress: json['permanentAddress']?.toString() ?? json['permanent_address']?.toString() ?? 'N/A',
+      temporaryAddress: json['temporaryAddress']?.toString() ?? json['temporary_address']?.toString() ?? 'N/A',
+      emergencyAddress: json['currentAddress']?.toString() ?? json['emergencyAddress']?.toString() ?? json['emergency_address']?.toString() ?? 'N/A',
+      employeeGroup: json['employeeGroup']?.toString() ?? json['employee_group']?.toString() ?? 'N/A',
+      employeeSubgroup: json['employeeSubgroup']?.toString() ?? json['employee_subgroup']?.toString() ?? 'N/A',
+      dopp: json['dopp']?.toString() ?? 'N/A',
     );
   }
 
@@ -176,6 +196,12 @@ class EmployeeModel {
       'bankKey': bankKey,
       'payscale': payscale,
       'fb': fb,
+      'permanentAddress': permanentAddress,
+      'temporaryAddress': temporaryAddress,
+      'emergencyAddress': emergencyAddress,
+      'employeeGroup': employeeGroup,
+      'employeeSubgroup': employeeSubgroup,
+      'dopp': dopp,
     };
   }
 
@@ -189,7 +215,8 @@ class EmployeeModel {
       'dob': dateOfBirth,
       'apptDate': joinDate,
       'latPromo': lastPromotionDate,
-      'group': appointmentType,
+      'group': employeeGroup != 'N/A' ? employeeGroup : appointmentType,
+      'subgroup': employeeSubgroup,
       'caste': category,
       'blood': bloodGroup,
       'gender': gender,
@@ -210,7 +237,10 @@ class EmployeeModel {
       'reportingOfficer1': reportingOfficer1,
       'reportingOfficerName': reportingOfficerName,
       'reportingOfficer1Name': reportingOfficer1Name,
-      'permAddress': address,
+      'permAddress': permanentAddress != 'N/A' ? permanentAddress : address,
+      'tempAddress': temporaryAddress,
+      'emergAddress': emergencyAddress,
+      'dopp': dopp,
       'nominees': nominees,
       'serviceHistory': serviceHistory,
       'familyMembers': familyMembers,
@@ -225,6 +255,9 @@ class EmployeeModel {
     String? mobileNumber,
     String? address,
     String? emergencyContact,
+    String? permanentAddress,
+    String? temporaryAddress,
+    String? emergencyAddress,
   }) {
     return EmployeeModel(
       id: id,
@@ -267,6 +300,12 @@ class EmployeeModel {
       bankKey: bankKey,
       payscale: payscale,
       fb: fb,
+      permanentAddress: permanentAddress ?? this.permanentAddress,
+      temporaryAddress: temporaryAddress ?? this.temporaryAddress,
+      emergencyAddress: emergencyAddress ?? this.emergencyAddress,
+      employeeGroup: employeeGroup,
+      employeeSubgroup: employeeSubgroup,
+      dopp: dopp,
     );
   }
 }
