@@ -130,6 +130,8 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
             _buildTypeOfLeaveSection(),
             const SizedBox(height: 16),
             _buildGeneralDataSection(),
+            const SizedBox(height: 16),
+            _buildOverviewSection(),
             const SizedBox(height: 20),
             _buildActionButtons(),
           ],
@@ -173,7 +175,12 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                         .toList(),
                     onChanged: (v) {
                       if (v != null) {
-                        setState(() => _selectedLeaveType = v);
+                        setState(() {
+                          _selectedLeaveType = v;
+                          if (!v.toLowerCase().contains('casual leave')) {
+                            _duration = 'Full-Day';
+                          }
+                        });
                       }
                     },
                   ),
@@ -206,6 +213,8 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
 
   // ─── General Data ─────────────────────────────────────────────────
   Widget _buildGeneralDataSection() {
+    final bool isCasualLeave = _selectedLeaveType.toLowerCase().contains('casual leave');
+
     return GlassCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -242,9 +251,55 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                     ),
                   ),
                 ),
-                if (_selectedLeaveType == 'HPL' || _selectedLeaveType == 'CHPL') ...[
+                const SizedBox(height: 12),
+                // Leave Duration (Half-Day available only for Casual Leave)
+                _buildFormRow(
+                  label: 'Leave Duration',
+                  child: isCasualLeave
+                      ? Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _durations.map((d) {
+                            final isSelected = d == _duration;
+                            return GestureDetector(
+                              onTap: () => setState(() => _duration = d),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? AppColors.primary : AppColors.inputBg,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSelected ? AppColors.primary : AppColors.inputBorder,
+                                  ),
+                                ),
+                                child: Text(
+                                  d,
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.white : AppColors.textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.inputBg,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.inputBorder),
+                          ),
+                          child: const Text(
+                            'Full-Day',
+                            style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                ),
+                // Time selection (shown AFTER Leave Duration column for Half-Day Casual Leave)
+                if (isCasualLeave && _duration == 'Half-Day') ...[
                   const SizedBox(height: 12),
-                  // Begin Time
                   _buildFormRow(
                     label: 'Begin Time',
                     child: _TimeField(
@@ -253,7 +308,6 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // End Time
                   _buildFormRow(
                     label: 'End Time',
                     child: _TimeField(
@@ -262,39 +316,6 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 12),
-                // Leave Duration
-                _buildFormRow(
-                  label: 'Leave Duration',
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _durations.map((d) {
-                      final isSelected = d == _duration;
-                      return GestureDetector(
-                        onTap: () => setState(() => _duration = d),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isSelected ? AppColors.primary : AppColors.inputBg,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isSelected ? AppColors.primary : AppColors.inputBorder,
-                            ),
-                          ),
-                          child: Text(
-                            d,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : AppColors.textSecondary,
-                              fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
                 const SizedBox(height: 12),
                 // Processor
                 _buildFormRow(
@@ -452,10 +473,81 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
     if (picked != null) {
       final formatted = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
       setState(() {
-        if (isBegin) _beginTime = formatted;
-        else _endTime = formatted;
+        if (isBegin) {
+          _beginTime = formatted;
+        } else {
+          _endTime = formatted;
+        }
       });
     }
+  }
+
+  Widget _buildOverviewSection() {
+    final daysCount = _endDate.difference(_startDate).inDays + 1;
+    final isCasualLeave = _selectedLeaveType.toLowerCase().contains('casual leave');
+
+    return GlassCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: 'Application Overview',
+            icon: Icons.assignment_outlined,
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _buildOverviewRow('Leave Type', _selectedLeaveType),
+                const SizedBox(height: 6),
+                _buildOverviewRow(
+                  'Date Range',
+                  '${DateFormat('dd-MM-yyyy').format(_startDate)} to ${DateFormat('dd-MM-yyyy').format(_endDate)} ($daysCount Day${daysCount > 1 ? 's' : ''})',
+                ),
+                const SizedBox(height: 6),
+                _buildOverviewRow('Duration', _duration),
+                if (isCasualLeave && _duration == 'Half-Day') ...[
+                  const SizedBox(height: 6),
+                  _buildOverviewRow('Timing', '$_beginTime to $_endTime'),
+                ],
+                const SizedBox(height: 6),
+                _buildOverviewRow('Processing Officer (L1)', _processor),
+                if (_processor1 != '-') ...[
+                  const SizedBox(height: 6),
+                  _buildOverviewRow('Processing Officer (L2)', _processor1),
+                ],
+                if (_noteController.text.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  _buildOverviewRow('Reason / Note', _noteController.text),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 150,
+          child: Text(
+            '$label:',
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildActionButtons() {

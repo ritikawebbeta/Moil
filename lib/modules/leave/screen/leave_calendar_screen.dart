@@ -139,28 +139,63 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                     });
                   },
                   eventLoader: (day) => _getEventsForDay(day, controller.leaves),
-                   calendarStyle: CalendarStyle(
-                    defaultTextStyle: const TextStyle(color: AppColors.textPrimary),
-                    weekendTextStyle: const TextStyle(color: AppColors.textPrimary),
-                    selectedDecoration: const BoxDecoration(
+                  calendarBuilders: CalendarBuilders(
+                    markerBuilder: (context, date, events) {
+                      if (events.isEmpty) return const SizedBox.shrink();
+                      return Positioned(
+                        bottom: 2,
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      );
+                    },
+                    defaultBuilder: (context, day, focusedDay) {
+                      final events = _getEventsForDay(day, controller.leaves);
+                      if (events.isNotEmpty) {
+                        final leave = events.first;
+                        final isApproved = leave.status.toUpperCase() == 'APPROVED';
+                        final bg = isApproved ? AppColors.success.withOpacity(0.2) : AppColors.warning.withOpacity(0.2);
+                        final fg = isApproved ? AppColors.success : AppColors.warning;
+                        return Container(
+                          margin: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: bg,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: fg, width: 1.5),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${day.day}',
+                              style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        );
+                      }
+                      return null;
+                    },
+                  ),
+                  calendarStyle: const CalendarStyle(
+                    defaultTextStyle: TextStyle(color: AppColors.textPrimary),
+                    weekendTextStyle: TextStyle(color: AppColors.textPrimary),
+                    selectedDecoration: BoxDecoration(
                       color: AppColors.primary,
                       shape: BoxShape.circle,
                     ),
                     todayDecoration: BoxDecoration(
                       color: Colors.transparent,
-                      border: Border.all(color: AppColors.primary, width: 1.5),
+                      border: Border.fromBorderSide(BorderSide(color: AppColors.primary, width: 1.5)),
                       shape: BoxShape.circle,
                     ),
-                    todayTextStyle: const TextStyle(
+                    todayTextStyle: TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.bold,
                     ),
-                    markerDecoration: const BoxDecoration(
-                      color: AppColors.warning,
-                      shape: BoxShape.circle,
-                    ),
                     outsideDaysVisible: false,
-                    markersMaxCount: 0,
                   ),
                   headerStyle: const HeaderStyle(
                     formatButtonVisible: true,

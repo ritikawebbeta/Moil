@@ -68,15 +68,20 @@ class StatusBadge extends StatelessWidget {
   const StatusBadge({super.key, required this.status});
 
   String get _displayLabel {
-    switch (status.trim().toUpperCase()) {
+    final clean = status.trim().toUpperCase();
+    if (clean == 'SENT' || clean == 'PENDING L1' || clean == 'PENDING_L1' || clean == 'PENDING' || clean == 'IN PROCESS' || clean == 'IN_PROCESS') {
+      return 'In Process';
+    }
+    if (clean == 'SENT_L2' || clean == 'PENDING L2' || clean == 'PENDING_L2') {
+      return 'Pending L2';
+    }
+    switch (clean) {
       case 'NEW':
         return 'New';
       case 'DRAFT':
         return 'Raw Version';
       case 'DELETED':
-        return 'Deleted from the Database';
-      case 'SENT':
-        return 'Sent';
+        return 'Deleted';
       case 'WITHDRAWN':
         return 'Withdrawn';
       case 'APPROVED':
@@ -90,66 +95,35 @@ class StatusBadge extends StatelessWidget {
       case 'STOPPED':
         return 'Stopped Automatically';
       default:
+        if (status.contains('L1') || status.contains('l1')) {
+          return status.replaceAll('L1', '').replaceAll('l1', '').replaceAll('Pending', 'In Process').trim();
+        }
         return status;
     }
   }
 
   Color get _bgColor {
-    switch (status.trim().toUpperCase()) {
-      case 'APPROVED':
-      case 'POSTED':
-        return AppColors.success.withOpacity(0.12);
-      case 'PENDING':
-        return AppColors.warning.withOpacity(0.12);
-      case 'REJECTED':
-      case 'ERROR':
-        return AppColors.error.withOpacity(0.12);
-      case 'DRAFT':
-      case 'WITHDRAWN':
-      case 'DELETED':
-      case 'STOPPED':
-      case 'CANCELLED':
-        return AppColors.textMuted.withOpacity(0.12);
-      default:
-        final lower = status.toLowerCase();
-        if (lower.contains('approved')) {
-          return AppColors.success.withOpacity(0.12);
-        } else if (lower.contains('pending')) {
-          return AppColors.warning.withOpacity(0.12);
-        } else if (lower.contains('rejected') || lower.contains('error')) {
-          return AppColors.error.withOpacity(0.12);
-        }
-        return AppColors.info.withOpacity(0.12);
+    final label = _displayLabel.toUpperCase();
+    if (label == 'APPROVED' || label == 'POSTED') {
+      return AppColors.success.withOpacity(0.12);
+    } else if (label == 'IN PROCESS' || label == 'PENDING L2') {
+      return AppColors.warning.withOpacity(0.12);
+    } else if (label == 'REJECTED' || label == 'HAS ERRORS') {
+      return AppColors.error.withOpacity(0.12);
     }
+    return AppColors.info.withOpacity(0.12);
   }
 
   Color get _textColor {
-    switch (status.trim().toUpperCase()) {
-      case 'APPROVED':
-      case 'POSTED':
-        return AppColors.success;
-      case 'PENDING':
-        return AppColors.warning;
-      case 'REJECTED':
-      case 'ERROR':
-        return AppColors.error;
-      case 'DRAFT':
-      case 'WITHDRAWN':
-      case 'DELETED':
-      case 'STOPPED':
-      case 'CANCELLED':
-        return AppColors.textMuted;
-      default:
-        final lower = status.toLowerCase();
-        if (lower.contains('approved')) {
-          return AppColors.success;
-        } else if (lower.contains('pending')) {
-          return AppColors.warning;
-        } else if (lower.contains('rejected') || lower.contains('error')) {
-          return AppColors.error;
-        }
-        return AppColors.info;
+    final label = _displayLabel.toUpperCase();
+    if (label == 'APPROVED' || label == 'POSTED') {
+      return AppColors.success;
+    } else if (label == 'IN PROCESS' || label == 'PENDING L2') {
+      return AppColors.warning;
+    } else if (label == 'REJECTED' || label == 'HAS ERRORS') {
+      return AppColors.error;
     }
+    return AppColors.info;
   }
 
   @override

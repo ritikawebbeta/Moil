@@ -41,11 +41,27 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
 
   String _getEmployeeName(String empId) {
     final cleanId = empId.split(' ').first.replaceAll('(', '').replaceAll(')', '').trim();
+    final auth = context.read<AuthController>();
+    final cleanUserEmpId = (auth.user?.employeeId ?? '').trim().replaceAll(RegExp('^0+'), '');
+    if (auth.user != null && (cleanUserEmpId == cleanId || auth.user!.employeeId == empId)) {
+      return auth.user!.name;
+    }
     final match = ProfileController.rawEmployees.firstWhere(
       (e) => e['empNo'] == cleanId,
-      orElse: () => {'name': cleanId},
+      orElse: () => <String, dynamic>{},
     );
-    return match['name'] ?? cleanId;
+    if (match.isNotEmpty && match['name'] != null && match['name'].toString().isNotEmpty) {
+      return match['name'].toString();
+    }
+    return cleanId.isNotEmpty ? 'Employee $cleanId' : 'Employee';
+  }
+
+  String _getAbsentDays(LeaveModel leave) {
+    if (leave.used != null && leave.used!.isNotEmpty && leave.used != 'N/A') {
+      return leave.used!;
+    }
+    final days = leave.endDate.difference(leave.startDate).inDays + 1;
+    return '$days.0 Days';
   }
 
   Map<String, String> _getProcessorNames(LeaveModel leave) {
@@ -423,10 +439,8 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
   }
 
   Widget _buildLeaveTable(LeaveController controller) {
-    final quotaTypes = ['earned leave', 'casual leave', 'hpl', 'optional holiday', 'optional leave', 'half pay leave'];
     final filteredLeaves = controller.leaves.where((leave) {
-      final isQuotaType = quotaTypes.contains(leave.leaveType.toLowerCase());
-      return !leave.startDate.isBefore(controller.showFrom) && isQuotaType;
+      return !leave.endDate.isBefore(controller.showFrom);
     }).toList();
 
     final isMobile = MediaQuery.of(context).size.width < 900;
@@ -494,7 +508,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                   const SizedBox(height: 6),
                   _buildMobileRow('Dates', '${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)}'),
                   const SizedBox(height: 6),
-                  _buildMobileRow('Absent Days', leave.used ?? 'N/A'),
+                  _buildMobileRow('Absent Days', _getAbsentDays(leave)),
                   const SizedBox(height: 6),
                   _buildMobileRow('Reason', leave.reason ?? 'N/A'),
                   const SizedBox(height: 6),
@@ -638,7 +652,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                               text: DateFormat('dd-MM-yyyy').format(leave.endDate),
                               width: endDateWidth,
                             ),
-                            _TableCell(text: leave.used ?? 'N/A', width: absentDaysWidth),
+                            _TableCell(text: _getAbsentDays(leave), width: absentDaysWidth),
                             _TableCell(text: leave.reason ?? 'N/A', width: reasonWidth),
                             _TableCell(
                               child: StatusBadge(status: leave.status),
