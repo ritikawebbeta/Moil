@@ -3,9 +3,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../../../model/employee_model.dart';
 import '../../../utils/app_config.dart';
+import '../../../utils/api_client.dart';
 
 class ProfileController extends ChangeNotifier {
   bool _isLoading = false;
@@ -36,16 +36,20 @@ class ProfileController extends ChangeNotifier {
 
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/profile?employee_id=$employeeId'),
         headers: {'Authorization': 'Bearer $token'},
       );
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        _employee = EmployeeModel.fromJson(data);
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          _employee = EmployeeModel.fromJson(decoded);
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('fetchEmployeeProfile error: $e');
+    }
     _isLoading = false;
     notifyListeners();
   }
@@ -56,18 +60,52 @@ class ProfileController extends ChangeNotifier {
 
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/employees'),
         headers: {'Authorization': 'Bearer $token'},
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        _employees = data.map((e) => EmployeeModel.fromJson(e)).toList();
-        rawEmployees = _employees.map((e) => e.toRawMap()).toList();
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          final seen = <String>{};
+          final uniqueList = <EmployeeModel>[];
+          for (var item in decoded) {
+            if (item is Map<String, dynamic>) {
+              try {
+                final model = EmployeeModel.fromJson(item);
+                final cleanId = model.employeeId.trim().replaceAll(RegExp('^0+'), '');
+                if (cleanId.isNotEmpty && seen.add(cleanId)) {
+                  uniqueList.add(model);
+                }
+              } catch (e) {
+                debugPrint('Error parsing employee model item: $e');
+              }
+            }
+          }
+          _employees = uniqueList;
+          rawEmployees = _employees.map((e) => e.toRawMap()).toList();
+        } else {
+          _employees = [];
+          rawEmployees = [];
+        }
+      } else {
+        _employees = [];
+        rawEmployees = [];
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('fetchAllEmployees error: $e');
+      _employees = [];
+      rawEmployees = [];
+    }
     _isLoading = false;
+    notifyListeners();
+  }
+
+  void clear() {
+    _employee = null;
+    _employees = [];
+    rawEmployees = [];
     notifyListeners();
   }
 
@@ -78,7 +116,7 @@ class ProfileController extends ChangeNotifier {
   }) async {
     try {
       final token = await _getToken();
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse('${AppConfig.baseUrl}/api/profile/update'),
         headers: {
           'Content-Type': 'application/json',

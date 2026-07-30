@@ -60,8 +60,11 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
     if (leave.used != null && leave.used!.isNotEmpty && leave.used != 'N/A') {
       return leave.used!;
     }
+    if (leave.duration.isNotEmpty) {
+      return leave.duration;
+    }
     final days = leave.endDate.difference(leave.startDate).inDays + 1;
-    return '$days.0 Days';
+    return '$days Day(s)';
   }
 
   Map<String, String> _getProcessorNames(LeaveModel leave) {
@@ -132,7 +135,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                 _buildPdfRow('Duration:', leave.duration),
                 _buildPdfRow('Start Date:', DateFormat('dd-MM-yyyy').format(leave.startDate)),
                 _buildPdfRow('End Date:', DateFormat('dd-MM-yyyy').format(leave.endDate)),
-                _buildPdfRow('Absent Days:', leave.used ?? 'N/A'),
+                _buildPdfRow('Absent Days:', _getAbsentDays(leave)),
                 _buildPdfRow('Reason:', leave.reason ?? 'N/A'),
                 _buildPdfRow('Status:', leave.status),
                 _buildPdfRow('Processor:', procInfo['processor'] ?? '-'),
@@ -209,7 +212,7 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                   'Date Range',
                   '${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)}',
                 ),
-                _buildDetailRow('Absent Days', leave.used ?? 'N/A'),
+                _buildDetailRow('Absent Days', _getAbsentDays(leave)),
                 _buildDetailRow('Reason', leave.reason ?? 'N/A'),
                 const Divider(height: 24, color: AppColors.cardBorder),
                 _buildDetailRow(
@@ -508,7 +511,10 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                   const SizedBox(height: 6),
                   _buildMobileRow('Dates', '${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)}'),
                   const SizedBox(height: 6),
-                  _buildMobileRow('Absent Days', _getAbsentDays(leave)),
+                  _buildMobileRow('Absent Days',leave.duration
+                  //  _getAbsentDays(leave)
+                  
+                  ),
                   const SizedBox(height: 6),
                   _buildMobileRow('Reason', leave.reason ?? 'N/A'),
                   const SizedBox(height: 6),

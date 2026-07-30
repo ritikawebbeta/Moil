@@ -180,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${user?.designation ?? ''} · ${user?.department ?? ''}',
+                  '${user?.designation ??''}',
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
@@ -319,118 +319,15 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    int getDayOfYear(DateTime date) {
-      return date.difference(DateTime(date.year, 1, 1)).inDays + 1;
-    }
+    final double el = baseEl;
+    final double cl = baseCl;
+    final double hpl = baseHpl;
+    final double op = baseOp;
 
-    double calculateEarnedLeave() {
-      final int year = _earnedLeaveDate.year;
-      double val = baseEl;
-      if (year == 2025) {
-        val = 120.0;
-      } else if (year == 2027) {
-        val = 245.50;
-      } else if (year > 2027) {
-        val = 245.50 + (year - 2027) * 30.0;
-      }
-      return val;
-    }
-
-    double calculateEarnedLeaveEnt() {
-      final int year = _earnedLeaveDate.year;
-      double val = baseElEnt;
-      if (year == 2025) {
-        val = 150.0;
-      } else if (year == 2027) {
-        val = 275.50;
-      } else if (year > 2027) {
-        val = 275.50 + (year - 2027) * 30.0;
-      }
-      return val;
-    }
-
-    double calculateCasualLeave() {
-      final int year = _casualLeaveDate.year;
-      double val = baseCl;
-      if (year == 2025) {
-        val = 8.0;
-      } else if (year >= 2027) {
-        val = 12.0;
-      }
-      return val;
-    }
-
-    double calculateCasualLeaveEnt() {
-      final int year = _casualLeaveDate.year;
-      double val = baseClEnt;
-      if (year == 2025) {
-        val = 10.0;
-      } else if (year >= 2027) {
-        val = 12.0;
-      }
-      return val;
-    }
-
-    double calculateHPL() {
-      final int year = _hplDate.year;
-      double val = baseHpl;
-      if (year == 2025) {
-        val = 90.0;
-      } else if (year == 2027) {
-        val = 127.0;
-      } else if (year > 2027) {
-        val = 127.0 + (year - 2027) * 20.0;
-      }
-      return val;
-    }
-
-    double calculateHplEnt() {
-      final int year = _hplDate.year;
-      double val = baseHplEnt;
-      if (year == 2025) {
-        val = 110.0;
-      } else if (year == 2027) {
-        val = 127.0;
-      } else if (year > 2027) {
-        val = 127.0 + (year - 2027) * 20.0;
-      }
-      return val;
-    }
-
-    double calculateOptionalLeave() {
-      final int year = _optionalLeaveDate.year;
-      double val = baseOp;
-      if (year == 2025) {
-        val = 1.0;
-      } else if (year >= 2027) {
-        val = 2.0;
-      }
-      if (_optionalLeaveDate.month > 6) {
-        val = (val - 1.0).clamp(0.0, 2.0);
-      }
-      return val;
-    }
-
-    double calculateOptionalLeaveEnt() {
-      final int year = _optionalLeaveDate.year;
-      double val = baseOpEnt;
-      if (year == 2025) {
-        val = 2.0;
-      } else if (year >= 2027) {
-        val = 2.0;
-      }
-      return val;
-    }
-
-    final double el = calculateEarnedLeave();
-    final double cl = calculateCasualLeave();
-    final double hpl = calculateHPL();
-    final double op = calculateOptionalLeave();
-
-    final double elEnt = calculateEarnedLeaveEnt();
-    final double clEnt = calculateCasualLeaveEnt();
-    final double hplEnt = calculateHplEnt();
-    final double opEnt = calculateOptionalLeaveEnt();
+    final double elEnt = baseElEnt;
+    final double clEnt = baseClEnt;
+    final double hplEnt = baseHplEnt;
+    final double opEnt = baseOpEnt;
 
     Widget buildCalendarPicker({
       required DateTime selectedDate,
@@ -489,14 +386,6 @@ class _HomeScreenState extends State<HomeScreen> {
         title: 'Earned Leave',
         value: el % 1 == 0 ? '${el.toInt()}' : el.toStringAsFixed(1),
         entitlement: elEnt % 1 == 0 ? '${elEnt.toInt()}' : elEnt.toStringAsFixed(1),
-        subtitleWidget: buildCalendarPicker(
-          selectedDate: _earnedLeaveDate,
-          onDateSelected: (date) {
-            setState(() {
-              _earnedLeaveDate = date;
-            });
-          },
-        ),
         icon: Icons.event_available_rounded,
         color: AppColors.primary,
       ),
@@ -504,14 +393,6 @@ class _HomeScreenState extends State<HomeScreen> {
         title: 'Casual Leave',
         value: cl % 1 == 0 ? '${cl.toInt()}' : cl.toStringAsFixed(1),
         entitlement: clEnt % 1 == 0 ? '${clEnt.toInt()}' : clEnt.toStringAsFixed(1),
-        subtitleWidget: buildCalendarPicker(
-          selectedDate: _casualLeaveDate,
-          onDateSelected: (date) {
-            setState(() {
-              _casualLeaveDate = date;
-            });
-          },
-        ),
         icon: Icons.date_range_rounded,
         color: AppColors.warning,
       ),
@@ -519,14 +400,6 @@ class _HomeScreenState extends State<HomeScreen> {
         title: 'Half Pay Leave',
         value: hpl % 1 == 0 ? '${hpl.toInt()}' : hpl.toStringAsFixed(1),
         entitlement: hplEnt % 1 == 0 ? '${hplEnt.toInt()}' : hplEnt.toStringAsFixed(1),
-        subtitleWidget: buildCalendarPicker(
-          selectedDate: _hplDate,
-          onDateSelected: (date) {
-            setState(() {
-              _hplDate = date;
-            });
-          },
-        ),
         icon: Icons.hourglass_bottom_rounded,
         color: AppColors.success,
       ),
@@ -534,14 +407,6 @@ class _HomeScreenState extends State<HomeScreen> {
         title: 'Optional Leave',
         value: op % 1 == 0 ? '${op.toInt()}' : op.toStringAsFixed(1),
         entitlement: opEnt % 1 == 0 ? '${opEnt.toInt()}' : opEnt.toStringAsFixed(1),
-        subtitleWidget: buildCalendarPicker(
-          selectedDate: _optionalLeaveDate,
-          onDateSelected: (date) {
-            setState(() {
-              _optionalLeaveDate = date;
-            });
-          },
-        ),
         icon: Icons.celebration_rounded,
         color: const Color(0xFF8B5CF6),
       ),
@@ -759,10 +624,10 @@ class _HomeScreenState extends State<HomeScreen> {
       childAspectRatio = 0.95;
     } else if (width > 700) {
       crossAxisCount = 4;
-      childAspectRatio = 1.05;
+      childAspectRatio = 1.00;
     } else {
       crossAxisCount = 3;
-      childAspectRatio = 0.74;
+      childAspectRatio = 0.58;
     }
 
     return Container(
@@ -786,42 +651,45 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: m.onTap,
                 child: GlassCard(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: isWeb ? 40 : 48,
-                        height: isWeb ? 40 : 48,
+                        width: isWeb ? 46 : 44,
+                        height: isWeb ? 46 : 44,
                         decoration: BoxDecoration(
                           color: m.color.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: m.color.withOpacity(0.15)),
                         ),
                         child:
-                            Icon(m.icon, color: m.color, size: isWeb ? 20 : 24),
+                            Icon(m.icon, color: m.color, size: isWeb ? 26 : 24),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Text(
                         m.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
-                          fontSize: 15,
+                          fontSize: isWeb ? 17 : 17,
                           fontWeight: FontWeight.bold,
                         ),
                         textAlign: TextAlign.center,
-                        maxLines: 1,
+                        maxLines: 2,
+                        softWrap: true,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 4),
                       Text(
                         m.subtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 10,
+                          fontSize: isWeb ? 14 : 14,
+                          fontWeight: FontWeight.w600,
                         ),
                         textAlign: TextAlign.center,
                         maxLines: 2,
+                        softWrap: true,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -960,7 +828,7 @@ class _StatCard extends StatelessWidget {
   final String title;
   final String value;
   final String entitlement;
-  final Widget subtitleWidget;
+  final Widget? subtitleWidget;
   final IconData icon;
   final Color color;
 
@@ -968,7 +836,7 @@ class _StatCard extends StatelessWidget {
     required this.title,
     required this.value,
     required this.entitlement,
-    required this.subtitleWidget,
+    this.subtitleWidget,
     required this.icon,
     required this.color,
   });
@@ -1028,7 +896,7 @@ class _StatCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitleWidget,
+                      if (subtitleWidget != null) subtitleWidget!,
                     ],
                   ),
                 ),
@@ -1052,7 +920,7 @@ class _StatCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                subtitleWidget,
+                if (subtitleWidget != null) subtitleWidget!,
               ],
             ),
     );

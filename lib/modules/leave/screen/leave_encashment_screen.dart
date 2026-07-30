@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../../../utils/app_config.dart';
+import '../../../utils/api_client.dart';
 import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
 import '../../auth/controller/auth_controller.dart';
@@ -39,20 +39,6 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
   bool _isSearching = false;
   bool _isSubmitting = false;
 
-  // Mock employee database
-  final Map<String, Map<String, dynamic>> _mockEmployees = {
-  
-    '00000463': {
-      'name': 'Asim Md.Iqbal Shaikh',
-      'docNo': '22283',
-      'createdOn': '14.02.2026',
-      'balance': '00199',
-      'approver': 'Manish M Malewar',
-      'status': 'UPDATED',
-    },
-  
-  };
-
   @override
   void dispose() {
     _employeeCodeSearchCtrl.dispose();
@@ -65,14 +51,11 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
       _isSearching = true;
     });
 
-    // Simulate search delay
-    await Future.delayed(const Duration(milliseconds: 800));
-
     final searchCode = _employeeCodeSearchCtrl.text.trim();
     if (searchCode.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Please enter an Employee Code.'),
+          content: Text('Please enter an Employee Number.'),
           backgroundColor: AppColors.error,
         ));
       }
@@ -82,86 +65,76 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
       return;
     }
 
-    final currentUserId = context.read<AuthController>().user?.employeeId;
-    final profileController = context.read<ProfileController>();
-    if (profileController.employees.isEmpty) {
-      await profileController.fetchAllEmployees();
-    }
-    final empList = profileController.employees;
-    
-    // Find matching employee or fallback
-    final hasMatch = empList.any((e) => e.employeeId == searchCode);
-    final emp = hasMatch 
-        ? empList.firstWhere((e) => e.employeeId == searchCode)
-        : null;
-
     final cleanSearchCode = searchCode.trim().replaceAll(RegExp('^0+'), '');
 
-    // Check if employee is in Organization Hierarchy (reports to current user)
-    final empMap = ProfileController.rawEmployees.firstWhere(
-      (e) => e['empNo'] == cleanSearchCode,
-      orElse: () => <String, dynamic>{},
-    );
-
-    final roId = empMap['reportingOfficer']?.toString() ?? '';
-    final ro1Id = empMap['reportingOfficer1']?.toString() ?? '';
-    
-    final cleanRoId = roId.trim().replaceAll(RegExp('^0+'), '');
-    final cleanRo1Id = ro1Id.trim().replaceAll(RegExp('^0+'), '');
-    final cleanCurrentUserId = (currentUserId ?? '').trim().replaceAll(RegExp('^0+'), '');
-    
-    final isTeamMember = (cleanRoId == cleanCurrentUserId || cleanRo1Id == cleanCurrentUserId);
-
-    double dbBalance = 0.0;
-    bool fetchSuccess = false;
-
     try {
+      // Fetch employee leave details from leave_quota table via API
       final prefs = await SharedPreferences.getInstance();
       final userJsonStr = prefs.getString('auth_user');
       String? token;
       if (userJsonStr != null) {
         token = jsonDecode(userJsonStr)['token'];
       }
-      if (token != null) {
-        final response = await http.get(
-          Uri.parse('${AppConfig.baseUrl}/api/leave-balances?employee_id=$cleanSearchCode'),
-          headers: {'Authorization': 'Bearer $token'},
-        );
-        if (response.statusCode == 200) {
-          final List<dynamic> balancesList = jsonDecode(response.body);
-          final elBalanceObj = balancesList.firstWhere(
-            (b) => b['timeAccount']?.toString().toLowerCase().contains('earned') == true || b['typeId']?.toString() == '1000',
-            orElse: () => null,
-          );
-          if (elBalanceObj != null) {
-            dbBalance = double.tryParse(elBalanceObj['entitlementMinusPlanned']?.toString() ?? '0') ?? 0.0;
-            fetchSuccess = true;
-          }
+
+      if (token == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Session expired. Please login again.'),
+            backgroundColor: AppColors.error,
+          ));
         }
+        setState(() => _isSearching = false);
+        return;
       }
-    } catch (e) {
-      debugPrint('Error fetching actual leave balance: $e');
-    }
 
-    if (!fetchSuccess && isTeamMember) {
-      dbBalance = 120.00;
-      fetchSuccess = true;
-    }
+      final response = await ApiClient.get(
+        Uri.parse('${AppConfig.baseUrl}/api/employee-leave-details/$cleanSearchCode'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
-    final data = _mockEmployees[searchCode] ?? {
-      'name': empMap['name'] ?? emp?.name ?? 'Employee $searchCode',
-      'docNo': '${22200 + searchCode.hashCode % 1000}',
-      'createdOn': DateFormat('dd-MM-yyyy').format(DateTime.now()),
-      'balance': fetchSuccess ? dbBalance.toStringAsFixed(2) : '0.00',
-      'approver': 'Rakesh Tumane',
-      'status': 'NEW',
-    };
+      if (response.statusCode != 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Employee $cleanSearchCode not found in database.'),
+            backgroundColor: AppColors.error,
+          ));
+        }
+        setState(() => _isSearching = false);
+        return;
+      }
 
-    DateTime joinDateParsed;
-    if (searchCode == '00000467') {
-      // Mock Vaishali Taksande as new hire (15 days service)
-      joinDateParsed = DateTime.now().subtract(const Duration(days: 15));
-    } else {
+      final data = jsonDecode(response.body);
+
+      // Extract employee name from database
+      final empName = data['employeeName']?.toString() ?? 'Employee $cleanSearchCode';
+
+      // Extract earned leave balance from leave_quota table
+      final earnedLeaveBalance = double.tryParse(data['earnedLeaveBalance']?.toString() ?? '0') ?? 0.0;
+
+      // Extract reporting officers
+      String resolvedApprover = 'Please contact Head Office';
+      final ro = data['reportingOfficer'];
+      final ro1 = data['reportingOfficer1'];
+      if (ro != null && ro1 != null) {
+        resolvedApprover = '${ro1['name']} & ${ro['name']}';
+      } else if (ro != null) {
+        resolvedApprover = ro['name']?.toString() ?? '-';
+      } else if (ro1 != null) {
+        resolvedApprover = ro1['name']?.toString() ?? '-';
+      }
+
+      // Calculate service days from profile data
+      final profileController = context.read<ProfileController>();
+      if (profileController.employees.isEmpty) {
+        await profileController.fetchAllEmployees();
+      }
+      final empList = profileController.employees;
+      final hasMatch = empList.any((e) => e.employeeId == searchCode || e.employeeId == cleanSearchCode);
+      final emp = hasMatch
+          ? empList.firstWhere((e) => e.employeeId == searchCode || e.employeeId == cleanSearchCode)
+          : null;
+
+      DateTime joinDateParsed;
       final joinDateStr = emp?.joinDate ?? '22/06/2018';
       try {
         final cleanDoj = joinDateStr.replaceAll('/', '-');
@@ -169,79 +142,31 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
       } catch (_) {
         joinDateParsed = DateTime.now().subtract(const Duration(days: 365));
       }
+      final serviceDays = DateTime.now().difference(joinDateParsed).inDays;
+
+      setState(() {
+        _employeeCode = cleanSearchCode;
+        _employeeName = empName;
+        _docNumber = '${22200 + cleanSearchCode.hashCode % 1000}';
+        _createdOn = DateFormat('dd-MM-yyyy').format(DateTime.now());
+        _leaveBalance = earnedLeaveBalance.toStringAsFixed(2);
+        _approver = resolvedApprover;
+        _docStatus = 'NEW';
+        _serviceDays = serviceDays;
+        _daysToEncashCtrl.text = '00000';
+        _isSearching = false;
+        _currentStep = 2;
+      });
+    } catch (e) {
+      debugPrint('Error fetching employee leave details: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error fetching details: $e'),
+          backgroundColor: AppColors.error,
+        ));
+      }
+      setState(() => _isSearching = false);
     }
-    final serviceDays = DateTime.now().difference(joinDateParsed).inDays;
-
-    String resolvedApprover = '-';
-    if (empMap.isNotEmpty) {
-      final roId = empMap['reportingOfficer']?.toString() ?? '';
-      final ro1Id = empMap['reportingOfficer1']?.toString() ?? '';
-      final roName = empMap['reportingOfficerName']?.toString() ?? '';
-      final ro1Name = empMap['reportingOfficer1Name']?.toString() ?? '';
-      
-      final cleanRoId = roId.trim().replaceAll(RegExp('^0+'), '');
-      final cleanRo1Id = ro1Id.trim().replaceAll(RegExp('^0+'), '');
-
-      bool hasRo = roId.isNotEmpty && roId != '0' && roId != 'N/A';
-      bool hasRo1 = ro1Id.isNotEmpty && ro1Id != '0' && ro1Id != 'N/A';
-
-      String rName = '';
-      String r1Name = '';
-
-      if (hasRo) {
-        if (roName.isNotEmpty && roName != roId && roName.toLowerCase() != 'n/a') {
-          rName = roName;
-        } else {
-          final roMap = ProfileController.rawEmployees.firstWhere(
-            (e) => e['empNo'] == cleanRoId,
-            orElse: () => <String, dynamic>{},
-          );
-          rName = (roMap.isNotEmpty && roMap['name'] != null && roMap['name'].toString().isNotEmpty) 
-              ? roMap['name'] 
-              : "Please contact Head Office";
-        }
-      }
-
-      if (hasRo1) {
-        if (ro1Name.isNotEmpty && ro1Name != ro1Id && ro1Name.toLowerCase() != 'n/a') {
-          r1Name = ro1Name;
-        } else {
-          final ro1Map = ProfileController.rawEmployees.firstWhere(
-            (e) => e['empNo'] == cleanRo1Id,
-            orElse: () => <String, dynamic>{},
-          );
-          r1Name = (ro1Map.isNotEmpty && ro1Map['name'] != null && ro1Map['name'].toString().isNotEmpty) 
-              ? ro1Map['name'] 
-              : "Please contact Head Office";
-        }
-      }
-
-      if (rName.isNotEmpty && r1Name.isNotEmpty) {
-        resolvedApprover = '$r1Name & $rName';
-      } else if (rName.isNotEmpty) {
-        resolvedApprover = rName;
-      } else if (r1Name.isNotEmpty) {
-        resolvedApprover = r1Name;
-      } else {
-        resolvedApprover = 'Please contact Head Office';
-      }
-    } else {
-      resolvedApprover = 'Please contact Head Office';
-    }
-
-    setState(() {
-      _employeeCode = searchCode;
-      _employeeName = data['name'];
-      _docNumber = data['docNo'];
-      _createdOn = data['createdOn'];
-      _leaveBalance = data['balance'];
-      _approver = resolvedApprover;
-      _docStatus = data['status'];
-      _serviceDays = serviceDays;
-      _daysToEncashCtrl.text = '00000';
-      _isSearching = false;
-      _currentStep = 2; // Proceed to details form
-    });
   }
 
   void _handleSubmit() async {
@@ -265,33 +190,33 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
     final balance = double.tryParse(_leaveBalance) ?? 0.0;
     if (days > balance) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Requested days exceed current Earned Leave Balance of $balance.'),
+        content: Text('Requested days exceed current Earned Leave Balance of ${balance.toStringAsFixed(0)}.'),
         backgroundColor: AppColors.error,
       ));
       return;
     }
 
-    final maxEligibleDays = (balance * 0.5).toInt();
-    if (days > maxEligibleDays) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Not eligible: You can only encash up to 50% of your total balance (Max: $maxEligibleDays days).'),
-        backgroundColor: AppColors.error,
-      ));
+    final halfBalance = (balance * 0.5).toInt();
+    final maxAllowed = halfBalance < 30 ? halfBalance : 30;
+
+    if (days > maxAllowed) {
+      if (halfBalance < 30) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Not eligible: You can only encash up to 50% of your total balance (Max: $halfBalance days for balance of ${balance.toStringAsFixed(0)}).'),
+          backgroundColor: AppColors.error,
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Not eligible: Maximum 30 days can be encashed in a financial year.'),
+          backgroundColor: AppColors.error,
+        ));
+      }
       return;
     }
 
     setState(() {
       _isSubmitting = true;
     });
-
-    final finalDays = days > 30 ? 30 : days;
-    if (days > 30) {
-      _daysToEncashCtrl.text = '30';
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Note: Encashment request has been capped to the maximum of 30 days.'),
-        backgroundColor: Colors.blueAccent,
-      ));
-    }
 
     await Future.delayed(const Duration(milliseconds: 200));
     setState(() {
@@ -433,7 +358,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Employee Code:',
+                            'Employee Number:',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
                           ),
                           const SizedBox(height: 4),
@@ -455,7 +380,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
                         const SizedBox(
                           width: 120,
                           child: Text(
-                            'Employee Code:',
+                            'Employee Number:',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
                             textAlign: TextAlign.end,
                           ),
@@ -711,7 +636,7 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
   Widget _buildDetailsLeftColumn() {
     return Column(
       children: [
-        _buildStaticRow('* Employee Code:', _employeeCode),
+        _buildStaticRow('* Employee Number:', _employeeCode),
         const SizedBox(height: 8),
         _buildStaticRow('* Document Number:', _docNumber),
         const SizedBox(height: 8),
@@ -723,6 +648,10 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
   }
 
   Widget _buildDetailsRightColumn() {
+    final balance = double.tryParse(_leaveBalance) ?? 0.0;
+    final halfBalance = (balance * 0.5).toInt();
+    final maxAllowed = halfBalance < 30 ? halfBalance : 30;
+
     return Column(
       children: [
         _buildStaticRow('* Employee Name:', _employeeName),
@@ -747,10 +676,13 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
                     controller: _daysToEncashCtrl,
                     style: const TextStyle(fontSize: 12, color: Colors.black87),
                     keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
+                      helperText: 'Max eligible: $maxAllowed days (50% of balance up to max 30 days)',
+                      helperStyle: const TextStyle(fontSize: 10, color: Colors.blueGrey),
                     ),
                   ),
                 ],
@@ -773,10 +705,13 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
                     controller: _daysToEncashCtrl,
                     style: const TextStyle(fontSize: 12, color: Colors.black87),
                     keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
+                      helperText: 'Max eligible: $maxAllowed days (50% of balance up to max 30 days)',
+                      helperStyle: const TextStyle(fontSize: 10, color: Colors.blueGrey),
                     ),
                   ),
                 ),

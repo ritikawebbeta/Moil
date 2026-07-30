@@ -154,14 +154,15 @@ class LeaveBalanceScreen extends StatelessWidget {
           // Table
           LayoutBuilder(
             builder: (context, constraints) {
-              final totalWidth = constraints.maxWidth > 740 ? constraints.maxWidth : 740.0;
-              final extraWidth = totalWidth - 740.0;
+              final totalWidth = constraints.maxWidth > 860 ? constraints.maxWidth : 860.0;
+              final extraWidth = totalWidth - 860.0;
 
-              final nameWidth = 160.0 + extraWidth * 0.3;
-              final dedFromWidth = 130.0 + extraWidth * 0.15;
-              final dedToWidth = 130.0 + extraWidth * 0.15;
-              final entitlementWidth = 120.0 + extraWidth * 0.15;
-              final plannedWidth = 200.0 + extraWidth * 0.25;
+              final nameWidth = 160.0 + extraWidth * 0.25;
+              final dedFromWidth = 130.0 + extraWidth * 0.12;
+              final dedToWidth = 130.0 + extraWidth * 0.12;
+              final entitlementWidth = 120.0 + extraWidth * 0.12;
+              final deductionWidth = 120.0 + extraWidth * 0.12;
+              final plannedWidth = 200.0 + extraWidth * 0.27;
 
               return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -177,6 +178,7 @@ class LeaveBalanceScreen extends StatelessWidget {
                           _HeaderCell(text: 'Deduction from', width: dedFromWidth),
                           _HeaderCell(text: 'Deduction to', width: dedToWidth),
                           _HeaderCell(text: 'Entitlement', width: entitlementWidth),
+                          _HeaderCell(text: 'Quota Deduction', width: deductionWidth),
                           _HeaderCell(text: 'Entitlement Minus Planned', width: plannedWidth),
                         ],
                       ),
@@ -239,6 +241,11 @@ class LeaveBalanceScreen extends StatelessWidget {
                                     text: '${b.entitlement.toStringAsFixed(2)} Days',
                                     width: entitlementWidth,
                                     valueColor: AppColors.success,
+                                  ),
+                                  _BodyCell(
+                                    text: b.taken.toStringAsFixed(2),
+                                    width: deductionWidth,
+                                    valueColor: AppColors.error,
                                   ),
                                   _BodyCell(
                                     text: '${b.entitlementMinusPlanned.toStringAsFixed(2)} Days',

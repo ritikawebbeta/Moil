@@ -44,6 +44,7 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
       if (auth.user != null) {
         context.read<LeaveController>().fetchLeaves(auth.user!.employeeId);
         context.read<LeaveController>().fetchBalances(auth.user!.employeeId);
+        context.read<ProfileController>().fetchAllEmployees();
       }
 
       // Add listener to automatically restore logged in user context on tab switch!
@@ -388,7 +389,8 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
 
   Widget _buildSidebar(BottomNavBarController navBarController, int selectedIndex) {
     final user = context.watch<AuthController>().user;
-    final isReportingOfficer = _getIsReportingOfficer(user);
+    final profileController = context.watch<ProfileController>();
+    final isReportingOfficer = profileController.employees.isNotEmpty || _getIsReportingOfficer(user);
 
     return Container(
       width: _isSidebarCollapsed ? 70 : 250,

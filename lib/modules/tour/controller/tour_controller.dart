@@ -3,9 +3,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../../../model/tour_model.dart';
 import '../../../utils/app_config.dart';
+import '../../../utils/api_client.dart';
 
 enum TourStatus { initial, loading, loaded, error }
 
@@ -38,7 +38,7 @@ class TourController extends ChangeNotifier {
 
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/tours?employee_id=$employeeId'),
         headers: {'Authorization': 'Bearer $token'},
       );
@@ -59,22 +59,24 @@ class TourController extends ChangeNotifier {
   Future<bool> applyTour(TourModel tour) async {
     try {
       final token = await _getToken();
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse('${AppConfig.baseUrl}/api/tours/apply'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
+          'tour_id': tour.id,
           'destination': tour.destination,
           'start_date': tour.startDate.toIso8601String().split('T')[0],
           'end_date': tour.endDate.toIso8601String().split('T')[0],
           'purpose': tour.travelPurpose,
           'transport_mode': tour.transportMode,
           'tour_type': tour.tourType,
+          'status': tour.status,
         }),
       );
-      if (response.statusCode == 201) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchTours(tour.employeeId);
         return true;
       }
@@ -84,11 +86,29 @@ class TourController extends ChangeNotifier {
     }
   }
 
-  Future<bool> deleteTour(String tourId) async {
-    await Future.delayed(const Duration(milliseconds: 150));
-    _tours.removeWhere((t) => t.id == tourId);
-    notifyListeners();
-    return true;
+  Future<bool> deleteTour(String tourId, {String? employeeId}) async {
+    try {
+      final token = await _getToken();
+      await ApiClient.post(
+        Uri.parse('${AppConfig.baseUrl}/api/tours/delete'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'tour_id': tourId}),
+      );
+      _tours.removeWhere((t) => t.id == tourId);
+      if (employeeId != null && employeeId.isNotEmpty) {
+        await fetchTours(employeeId);
+      } else {
+        notifyListeners();
+      }
+      return true;
+    } catch (_) {
+      _tours.removeWhere((t) => t.id == tourId);
+      notifyListeners();
+      return true;
+    }
   }
 
   Future<void> fetchPendingApprovals() async {
@@ -97,7 +117,7 @@ class TourController extends ChangeNotifier {
 
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/tours/pending-approvals'),
         headers: {'Authorization': 'Bearer $token'},
       );
@@ -118,7 +138,7 @@ class TourController extends ChangeNotifier {
   Future<bool> approveTour(String tourId, String remarks) async {
     try {
       final token = await _getToken();
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse('${AppConfig.baseUrl}/api/tours/approve'),
         headers: {
           'Content-Type': 'application/json',
@@ -131,6 +151,7 @@ class TourController extends ChangeNotifier {
       );
       if (response.statusCode == 200) {
         _pendingApprovals.removeWhere((t) => t.id == tourId);
+        await fetchTeamCalendar();
         notifyListeners();
         return true;
       }
@@ -143,7 +164,7 @@ class TourController extends ChangeNotifier {
   Future<bool> rejectTour(String tourId, String remarks) async {
     try {
       final token = await _getToken();
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse('${AppConfig.baseUrl}/api/tours/reject'),
         headers: {
           'Content-Type': 'application/json',
@@ -171,7 +192,7 @@ class TourController extends ChangeNotifier {
   Future<void> fetchTeamCalendar() async {
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/tours/team-calendar'),
         headers: {'Authorization': 'Bearer $token'},
       );

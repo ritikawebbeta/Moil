@@ -2,10 +2,11 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../model/notification_model.dart';
 import '../../../utils/app_config.dart';
+import '../../../utils/api_client.dart';
 
 class NotificationController extends ChangeNotifier {
   List<NotificationModel> _notifications = [];
@@ -29,7 +30,7 @@ class NotificationController extends ChangeNotifier {
   Future<void> fetchNotifications() async {
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/notifications'),
         headers: {'Authorization': 'Bearer $token'},
       );
@@ -66,7 +67,7 @@ class NotificationController extends ChangeNotifier {
 
       _getToken().then((token) {
         if (token != null) {
-          http.post(
+          ApiClient.post(
             Uri.parse('${AppConfig.baseUrl}/api/notifications/read'),
             headers: {
               'Content-Type': 'application/json',

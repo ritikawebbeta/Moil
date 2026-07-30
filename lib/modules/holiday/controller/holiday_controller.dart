@@ -3,9 +3,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../../../model/holiday_model.dart';
 import '../../../utils/app_config.dart';
+import '../../../utils/api_client.dart';
 
 class HolidayController extends ChangeNotifier {
   bool _isLoading = false;
@@ -44,7 +44,7 @@ class HolidayController extends ChangeNotifier {
 
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/holidays'),
         headers: {'Authorization': 'Bearer $token'},
       );

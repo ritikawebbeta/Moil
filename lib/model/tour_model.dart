@@ -27,6 +27,11 @@ class TourModel {
   final bool railways;
   final bool privateCar;
 
+  final String? reportingOfficer;
+  final String? reportingOfficerName;
+  final String? reportingOfficer1;
+  final String? reportingOfficer1Name;
+
   const TourModel({
     required this.id,
     required this.employeeId,
@@ -51,6 +56,10 @@ class TourModel {
     this.selfCar = false,
     this.railways = false,
     this.privateCar = false,
+    this.reportingOfficer,
+    this.reportingOfficerName,
+    this.reportingOfficer1,
+    this.reportingOfficer1Name,
   });
 
   factory TourModel.fromJson(Map<String, dynamic> json) {
@@ -59,15 +68,15 @@ class TourModel {
       employeeId: json['employeeId']?.toString() ?? '',
       tourType: json['tourType']?.toString() ?? '',
       destination: json['destination']?.toString() ?? '',
-      startDate: DateTime.tryParse(json['startDate']?.toString() ?? '') ?? DateTime.now(),
-      endDate: DateTime.tryParse(json['endDate']?.toString() ?? '') ?? DateTime.now(),
+      startDate: _parseDate(json['startDate']?.toString()),
+      endDate: _parseDate(json['endDate']?.toString()),
       travelPurpose: json['travelPurpose']?.toString() ?? '',
       transportMode: json['transportMode']?.toString() ?? '',
       processor: json['processor']?.toString(),
       status: json['status']?.toString() ?? 'Pending',
       remarks: json['remarks']?.toString(),
-      appliedOn: json['appliedOn'] != null ? DateTime.tryParse(json['appliedOn'].toString()) : null,
-      approvedOn: json['approvedOn'] != null ? DateTime.tryParse(json['approvedOn'].toString()) : null,
+      appliedOn: json['appliedOn'] != null ? _parseDate(json['appliedOn'].toString()) : null,
+      approvedOn: json['approvedOn'] != null ? _parseDate(json['approvedOn'].toString()) : null,
       countryRegion: json['countryRegion']?.toString() ?? 'India',
       activity: json['activity']?.toString() ?? 'Official Tour',
       advances: (json['advances'] as num?)?.toDouble() ?? 0.0,
@@ -78,6 +87,10 @@ class TourModel {
       selfCar: json['selfCar'] ?? false,
       railways: json['railways'] ?? false,
       privateCar: json['privateCar'] ?? false,
+      reportingOfficer: json['reportingOfficer']?.toString(),
+      reportingOfficerName: json['reportingOfficerName']?.toString(),
+      reportingOfficer1: json['reportingOfficer1']?.toString(),
+      reportingOfficer1Name: json['reportingOfficer1Name']?.toString(),
     );
   }
 
@@ -160,4 +173,27 @@ class TourModel {
       privateCar: privateCar ?? this.privateCar,
     );
   }
+}
+
+DateTime _parseDate(String? input) {
+  if (input == null || input.trim().isEmpty) return DateTime.now();
+  final str = input.trim();
+  final parsedIso = DateTime.tryParse(str);
+  if (parsedIso != null) return parsedIso;
+
+  final parts = str.split(RegExp(r'[\.\-\/]'));
+  if (parts.length >= 3) {
+    if (parts[0].length == 4) {
+      final y = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      final d = int.tryParse(parts[2]);
+      if (y != null && m != null && d != null) return DateTime(y, m, d);
+    } else if (parts[2].length == 4) {
+      final d = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      final y = int.tryParse(parts[2]);
+      if (y != null && m != null && d != null) return DateTime(y, m, d);
+    }
+  }
+  return DateTime.now();
 }

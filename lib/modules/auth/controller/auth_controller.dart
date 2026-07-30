@@ -3,9 +3,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../../../model/user_model.dart';
 import '../../../utils/app_config.dart';
+import '../../../utils/api_client.dart';
 import '../../profile/controller/profile_controller.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
@@ -48,7 +48,7 @@ class AuthController extends ChangeNotifier {
 
 
     try {
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse('${AppConfig.baseUrl}/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -106,6 +106,7 @@ class AuthController extends ChangeNotifier {
   Future<void> logout() async {
     _status = AuthStatus.unauthenticated;
     _user = null;
+    ProfileController.rawEmployees = [];
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('auth_user');
@@ -121,7 +122,7 @@ class AuthController extends ChangeNotifier {
       final userMap = jsonDecode(userJsonStr);
       final token = userMap['token'];
 
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse('${AppConfig.baseUrl}/api/change-password'),
         headers: {
           'Content-Type': 'application/json',

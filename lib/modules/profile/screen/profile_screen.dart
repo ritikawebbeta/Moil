@@ -123,18 +123,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'subarea': raw['subarea'] ?? emp.presentPlaceOfPosting,
       'gender': raw['gender'] ?? emp.gender,
       'dob': _formatRawDate(raw['dob'] ?? emp.dateOfBirth),
-      'qual': raw['qual'] ?? 'N/A',
+      'qual': (emp.qualification.toString().trim().isNotEmpty && emp.qualification != 'N/A') ? emp.qualification : (raw['qual']?.toString() ?? 'N/A'),
       'basic': raw['basic'] ?? emp.basicSalary,
       'apptDate': _formatRawDate(raw['apptDate'] ?? emp.joinDate),
-      'dosl': _formatRawDate(raw['dosl']),
+      'dosl': _formatRawDate(raw['dosl'] ?? emp.lastPromotionDate),
       'dopp': _formatRawDate(raw['dopp'] ?? emp.dopp),
       'retireDate': _formatRawDate(raw['retireDate'] ?? emp.retirementDate),
       'caste': raw['caste'] ?? emp.category,
       'marital': raw['marital'] ?? emp.maritalStatus,
       'mobile': raw['mobile'] ?? emp.mobileNumber,
-      'email': raw['email'] ?? emp.email,
+      'email': (emp.email.toString().trim().isNotEmpty && emp.email != 'N/A') ? emp.email : (raw['email']?.toString() ?? 'N/A'),
       'voter': raw['voter'] ?? 'N/A',
-      'uan': raw['uan'] ?? emp.uanNo,
+      'uan': (emp.uanNo.toString().trim().isNotEmpty && emp.uanNo != 'N/A') ? emp.uanNo : (raw['uan']?.toString() ?? 'N/A'),
       'pension': raw['pension'] ?? emp.pensionNo,
       'passport': raw['passport'] ?? 'N/A',
       'pan': raw['pan'] ?? emp.panNo,
@@ -167,9 +167,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'nomPfRel': raw['nomPfRel'] ?? 'N/A',
       'nomPension': raw['nomPension'] ?? 'N/A',
       'nomPensionRel': raw['nomPensionRel'] ?? 'N/A',
-      'permAddress': raw['permAddress'] ?? emp.address,
-      'tempAddress': raw['tempAddress'] ?? 'N/A',
-      'emergAddress': raw['emergAddress'] ?? 'N/A',
+      'permAddress': (emp.permanentAddress.toString().trim().isNotEmpty && emp.permanentAddress != 'N/A')
+          ? emp.permanentAddress
+          : ((raw['permAddress'] != null && raw['permAddress'] != 'N/A') ? raw['permAddress'] : emp.address),
+      'tempAddress': (emp.temporaryAddress.toString().trim().isNotEmpty && emp.temporaryAddress != 'N/A')
+          ? emp.temporaryAddress
+          : (raw['tempAddress']?.toString() ?? 'N/A'),
+      'emergAddress': (emp.emergencyAddress.toString().trim().isNotEmpty && emp.emergencyAddress != 'N/A')
+          ? emp.emergencyAddress
+          : (raw['emergAddress']?.toString() ?? 'N/A'),
       'spouse': raw['spouse'] ?? emp.fatherSpouseName,
       'spouseDob': _formatRawDate(raw['spouseDob']),
       'child1': raw['child1'] ?? 'N/A',
@@ -416,16 +422,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ]),
             TableRow(children: [
               cellText('PENSION NO', bold: true),
-              cellText(': ${data['pensionPf']}'),
+              cellText(': ${data['pension']}'),
             ]),
-            TableRow(children: [
-              cellText('REPORTING OFFICER (L1)', bold: true),
-              cellText(': ${data['ro']}'),
-            ]),
-            TableRow(children: [
-              cellText('REPORTING OFFICER 1 (L2)', bold: true),
-              cellText(': ${data['ro1']}'),
-            ]),
+            // TableRow(children: [
+            //   cellText('REPORTING OFFICER (L1)', bold: true),
+            //   cellText(': ${data['ro']}'),
+            // ]),
+            // TableRow(children: [
+            //   cellText('REPORTING OFFICER 1 (L2)', bold: true),
+            //   cellText(': ${data['ro1']}'),
+            // ]),
           ],
         );
       } else {
@@ -514,14 +520,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               cellText('MARITAL STATUS', bold: true),
               cellText(': ${data['marital']}'),
               cellText('PENSION NO', bold: true),
-              cellText(': ${data['pensionPf']}'),
+              cellText(': ${data['pension']}'),
             ]),
-            TableRow(children: [
-              cellText('REPORTING OFFICER (L1)', bold: true),
-              cellText(': ${data['ro']}'),
-              cellText('REPORTING OFFICER 1 (L2)', bold: true),
-              cellText(': ${data['ro1']}'),
-            ]),
+            // TableRow(children: [
+            //   cellText('REPORTING OFFICER (L1)', bold: true),
+            //   cellText(': ${data['ro']}'),
+            //   cellText('REPORTING OFFICER 1 (L2)', bold: true),
+            //   cellText(': ${data['ro1']}'),
+            // ]),
           ],
         );
       }
@@ -778,7 +784,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 2: FlexColumnWidth(2.5),
                 3: FlexColumnWidth(2),
                 4: FlexColumnWidth(1.8),
-                5: FixedColumnWidth(55),
+                5: FlexColumnWidth(1.5),
               },
               children: [
                 TableRow(
@@ -789,20 +795,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     cellText('NOMINEE NAME', bold: true),
                     cellText('RELATIONSHIP WITH EMPLOYEE', bold: true),
                     cellText('DATE OF BIRTH', bold: true),
-                    cellText('%AGE', bold: true),
+                    cellText('PERCENTAGE (%)', bold: true),
                   ],
                 ),
                 if (emp.nominees.isNotEmpty)
                   ...emp.nominees.asMap().entries.map((e) {
                     final idx = e.key + 1;
                     final nom = e.value;
+                    final pct = nom['percentage'] ?? nom['share'] ?? nom['percentage_of_share'];
+                    final pctStr = pct != null ? '$pct%' : '100%';
                     return TableRow(children: [
                       cellText('$idx'),
                       cellText(nom['benefit'] ?? ''),
                       cellText(nom['name'] ?? ''),
                       cellText(nom['relation'] ?? ''),
                       cellText(nom['dob'] ?? ''),
-                      cellText(''),
+                      cellText(pctStr),
                     ]);
                   }).toList()
                 else
@@ -812,7 +820,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     cellText('N/A'),
                     cellText('N/A'),
                     cellText('N/A'),
-                    cellText(''),
+                    cellText('N/A'),
                   ]),
               ],
             ),
@@ -883,12 +891,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     final sh = e.value;
                     return TableRow(children: [
                       cellText('$idx'),
-                      cellText(sh['designation'] ?? ''),
-                      cellText(sh['grade'] ?? ''),
-                      cellText(sh['location'] ?? ''),
-                      cellText(sh['from'] ?? ''),
-                      cellText(sh['to'] ?? ''),
-                      cellText(sh['payscale'] ?? ''),
+                      cellText((sh['designation'] != null && sh['designation'].toString().trim().isNotEmpty) ? sh['designation'] : emp.designation),
+                      cellText((sh['grade'] != null && sh['grade'].toString().trim().isNotEmpty) ? sh['grade'] : emp.presentGrade),
+                      cellText((sh['location'] != null && sh['location'].toString().trim().isNotEmpty) ? sh['location'] : emp.presentPlaceOfPosting),
+                      cellText((sh['from'] != null && sh['from'].toString().trim().isNotEmpty) ? sh['from'] : emp.joinDate),
+                      cellText((sh['to'] != null && sh['to'].toString().trim().isNotEmpty) ? sh['to'] : 'Till Date'),
+                      cellText((sh['payscale'] != null && sh['payscale'].toString().trim().isNotEmpty && sh['payscale'] != 'N/A') ? sh['payscale'] : (emp.payscale != 'N/A' ? emp.payscale : emp.basicSalary)),
                     ]);
                   }).toList()
                 else
@@ -899,7 +907,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     cellText(emp.presentPlaceOfPosting),
                     cellText(emp.joinDate),
                     cellText('Till Date'),
-                    cellText(emp.basicSalary),
+                    cellText(emp.payscale != 'N/A' ? emp.payscale : emp.basicSalary),
                   ]),
               ],
             ),

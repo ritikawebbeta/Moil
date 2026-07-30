@@ -47,6 +47,7 @@ class EmployeeModel {
   final String employeeGroup;
   final String employeeSubgroup;
   final String dopp;
+  final String qualification;
 
   // Bank & Payslip Info
   final String bankAcc;
@@ -101,6 +102,7 @@ class EmployeeModel {
     this.employeeGroup = 'N/A',
     this.employeeSubgroup = 'N/A',
     this.dopp = 'N/A',
+    this.qualification = 'N/A',
   });
 
   static EmployeeModel fromJson(Map<String, dynamic> json) {
@@ -125,13 +127,13 @@ class EmployeeModel {
       presentPostingDate: json['presentPostingDate']?.toString() ?? '',
       retirementDate: json['retirementDate']?.toString() ?? '',
       mobileNumber: json['mobileNumber']?.toString() ?? json['mobile']?.toString() ?? '',
-      email: json['email']?.toString() ?? '',
-      uanNo: json['uanNo']?.toString() ?? '',
+      email: (json['email'] != null && json['email'].toString().trim().isNotEmpty) ? json['email'].toString().trim() : (json['email_id']?.toString() ?? 'N/A'),
+      uanNo: (json['uanNo'] != null && json['uanNo'].toString().trim().isNotEmpty) ? json['uanNo'].toString().trim() : (json['uan']?.toString() ?? 'N/A'),
       panNo: json['panNo']?.toString() ?? json['pan_number']?.toString() ?? '',
-      aadhaarNo: json['aadhaarNo']?.toString() ?? '',
-      pranNo: json['pranNo']?.toString() ?? '',
-      pfNo: json['pfNo']?.toString() ?? '',
-      pensionNo: json['pensionNo']?.toString() ?? '',
+      aadhaarNo: json['aadhaarNo']?.toString() ?? json['aadhar_number']?.toString() ?? 'N/A',
+      pranNo: json['pranNo']?.toString() ?? json['praan_no']?.toString() ?? 'N/A',
+      pfNo: json['pfNo']?.toString() ?? json['employee_pf_number']?.toString() ?? 'N/A',
+      pensionNo: json['pensionNo']?.toString() ?? json['employee_pension_number']?.toString() ?? 'N/A',
       reportingOfficer: json['reportingOfficer']?.toString() ?? '',
       reportingOfficer1: json['reportingOfficer1']?.toString() ?? '',
       reportingOfficerName: json['reportingOfficerName']?.toString() ?? '',
@@ -151,6 +153,7 @@ class EmployeeModel {
       employeeGroup: json['employeeGroup']?.toString() ?? json['employee_group']?.toString() ?? 'N/A',
       employeeSubgroup: json['employeeSubgroup']?.toString() ?? json['employee_subgroup']?.toString() ?? 'N/A',
       dopp: json['dopp']?.toString() ?? 'N/A',
+      qualification: json['qualification']?.toString() ?? json['qual']?.toString() ?? 'N/A',
     );
   }
 
@@ -213,6 +216,7 @@ class EmployeeModel {
       'dept': department,
       'subgroupText': presentGrade,
       'dob': dateOfBirth,
+      'qual': qualification,
       'apptDate': joinDate,
       'latPromo': lastPromotionDate,
       'group': employeeGroup != 'N/A' ? employeeGroup : appointmentType,

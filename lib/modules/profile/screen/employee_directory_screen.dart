@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
 import '../../auth/controller/auth_controller.dart';
+import '../../../model/employee_model.dart';
 import '../controller/profile_controller.dart';
 import 'employee_detail_screen.dart';
 import '../../../widgets/employee_avatar_widget.dart';
@@ -19,6 +20,8 @@ class EmployeeDirectoryScreen extends StatefulWidget {
 class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
   bool _isTableView = true; // Default to table view
   final Set<String> _selectedEmployeeIds = {};
+  int _currentPage = 1;
+  int _pageSize = 15;
 
   // Filters State
   String _filterId = '';
@@ -77,28 +80,24 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                       return const Center(child: CircularProgressIndicator(color: AppColors.primary));
                     }
 
-                    // 1. Strict Organization Hierarchy Filters (Show only subordinates under logged-in officer)
-                    final List<Map<String, dynamic>> rawList = ProfileController.rawEmployees.where((m) {
+                    // 1. Employee Directory List (Unique employees cleanly loaded)
+                    final seenRawIds = <String>{};
+                    final List<Map<String, dynamic>> rawList = [];
+                    for (final m in ProfileController.rawEmployees) {
                       final empNo = m['empNo']?.toString().trim().replaceAll(RegExp('^0+'), '') ?? '';
-                      final cleanCurrentUserId = (currentUser?.employeeId ?? '').trim().replaceAll(RegExp('^0+'), '');
-                      if (cleanCurrentUserId.isEmpty) return false;
-                      if (empNo == cleanCurrentUserId) return false;
-                      if (cleanCurrentUserId == '16194') return true; // Rakesh Tumane sees all
-                      final ro = (m['reportingOfficer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
-                      final ro1 = (m['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
-                      return ro == cleanCurrentUserId || ro1 == cleanCurrentUserId;
-                    }).toList();
+                      if (empNo.isNotEmpty && seenRawIds.add(empNo)) {
+                        rawList.add(m);
+                      }
+                    }
 
-                    final List<dynamic> modelList = controller.employees.where((e) {
+                    final seenModelIds = <String>{};
+                    final List<EmployeeModel> modelList = [];
+                    for (final e in controller.employees) {
                       final empNo = e.employeeId.trim().replaceAll(RegExp('^0+'), '');
-                      final cleanCurrentUserId = (currentUser?.employeeId ?? '').trim().replaceAll(RegExp('^0+'), '');
-                      if (cleanCurrentUserId.isEmpty) return false;
-                      if (empNo == cleanCurrentUserId) return false;
-                      if (cleanCurrentUserId == '16194') return true; // Rakesh Tumane sees all
-                      final ro = e.reportingOfficer.trim().replaceAll(RegExp('^0+'), '');
-                      final ro1 = e.reportingOfficer1.trim().replaceAll(RegExp('^0+'), '');
-                      return ro == cleanCurrentUserId || ro1 == cleanCurrentUserId;
-                    }).toList();
+                      if (empNo.isNotEmpty && seenModelIds.add(empNo)) {
+                        modelList.add(e);
+                      }
+                    }
 
                     bool matchMultiTerm(String value, String filter) {
                       if (filter.isEmpty) return true;
@@ -141,7 +140,7 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                     }
 
                     if (_isTableView) {
-                      return _buildTableView(filteredModels, filteredRaw);
+                      return _buildTableView(filteredModels.cast<EmployeeModel>(), filteredRaw);
                     }
 
                     return _buildListView(filteredModels);
@@ -198,13 +197,39 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Icons.filter_alt_outlined, color: AppColors.primary, size: 16),
-              SizedBox(width: 6),
-              Text(
-                'Filter Directory',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              const Row(
+                children: [
+                  Icon(Icons.filter_alt_outlined, color: AppColors.primary, size: 16),
+                  SizedBox(width: 6),
+                  Text(
+                    'Filter Directory',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                ],
+              ),
+              Consumer<ProfileController>(
+                builder: (context, controller, _) {
+                  final totalCount = controller.employees.length;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      'Total Employees: $totalCount',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -276,7 +301,12 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
             borderSide: const BorderSide(color: AppColors.primary),
           ),
         ),
-        onChanged: onChanged,
+        onChanged: (val) {
+          setState(() {
+            _currentPage = 1;
+          });
+          onChanged(val);
+        },
       ),
     );
   }
@@ -314,19 +344,7 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
                       ),
                       child: (() {
                         final id = emp.employeeId.trim().replaceAll(RegExp('^0+'), '');
-                        if (id == '16194') {
-                          return Image.asset('assets/images/rakesh_tumane.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                        } else if (id == '17110') {
-                          return Image.asset('assets/images/sameer_banerjee.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                        } else if (id == '540') {
-                          return Image.asset('assets/images/swapnil_manpe.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                        } else if (id == '4410') {
-                          return Image.asset('assets/images/ranjeet_chouhan.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                        } else if (id == '4428') {
-                          return Image.asset('assets/images/bcn_gautam.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter);
-                        } else {
-                          return const Icon(Icons.person_rounded, color: AppColors.primary, size: 24);
-                        }
+                       
                       }()),
                     ),
                   ),
@@ -406,154 +424,247 @@ class _EmployeeDirectoryScreenState extends State<EmployeeDirectoryScreen> {
     );
   }
 
-  Widget _buildTableView(List<dynamic> employees, List<Map<String, dynamic>> filteredRaw) {
+  Widget _buildTableView(List<EmployeeModel> employees, List<Map<String, dynamic>> filteredRaw) {
+    final uniqueEmployees = <EmployeeModel>[];
+    final seenIds = <String>{};
+    for (final e in employees) {
+      final cleanId = e.employeeId.trim().replaceAll(RegExp('^0+'), '');
+      if (cleanId.isNotEmpty && seenIds.add(cleanId)) {
+        uniqueEmployees.add(e);
+      }
+    }
+
+    final totalItems = uniqueEmployees.length;
+    final totalPages = (totalItems / _pageSize).ceil();
+    final safePage = _currentPage.clamp(1, totalPages > 0 ? totalPages : 1);
+    final startIndex = (safePage - 1) * _pageSize;
+    final displayedEmployees = uniqueEmployees.skip(startIndex).take(_pageSize).toList();
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: GlassCard(
-        padding: EdgeInsets.zero,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Scrollbar(
-            controller: _horizontalScrollController,
-            thumbVisibility: true,
-            trackVisibility: true,
-            interactive: true,
-            notificationPredicate: (notif) => notif.depth == 0,
-            child: SingleChildScrollView(
-              controller: _horizontalScrollController,
-              scrollDirection: Axis.horizontal,
-              child: Scrollbar(
-                controller: _verticalScrollController,
-                thumbVisibility: true,
-                trackVisibility: true,
-                interactive: true,
-                child: SingleChildScrollView(
-                  controller: _verticalScrollController,
-                  scrollDirection: Axis.vertical,
-                  child: DataTable(
-                showCheckboxColumn: true,
-                headingRowColor: WidgetStateProperty.all(AppColors.primary.withOpacity(0.06)),
-                headingTextStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                  fontSize: 12,
-                ),
-                dataTextStyle: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textPrimary,
-                ),
-                columns: const [
-                  DataColumn(label: Text('Employee ID')),
-                  DataColumn(label: Text('Employee Name')),
-                  DataColumn(label: Text('Group')),
-                  DataColumn(label: Text('Subgroup')),
-                  DataColumn(label: Text('Position')),
-                  DataColumn(label: Text('Department')),
-                  DataColumn(label: Text('Date of Birth')),
-                  DataColumn(label: Text('Date of Appointment')),
-                  DataColumn(label: Text('Date of Present Posting')),
-                  DataColumn(label: Text('Date of Retirement')),
-                  DataColumn(label: Text('Mobile')),
-                  DataColumn(label: Text('Actions')),
-                ],
-                rows: filteredRaw.map((m) {
-                  final isSelected = _selectedEmployeeIds.contains(m['empNo']);
-                  final matches = employees.where((e) => e.employeeId == m['empNo']);
-                  final empModel = matches.isNotEmpty ? matches.first : null;
-
-                  return DataRow(
-                    selected: isSelected,
-                    onSelectChanged: (selected) {
-                      setState(() {
-                        if (selected == true) {
-                          _selectedEmployeeIds.add(m['empNo']);
-                        } else {
-                          _selectedEmployeeIds.remove(m['empNo']);
-                        }
-                      });
-                    },
-                    cells: [
-                      DataCell(Text(m['empNo'] ?? '')),
-                      DataCell(
-                        GestureDetector(
-                          onTap: () {
-                            if (empModel != null) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => EmployeeDetailScreen(employee: empModel)),
-                              );
-                            }
-                          },
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              EmployeeAvatarWidget(
-                                empNo: (m['empNo'] ?? '').toString(),
-                                width: 26,
-                                height: 26,
-                                borderRadius: BorderRadius.circular(13),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                m['name'] ?? '',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                            ],
+      child: Column(
+        children: [
+          Expanded(
+            child: GlassCard(
+              padding: EdgeInsets.zero,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Scrollbar(
+                  controller: _horizontalScrollController,
+                  thumbVisibility: true,
+                  trackVisibility: true,
+                  interactive: true,
+                  notificationPredicate: (notif) => notif.depth == 0,
+                  child: SingleChildScrollView(
+                    controller: _horizontalScrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: Scrollbar(
+                      controller: _verticalScrollController,
+                      thumbVisibility: true,
+                      trackVisibility: true,
+                      interactive: true,
+                      child: SingleChildScrollView(
+                        controller: _verticalScrollController,
+                        scrollDirection: Axis.vertical,
+                        child: DataTable(
+                          columnSpacing: 24,
+                          horizontalMargin: 16,
+                          showCheckboxColumn: true,
+                          headingRowColor: WidgetStateProperty.all(AppColors.primary.withOpacity(0.06)),
+                          headingTextStyle: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                            fontSize: 12,
                           ),
-                        ),
-                      ),
-                      DataCell(Text(m['group'] ?? '')),
-                      DataCell(Text(m['subgroup'] ?? '')),
-                      DataCell(Text(m['position'] ?? '')),
-                      DataCell(Text(m['dept'] ?? '')),
-                      DataCell(Text(m['dob'] ?? '')),
-                      DataCell(Text(m['apptDate'] ?? '')),
-                      DataCell(Text(m['dopp'] ?? '')),
-                      DataCell(Text(m['retireDate'] ?? '')),
-                      DataCell(Text(m['mobile'] ?? '')),
-                      DataCell(
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.receipt_long_rounded, color: AppColors.primary, size: 18),
-                              tooltip: 'View Payslips',
-                              onPressed: () {
-                                if (empModel != null) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => EmployeeDetailScreen(employee: empModel, initialTabIndex: 3),
-                                    ),
-                                  );
-                                }
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.print_outlined, color: AppColors.primary, size: 18),
-                              tooltip: 'Print HRIS Profile',
-                              onPressed: () {
-                                if (empModel != null) {
-                                  ProfilePdfHelper.printEmployeeProfilePdf(empModel);
-                                }
-                              },
-                            ),
+                          dataTextStyle: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textPrimary,
+                          ),
+                          columns: const [
+                            DataColumn(label: Text('Employee ID')),
+                            DataColumn(label: Text('Employee Name')),
+                            DataColumn(label: Text('Group')),
+                            DataColumn(label: Text('Subgroup')),
+                            DataColumn(label: Text('Position')),
+                            DataColumn(label: Text('Department')),
+                            DataColumn(label: Text('Date of Birth')),
+                            DataColumn(label: Text('Date of Appointment')),
+                            DataColumn(label: Text('Date of Present Posting')),
+                            DataColumn(label: Text('Date of Retirement')),
+                            DataColumn(label: Text('Mobile')),
+                            DataColumn(label: Text('Actions')),
                           ],
+                          rows: displayedEmployees.map<DataRow>((EmployeeModel emp) {
+                            final isSelected = _selectedEmployeeIds.contains(emp.employeeId);
+
+                            return DataRow(
+                              selected: isSelected,
+                              onSelectChanged: (selected) {
+                                setState(() {
+                                  if (selected == true) {
+                                    _selectedEmployeeIds.add(emp.employeeId);
+                                  } else {
+                                    _selectedEmployeeIds.remove(emp.employeeId);
+                                  }
+                                });
+                              },
+                              cells: [
+                                DataCell(Text(emp.employeeId)),
+                                DataCell(
+                                  GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (_) => EmployeeDetailScreen(employee: emp)),
+                                      );
+                                    },
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        EmployeeAvatarWidget(
+                                          empNo: emp.employeeId,
+                                          width: 26,
+                                          height: 26,
+                                          borderRadius: BorderRadius.circular(13),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          emp.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.primary,
+                                            decoration: TextDecoration.underline,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                DataCell(Text(emp.employeeGroup != 'N/A' ? emp.employeeGroup : emp.appointmentType)),
+                                DataCell(Text(emp.employeeSubgroup)),
+                                DataCell(Text(emp.designation)),
+                                DataCell(Text(emp.department)),
+                                DataCell(Text(emp.dateOfBirth)),
+                                DataCell(Text(emp.joinDate)),
+                                DataCell(Text(emp.presentPostingDate)),
+                                DataCell(Text(emp.retirementDate)),
+                                DataCell(Text(emp.mobileNumber)),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.visibility_rounded, color: AppColors.primary, size: 18),
+                                        tooltip: 'View Profile',
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(builder: (_) => EmployeeDetailScreen(employee: emp)),
+                                          );
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.receipt_long_rounded, color: AppColors.primary, size: 18),
+                                        tooltip: 'View Payslips',
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(builder: (_) => EmployeeDetailScreen(employee: emp, initialTabIndex: 3)),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
                         ),
                       ),
-                    ],
-                  );
-                }).toList(),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-          ),
-          ),
-        ),
+          if (totalItems > 0) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.primary.withOpacity(0.12)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Showing ${startIndex + 1}–${startIndex + displayedEmployees.length} of $totalItems employees',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                  ),
+                  Row(
+                    children: [
+                      if (startIndex + displayedEmployees.length < totalItems) ...[
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          icon: const Icon(Icons.add_rounded, size: 14),
+                          label: const Text('Show More (+15)'),
+                          onPressed: () {
+                            setState(() {
+                              _pageSize += 15;
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left_rounded, size: 22),
+                        color: safePage > 1 ? AppColors.primary : AppColors.textHint,
+                        onPressed: safePage > 1 ? () => setState(() => _currentPage--) : null,
+                      ),
+                      Text(
+                        'Page $safePage of $totalPages',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right_rounded, size: 22),
+                        color: safePage < totalPages ? AppColors.primary : AppColors.textHint,
+                        onPressed: safePage < totalPages ? () => setState(() => _currentPage++) : null,
+                      ),
+                      const SizedBox(width: 8),
+                      DropdownButton<int>(
+                        value: [15, 30, 50, 100].contains(_pageSize) ? _pageSize : 15,
+                        underline: const SizedBox(),
+                        style: const TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold),
+                        items: const [
+                          DropdownMenuItem(value: 15, child: Text('15 / page')),
+                          DropdownMenuItem(value: 30, child: Text('30 / page')),
+                          DropdownMenuItem(value: 50, child: Text('50 / page')),
+                          DropdownMenuItem(value: 100, child: Text('100 / page')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _pageSize = val;
+                              _currentPage = 1;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

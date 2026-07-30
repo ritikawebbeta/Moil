@@ -38,14 +38,8 @@ import 'utils/app_colors.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load raw employees asset data before starting the app!
-  try {
-    final jsonStr = await rootBundle.loadString('assets/data/employees.json');
-    final List<dynamic> list = jsonDecode(jsonStr);
-    ProfileController.rawEmployees = list.cast<Map<String, dynamic>>();
-  } catch (e) {
-    debugPrint('Error loading raw employees: $e');
-  }
+  // Initialize raw employees list
+  ProfileController.rawEmployees = [];
 
   if (!kIsWeb) {
     try {

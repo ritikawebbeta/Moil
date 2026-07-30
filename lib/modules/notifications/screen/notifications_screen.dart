@@ -16,6 +16,8 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  int _displayedCount = 10;
+
   @override
   void initState() {
     super.initState();
@@ -44,8 +46,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ),
       body: Consumer<NotificationController>(
         builder: (context, controller, _) {
+          final totalCount = controller.notifications.length;
+          final hasMore = totalCount > _displayedCount;
+          final visibleList = controller.notifications.take(_displayedCount).toList();
+
           return RefreshIndicator(
-            onRefresh: () => controller.fetchNotifications(),
+            onRefresh: () async {
+              setState(() {
+                _displayedCount = 10;
+              });
+              await controller.fetchNotifications();
+            },
             color: AppColors.primary,
             child: controller.notifications.isEmpty
                 ? ListView(
@@ -62,10 +73,35 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 : ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
-                    itemCount: controller.notifications.length,
+                    itemCount: visibleList.length + (hasMore ? 1 : 0),
                     itemBuilder: (context, index) {
-                      final notif = controller.notifications[index];
-                      return _NotifCard(notif: notif, onTap: () => controller.markAsRead(notif.id));
+                      if (index < visibleList.length) {
+                        final notif = visibleList[index];
+                        return _NotifCard(notif: notif, onTap: () => controller.markAsRead(notif.id));
+                      }
+                      final remaining = totalCount - _displayedCount;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Center(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _displayedCount += 10;
+                              });
+                            },
+                            icon: const Icon(Icons.arrow_downward_rounded, size: 16, color: AppColors.primary),
+                            label: Text(
+                              'Read More (+$remaining remaining)',
+                              style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.primary, width: 1.5),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            ),
+                          ),
+                        ),
+                      );
                     },
                   ),
           );

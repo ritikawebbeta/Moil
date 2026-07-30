@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 
 class ConnectivityController extends ChangeNotifier {
   final Connectivity _connectivity = Connectivity();
@@ -11,13 +12,23 @@ class ConnectivityController extends ChangeNotifier {
   bool _isChecking = false;
 
   ConnectivityController() {
-    _initConnectivity();
-    _subscription = _connectivity.onConnectivityChanged.listen(
-      _updateConnectionStatus,
-      onError: (e) {
-        debugPrint("Connectivity Stream Error: $e");
-      },
-    );
+    if (kIsWeb) {
+      _isConnected = true;
+      _subscription = _connectivity.onConnectivityChanged.listen(
+        _updateConnectionStatus,
+        onError: (e) {
+          debugPrint("Connectivity Stream Error: $e");
+        },
+      );
+    } else {
+      _initConnectivity();
+      _subscription = _connectivity.onConnectivityChanged.listen(
+        _updateConnectionStatus,
+        onError: (e) {
+          debugPrint("Connectivity Stream Error: $e");
+        },
+      );
+    }
   }
 
   bool get isConnected => _isConnected;
@@ -33,8 +44,20 @@ class ConnectivityController extends ChangeNotifier {
   }
 
   void _updateConnectionStatus(List<ConnectivityResult> results) {
-    // In connectivity_plus v6.x, check if we have any active connection.
-    // If the list is empty or only contains ConnectivityResult.none, we are offline.
+    if (kIsWeb) {
+      if (results.length == 1 && results.contains(ConnectivityResult.none)) {
+        if (_isConnected != false) {
+          _isConnected = false;
+          notifyListeners();
+        }
+      } else if (results.isNotEmpty) {
+        if (_isConnected != true) {
+          _isConnected = true;
+          notifyListeners();
+        }
+      }
+      return;
+    }
     final hasConnection = results.isNotEmpty && !results.contains(ConnectivityResult.none);
     if (_isConnected != hasConnection) {
       _isConnected = hasConnection;

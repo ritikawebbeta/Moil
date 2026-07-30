@@ -366,7 +366,7 @@ class ProfilePdfHelper {
                 2: const pw.FlexColumnWidth(2.5),
                 3: const pw.FlexColumnWidth(2),
                 4: const pw.FlexColumnWidth(1.5),
-                5: const pw.FixedColumnWidth(45),
+                5: const pw.FlexColumnWidth(1.5),
               },
               children: [
                 pw.TableRow(
@@ -377,20 +377,22 @@ class ProfilePdfHelper {
                     cellText('NOMINEE NAME', bold: true, size: 8),
                     cellText('RELATIONSHIP', bold: true, size: 8),
                     cellText('DATE OF BIRTH', bold: true, size: 8),
-                    cellText('%AGE', bold: true, size: 8),
+                    cellText('PERCENTAGE (%)', bold: true, size: 8),
                   ],
                 ),
                 if (emp.nominees.isNotEmpty)
                   ...emp.nominees.asMap().entries.map((e) {
                     final idx = e.key + 1;
                     final nom = e.value;
+                    final pct = nom['percentage'] ?? nom['share'] ?? nom['percentage_of_share'];
+                    final pctStr = pct != null ? '$pct%' : '100%';
                     return pw.TableRow(children: [
                       cellText('$idx', size: 8),
                       cellText(nom['benefit'] ?? '', size: 8),
                       cellText(nom['name'] ?? '', size: 8),
                       cellText(nom['relation'] ?? '', size: 8),
                       cellText(nom['dob'] ?? '', size: 8),
-                      cellText('', size: 8),
+                      cellText(pctStr, size: 8),
                     ]);
                   }).toList()
                 else ...[

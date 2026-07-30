@@ -28,8 +28,6 @@ class EmployeeAvatarWidget extends StatelessWidget {
     final List<String> suffixes = ['_self', ''];
     final List<String> exts = ['.jpg', '.png', '.jpeg', '.JPG', '.PNG', '.JPEG'];
     final List<String> folders = [
-      'https://wcil.acubeai.com/test/moil_hr_app/uploads/profiles/Photo/',
-      'https://wcil.acubeai.com/test/moil_hr_app/uploads/profiles/',
       'https://acubeai.com/test/moil_hr_app/uploads/profiles/Photo/',
       'https://acubeai.com/test/moil_hr_app/uploads/profiles/',
     ];
@@ -53,6 +51,8 @@ class EmployeeAvatarWidget extends StatelessWidget {
       return Image.asset('assets/images/rakesh_tumane.jpg', fit: fit, alignment: Alignment.topCenter);
     } else if (cleanId == '17110') {
       return Image.asset('assets/images/sameer_banerjee.jpg', fit: fit, alignment: Alignment.topCenter);
+    } else if (cleanId == '446') {
+      return Image.asset('assets/images/raja_talathoti.jpg', fit: fit, alignment: Alignment.topCenter);
     } else if (cleanId == '540') {
       return Image.asset('assets/images/swapnil_manpe.jpg', fit: fit, alignment: Alignment.topCenter);
     } else if (cleanId == '4410') {

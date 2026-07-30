@@ -40,13 +40,25 @@ class LeaveModel {
   });
 
   factory LeaveModel.fromJson(Map<String, dynamic> json) {
+    DateTime parseDate(dynamic val) {
+      if (val == null) return DateTime.now();
+      final str = val.toString().trim().replaceAll(' ', 'T');
+      return DateTime.tryParse(str) ?? DateTime.now();
+    }
+
+    DateTime? parseNullableDate(dynamic val) {
+      if (val == null) return null;
+      final str = val.toString().trim().replaceAll(' ', 'T');
+      return DateTime.tryParse(str);
+    }
+
     return LeaveModel(
       id: json['id']?.toString() ?? '',
       employeeId: json['employeeId']?.toString() ?? '',
       leaveType: json['leaveType']?.toString() ?? '',
-      startDate: DateTime.tryParse(json['startDate']?.toString() ?? '') ?? DateTime.now(),
+      startDate: parseDate(json['startDate']),
       startTime: json['startTime']?.toString() ?? '00:00:00',
-      endDate: DateTime.tryParse(json['endDate']?.toString() ?? '') ?? DateTime.now(),
+      endDate: parseDate(json['endDate']),
       endTime: json['endTime']?.toString() ?? '00:00:00',
       duration: json['duration']?.toString() ?? 'Full-Day',
       processor: json['processor']?.toString(),
@@ -56,8 +68,8 @@ class LeaveModel {
       used: json['used']?.toString(),
       reason: json['reason']?.toString(),
       remarks: json['remarks']?.toString(),
-      appliedOn: json['appliedOn'] != null ? DateTime.tryParse(json['appliedOn'].toString()) : null,
-      approvedOn: json['approvedOn'] != null ? DateTime.tryParse(json['approvedOn'].toString()) : null,
+      appliedOn: parseNullableDate(json['appliedOn']),
+      approvedOn: parseNullableDate(json['approvedOn']),
     );
   }
 
@@ -89,6 +101,7 @@ class LeaveBalanceModel {
   final DateTime deductionFrom;
   final DateTime deductionTo;
   final double entitlement;
+  final double taken;
   final double entitlementMinusPlanned;
 
   const LeaveBalanceModel({
@@ -96,6 +109,7 @@ class LeaveBalanceModel {
     required this.deductionFrom,
     required this.deductionTo,
     required this.entitlement,
+    required this.taken,
     required this.entitlementMinusPlanned,
   });
 
@@ -105,6 +119,7 @@ class LeaveBalanceModel {
       deductionFrom: DateTime.tryParse(json['deductionFrom']?.toString() ?? '') ?? DateTime(2026, 1, 1),
       deductionTo: DateTime.tryParse(json['deductionTo']?.toString() ?? '') ?? DateTime(2026, 12, 31),
       entitlement: (json['entitlement'] as num?)?.toDouble() ?? 0.0,
+      taken: (json['taken'] as num?)?.toDouble() ?? 0.0,
       entitlementMinusPlanned: (json['entitlementMinusPlanned'] as num?)?.toDouble() ?? 0.0,
     );
   }

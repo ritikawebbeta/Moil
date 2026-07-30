@@ -1,10 +1,10 @@
 // lib/modules/approval/screen/approval_history_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../utils/app_config.dart';
+import '../../../utils/api_client.dart';
 import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
 
@@ -46,7 +46,7 @@ class _ApprovalHistoryScreenState extends State<ApprovalHistoryScreen> {
 
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/approvals/history'),
         headers: {'Authorization': 'Bearer $token'},
       );

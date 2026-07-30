@@ -33,7 +33,7 @@ class _TourScreenState extends State<TourScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthController>();
       final user = auth.user;
@@ -129,7 +129,82 @@ class _TourScreenState extends State<TourScreen>
               tabs: [
                 Tab(text: 'All My Trips (${tourController.tours.length})'),
                 Tab(text: 'All My Travel Requests (${tourController.tours.length})'),
-                const Tab(text: 'Calendar'),
+                const Tab(text: 'All My Travel Plans (0)'),
+                const Tab(text: 'All My Expense Reports (0)'),
+                const Tab(text: 'Pending Exp. Reports (0)'),
+                const Tab(text: 'Credit Card Imports (0)'),
+                const Tab(text: 'Team Calendar'),
+              ],
+            ),
+          ),
+          // Action Bar Links (Create New Travel Request / Travel Plan / Expense Report)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.backgroundSecondary.withOpacity(0.5),
+              border: const Border(
+                bottom: BorderSide(color: AppColors.cardBorder, width: 1),
+              ),
+            ),
+            child: Wrap(
+              spacing: 20,
+              runSpacing: 8,
+              children: [
+                InkWell(
+                  onTap: () => _startApply(),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                    child: Text(
+                      'Create New Travel Request',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    _tabController.animateTo(2);
+                    _startApply();
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                    child: Text(
+                      'Create New Travel Plan',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    _tabController.animateTo(3);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Navigated to Expense Reports tab.'),
+                      duration: Duration(seconds: 2),
+                    ));
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                    child: Text(
+                      'Create New Expense Report',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -145,6 +220,10 @@ class _TourScreenState extends State<TourScreen>
                   onEdit: (tour) => _startApply(tour: tour),
                   onNew: () => _startApply(),
                 ),
+                const _TravelPlansTab(),
+                const _ExpenseReportsTab(),
+                const _PendingReportsTab(),
+                const _CreditCardImportsTab(),
                 const _TourCalendarTab(),
               ],
             ),
@@ -160,133 +239,36 @@ class _TravelPlansTab extends StatelessWidget {
   const _TravelPlansTab();
   @override
   Widget build(BuildContext context) {
-    final plans = [
-      {'dest': 'New Delhi', 'dates': '15.08.2026 – 18.08.2026', 'purpose': 'Annual General Board Meeting', 'status': 'Planned'},
-      {'dest': 'Bangalore', 'dates': '10.09.2026 – 12.09.2026', 'purpose': 'Corporate Tech Summit & Exhibition', 'status': 'Draft'},
-    ];
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: plans.length,
-      itemBuilder: (context, index) {
-        final p = plans[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: GlassCard(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(p['dest']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                    StatusBadge(status: p['status']!),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.calendar_today_outlined, size: 13, color: AppColors.textSecondary),
-                    const SizedBox(width: 4),
-                    Text(p['dates']!, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(p['purpose']!, style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
-              ],
-            ),
-          ),
-        );
-      },
+    return const EmptyState(
+      icon: Icons.flight_takeoff_outlined,
+      title: 'No Travel Plans',
+      subtitle: 'You have no travel plans recorded.',
     );
   }
 }
 
 // ─── Expense Reports Tab ──────────────────────────────────────────
-// class _ExpenseReportsTab extends StatelessWidget {
-//   const _ExpenseReportsTab();
-//   @override
-//   Widget build(BuildContext context) {
-//     // final expenses = [
-//     //   {'title': 'Travel Claim: Mumbai Tour', 'amount': 'Rs 14,500.00', 'date': '20.05.2026', 'status': 'Approved'},
-//     //   {'title': 'Travel Claim: Hyderabad Tour', 'amount': 'Rs 8,200.00', 'date': '12.04.2026', 'status': 'Approved'},
-//     // ];
-//     return ListView.builder(
-//       padding: const EdgeInsets.all(16),
-//       itemCount: expenses.length,
-//       itemBuilder: (context, index) {
-//         final e = expenses[index];
-//         return Padding(
-//           padding: const EdgeInsets.only(bottom: 12),
-//           child: GlassCard(
-//             padding: const EdgeInsets.all(14),
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 Row(
-//                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//                   children: [
-//                     Text(e['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-//                     StatusBadge(status: e['status']!),
-//                   ],
-//                 ),
-//                 const SizedBox(height: 8),
-//                 Row(
-//                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//                   children: [
-//                     Text('Claimed Amount: ${e['amount']!}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
-//                     Text('Paid on: ${e['date']!}', style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
-//                   ],
-//                 ),
-//               ],
-//             ),
-//           ),
-//         );
-//       },
-//     );
-//   }
-// }
+class _ExpenseReportsTab extends StatelessWidget {
+  const _ExpenseReportsTab();
+  @override
+  Widget build(BuildContext context) {
+    return const EmptyState(
+      icon: Icons.receipt_long_outlined,
+      title: 'No Expense Reports',
+      subtitle: 'You have no expense reports recorded.',
+    );
+  }
+}
 
 // ─── Pending Reports Tab ──────────────────────────────────────────
 class _PendingReportsTab extends StatelessWidget {
   const _PendingReportsTab();
   @override
   Widget build(BuildContext context) {
-    final pending = [
-      {'title': 'Travel Claim: Delhi Tour', 'amount': 'Rs 12,300.00', 'date': '22.05.2026', 'status': 'Pending'},
-    ];
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: pending.length,
-      itemBuilder: (context, index) {
-        final e = pending[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: GlassCard(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(e['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                    StatusBadge(status: e['status']!),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Claimed Amount: ${e['amount']!}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                    Text('Submitted: ${e['date']!}', style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    return const EmptyState(
+      icon: Icons.pending_actions_rounded,
+      title: 'No Pending Reports',
+      subtitle: 'You have no pending expense reports at this time.',
     );
   }
 }
@@ -296,47 +278,10 @@ class _CreditCardImportsTab extends StatelessWidget {
   const _CreditCardImportsTab();
   @override
   Widget build(BuildContext context) {
-    final imports = [
-      {'merchant': 'Air India Airlines', 'amount': 'Rs 18,400.00', 'date': '05.05.2026', 'status': 'Imported'},
-      {'merchant': 'Taj Hotels Nagpur', 'amount': 'Rs 9,800.00', 'date': '11.05.2026', 'status': 'Imported'},
-    ];
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: imports.length,
-      itemBuilder: (context, index) {
-        final i = imports[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: GlassCard(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(i['merchant']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                    const SizedBox(height: 4),
-                    Text('Transaction Date: ${i['date']!}', style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(i['amount']!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.error)),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.blue.withOpacity(0.08), borderRadius: BorderRadius.circular(4)),
-                      child: Text(i['status']!, style: const TextStyle(color: Colors.blue, fontSize: 10, fontWeight: FontWeight.w600)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    return const EmptyState(
+      icon: Icons.credit_card_rounded,
+      title: 'No Credit Card Imports',
+      subtitle: 'No imported credit card transactions found.',
     );
   }
 }
@@ -363,65 +308,6 @@ class _AllMyTripsTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Quick Action Bar
-          GlassCard(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  const Text(
-                    'View: ',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.cardBorder),
-                    ),
-                    child: const Text(
-                      '[Standard View]',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  const Text('|', style: TextStyle(color: AppColors.cardBorder)),
-                  const SizedBox(width: 14),
-                  // Create New Travel Request Link
-                  GestureDetector(
-                    onTap: onNewRequest,
-                    child: const Text(
-                      'Create New Travel Request',
-                      style: TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  const Text('|', style: TextStyle(color: AppColors.cardBorder)),
-                  const SizedBox(width: 14),
-                  GestureDetector(
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Travel Plan creation coming soon'))),
-                    child: const Text(
-                      'Create New Travel Plan',
-                      style: TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  const Text('|', style: TextStyle(color: AppColors.cardBorder)),
-                  const SizedBox(width: 14),
-                  GestureDetector(
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Expense Report creation coming soon'))),
-                    child: const Text(
-                      'Create New Expense Report',
-                      style: TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
           // Scrollable SAP spreadsheet Table
           LayoutBuilder(
             builder: (context, constraints) {
@@ -464,17 +350,6 @@ class _AllMyTripsTab extends StatelessWidget {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    GestureDetector(
-                                      onTap: () => onEditRequest(tour),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(4),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.primary.withOpacity(0.08),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
-                                      ),
-                                    ),
                                     const SizedBox(width: 6),
                                     GestureDetector(
                                       onTap: () {
@@ -858,6 +733,29 @@ class _TourCalendarTabState extends State<_TourCalendarTab>
     );
   }
 
+  DateTime? _parseFlexibleDate(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    final str = raw.trim();
+    final parsedIso = DateTime.tryParse(str);
+    if (parsedIso != null) return parsedIso;
+
+    final parts = str.split(RegExp(r'[\.\-\/]'));
+    if (parts.length >= 3) {
+      if (parts[0].length == 4) {
+        final y = int.tryParse(parts[0]);
+        final m = int.tryParse(parts[1]);
+        final d = int.tryParse(parts[2]);
+        if (y != null && m != null && d != null) return DateTime(y, m, d);
+      } else if (parts[2].length == 4) {
+        final d = int.tryParse(parts[0]);
+        final m = int.tryParse(parts[1]);
+        final y = int.tryParse(parts[2]);
+        if (y != null && m != null && d != null) return DateTime(y, m, d);
+      }
+    }
+    return null;
+  }
+
   Widget _buildTeamCalendarGrid() {
     final daysInMonth = DateUtils.getDaysInMonth(_focusedDay.year, _focusedDay.month);
     final firstDay = DateTime(_focusedDay.year, _focusedDay.month, 1);
@@ -874,15 +772,17 @@ class _TourCalendarTabState extends State<_TourCalendarTab>
 
       for (var t in toursList) {
         try {
-          final start = DateTime.parse(t['startDate']);
-          final end = DateTime.parse(t['endDate']);
+          final start = _parseFlexibleDate(t['startDate']?.toString());
+          final end = _parseFlexibleDate(t['endDate']?.toString());
           
-          DateTime current = start;
-          while (current.isBefore(end) || current.isAtSameMomentAs(end)) {
-            if (current.year == _focusedDay.year && current.month == _focusedDay.month) {
-              tourDays.add(current.day);
+          if (start != null && end != null) {
+            DateTime current = start;
+            while (current.isBefore(end) || current.isAtSameMomentAs(end)) {
+              if (current.year == _focusedDay.year && current.month == _focusedDay.month) {
+                tourDays.add(current.day);
+              }
+              current = current.add(const Duration(days: 1));
             }
-            current = current.add(const Duration(days: 1));
           }
         } catch (_) {}
       }
@@ -1264,20 +1164,19 @@ class _TourListItem extends StatelessWidget {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        if (tour.status.toLowerCase() != 'approved') ...[
+                        if (tour.status.toLowerCase().contains('pending') || tour.status.toLowerCase().contains('draft')) ...[
                           _ActionBtn(
                             icon: Icons.edit_outlined,
                             color: AppColors.primary,
                             onTap: () => onEdit(tour),
                           ),
                           const SizedBox(width: 4),
-                        ],
-                        if (tour.status.toLowerCase() != 'approved')
                           _ActionBtn(
                             icon: Icons.delete_outline,
                             color: AppColors.error,
                             onTap: () => _showDeleteDialog(context),
                           ),
+                        ],
                       ],
                     ),
                   ],
@@ -3095,31 +2994,53 @@ class _TravelRequisitionDialog extends StatefulWidget {
   static Future<Uint8List> generateTourPdfBytes(TourModel tour, String userName, String employeeId) async {
     final doc = pw.Document();
 
-    final empParts = tour.employeeId.split(' ');
-    final empId = empParts.isNotEmpty ? empParts.first.replaceAll('(', '').replaceAll(')', '').trim() : '';
-    
+    final cleanTourEmpNo = tour.employeeId.trim().replaceAll(RegExp('^0+'), '');
+
     final empMap = ProfileController.rawEmployees.firstWhere(
-      (e) => e['empNo'] == empId,
+      (e) {
+        final eNo = (e['empNo'] ?? e['id'] ?? '').toString().trim().replaceAll(RegExp('^0+'), '');
+        return eNo == cleanTourEmpNo;
+      },
       orElse: () => <String, dynamic>{},
     );
-    
-    String reportingManager = 'Usha Singh';
-    if (empMap.isNotEmpty) {
-      final roId = empMap['reportingOfficer']?.toString() ?? '';
-      final roName = empMap['reportingOfficerName']?.toString() ?? '';
-      if (roName.isNotEmpty) {
-        reportingManager = roName;
-      } else {
-        final cleanRoId = roId.trim().replaceAll(RegExp('^0+'), '');
+
+    final actualName = (empMap['name']?.toString() ?? '').isNotEmpty
+        ? empMap['name'].toString()
+        : (userName.isNotEmpty ? userName : 'Employee');
+    final actualEmpNo = cleanTourEmpNo.isNotEmpty ? cleanTourEmpNo : employeeId;
+    final actualEmpGroup = empMap['group']?.toString() ?? empMap['empGroup']?.toString() ?? empMap['position']?.toString() ?? 'Executive';
+    final actualDept = empMap['department']?.toString() ?? 'System';
+    final actualBasicPay = empMap['basicSalary']?.toString() ?? empMap['basic_salary']?.toString() ?? empMap['basicPay']?.toString() ?? 'N/A';
+
+    String reportingOfficerName = (tour.reportingOfficerName ?? '').isNotEmpty
+        ? tour.reportingOfficerName!
+        : (empMap['reportingOfficerName']?.toString() ?? empMap['reporting_officer_name']?.toString() ?? '');
+    if (reportingOfficerName.isEmpty || reportingOfficerName == 'N/A') {
+      final roId = (tour.reportingOfficer ?? empMap['reportingOfficer']?.toString() ?? empMap['reporting_officer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+      if (roId.isNotEmpty) {
         final roMap = ProfileController.rawEmployees.firstWhere(
-          (e) => e['empNo'] == cleanRoId,
+          (e) => (e['empNo'] ?? e['id'] ?? '').toString().trim().replaceAll(RegExp('^0+'), '') == roId,
           orElse: () => <String, dynamic>{},
         );
-        if (roMap.isNotEmpty) {
-          reportingManager = roMap['name'] ?? roId;
-        } else {
-          reportingManager = roId.isNotEmpty ? roId : 'Usha Singh';
-        }
+        reportingOfficerName = (roMap['name']?.toString() ?? '').isNotEmpty ? roMap['name'].toString() : (roId.isNotEmpty ? roId : 'N/A');
+      } else {
+        reportingOfficerName = 'N/A';
+      }
+    }
+
+    String reportingOfficer1Name = (tour.reportingOfficer1Name ?? '').isNotEmpty
+        ? tour.reportingOfficer1Name!
+        : (empMap['reportingOfficer1Name']?.toString() ?? empMap['reporting_officer_1_name']?.toString() ?? '');
+    if (reportingOfficer1Name.isEmpty || reportingOfficer1Name == 'N/A') {
+      final ro1Id = (tour.reportingOfficer1 ?? empMap['reportingOfficer1']?.toString() ?? empMap['reporting_officer_1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+      if (ro1Id.isNotEmpty) {
+        final ro1Map = ProfileController.rawEmployees.firstWhere(
+          (e) => (e['empNo'] ?? e['id'] ?? '').toString().trim().replaceAll(RegExp('^0+'), '') == ro1Id,
+          orElse: () => <String, dynamic>{},
+        );
+        reportingOfficer1Name = (ro1Map['name']?.toString() ?? '').isNotEmpty ? ro1Map['name'].toString() : (ro1Id.isNotEmpty ? ro1Id : 'N/A');
+      } else {
+        reportingOfficer1Name = 'N/A';
       }
     }
 
@@ -3171,8 +3092,8 @@ class _TravelRequisitionDialog extends StatefulWidget {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           _buildPdfRow('Trip No', tour.id),
-                          _buildPdfRow('Name', userName),
-                          _buildPdfRow('Emp Grp', employeeId),
+                          _buildPdfRow('Name', actualName),
+                          _buildPdfRow('Emp Grp', actualEmpGroup),
                           _buildPdfRow('Purpose of journey', tour.travelPurpose),
                           _buildPdfRow('Date of Requisition', DateFormat('dd-MMM-yy').format(tour.appliedOn ?? DateTime.now())),
                         ],
@@ -3183,9 +3104,9 @@ class _TravelRequisitionDialog extends StatefulWidget {
                       child: pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
-                          _buildPdfRow('Emp No', tour.employeeId),
-                          _buildPdfRow('Basic Pay', '1,27,960'),
-                          _buildPdfRow('Department', 'Industrial Relations, Trai'),
+                          _buildPdfRow('Emp No', actualEmpNo),
+                          _buildPdfRow('Basic Pay', actualBasicPay),
+                          _buildPdfRow('Department', actualDept),
                           _buildPdfRow('Cost Center', _getCostCenter(tour.costAssignment)),
                         ],
                       ),
@@ -3215,11 +3136,8 @@ class _TravelRequisitionDialog extends StatefulWidget {
                 _buildPdfSectionHeader('Comments'),
                 pw.Text(tour.remarks ?? '', style: const pw.TextStyle(fontSize: 10)),
                 _buildPdfSectionHeader('Approvers'),
-                _buildPdfRow('Reporting Manager', reportingManager),
-                _buildPdfRow('Department Head', tour.status == 'Approved' ? (tour.processor ?? 'HOD User') : ''),
-                _buildPdfRow('Verified - Finance Officer', ''),
-                _buildPdfRow('Approved - Finance Head', ''),
-                _buildPdfRow('Agent', ''),
+                _buildPdfRow('Reporting Officer', reportingOfficerName),
+                _buildPdfRow('Reporting Officer 1', reportingOfficer1Name),
                 _buildPdfSectionHeader('Request Status'),
                 _buildPdfRow('Status', tour.status),
                 _buildPdfRow('Date of Approval', tour.status == 'Approved' ? '07.03.2026' : 'N/A'),

@@ -171,7 +171,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       'qual': raw['qual'] ?? 'N/A',
       'basic': raw['basic'] ?? emp.basicSalary,
       'apptDate': _formatRawDate(raw['apptDate'] ?? emp.joinDate),
-      'dosl': _formatRawDate(raw['dosl']),
+      'dosl': _formatRawDate(raw['dosl'] ?? emp.lastPromotionDate),
       'dopp': _formatRawDate(raw['dopp'] ?? emp.dopp),
       'retireDate': _formatRawDate(raw['retireDate'] ?? emp.retirementDate),
       'caste': raw['caste'] ?? emp.category,
@@ -461,7 +461,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
             ]),
             TableRow(children: [
               cellText('PENSION NO', bold: true),
-              cellText(': ${data['pensionPf']}'),
+              cellText(': ${data['pension']}'),
             ]),
             TableRow(children: [
               cellText('REPORTING OFFICER (L1)', bold: true),
@@ -559,7 +559,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
               cellText('MARITAL STATUS', bold: true),
               cellText(': ${data['marital']}'),
               cellText('PENSION NO', bold: true),
-              cellText(': ${data['pensionPf']}'),
+              cellText(': ${data['pension']}'),
             ]),
             TableRow(children: [
               cellText('REPORTING OFFICER (L1)', bold: true),
@@ -823,7 +823,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                 2: FlexColumnWidth(2.5),
                 3: FlexColumnWidth(2),
                 4: FlexColumnWidth(1.8),
-                5: FixedColumnWidth(55),
+                5: FlexColumnWidth(1.5),
               },
               children: [
                 TableRow(
@@ -834,20 +834,22 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                     cellText('NOMINEE NAME', bold: true),
                     cellText('RELATIONSHIP WITH EMPLOYEE', bold: true),
                     cellText('DATE OF BIRTH', bold: true),
-                    cellText('%AGE', bold: true),
+                    cellText('PERCENTAGE (%)', bold: true),
                   ],
                 ),
                 if (emp.nominees.isNotEmpty)
                   ...emp.nominees.asMap().entries.map((e) {
                     final idx = e.key + 1;
                     final nom = e.value;
+                    final pct = nom['percentage'] ?? nom['share'] ?? nom['percentage_of_share'];
+                    final pctStr = pct != null ? '$pct%' : '100%';
                     return TableRow(children: [
                       cellText('$idx'),
                       cellText(nom['benefit'] ?? ''),
                       cellText(nom['name'] ?? ''),
                       cellText(nom['relation'] ?? ''),
                       cellText(nom['dob'] ?? ''),
-                      cellText(''),
+                      cellText(pctStr),
                     ]);
                   }).toList()
                 else
@@ -857,7 +859,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                     cellText('N/A'),
                     cellText('N/A'),
                     cellText('N/A'),
-                    cellText(''),
+                    cellText('N/A'),
                   ]),
               ],
             ),

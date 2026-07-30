@@ -3,9 +3,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../../../model/leave_model.dart';
 import '../../../utils/app_config.dart';
+import '../../../utils/api_client.dart';
 
 enum LeaveStatus { initial, loading, loaded, error }
 
@@ -72,15 +72,19 @@ class LeaveController extends ChangeNotifier {
 
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/leaves?employee_id=$employeeId'),
         headers: {'Authorization': 'Bearer $token'},
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        _leaves = data.map((item) => LeaveModel.fromJson(item)).toList();
-        _status = LeaveStatus.loaded;
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          _leaves = decoded.whereType<Map<String, dynamic>>().map((item) => LeaveModel.fromJson(item)).toList();
+          _status = LeaveStatus.loaded;
+        } else {
+          _status = LeaveStatus.error;
+        }
       } else {
         _status = LeaveStatus.error;
       }
@@ -93,15 +97,17 @@ class LeaveController extends ChangeNotifier {
   Future<void> fetchBalances(String employeeId) async {
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/leave-balances?employee_id=$employeeId'),
         headers: {'Authorization': 'Bearer $token'},
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        _balances = data.map((item) => LeaveBalanceModel.fromJson(item)).toList();
-        notifyListeners();
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          _balances = decoded.whereType<Map<String, dynamic>>().map((item) => LeaveBalanceModel.fromJson(item)).toList();
+          notifyListeners();
+        }
       }
     } catch (_) {}
   }
@@ -109,26 +115,17 @@ class LeaveController extends ChangeNotifier {
   Future<bool> applyLeave(LeaveApplicationRequest request) async {
     try {
       final token = await _getToken();
-      final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/api/leaves/apply'),
+      final response = await ApiClient.post(
+        Uri.parse('${AppConfig.baseUrl}/api/leaves'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'leave_type': request.leaveType,
-          'start_date': request.startDate.toIso8601String().split('T')[0],
-          'end_date': request.endDate.toIso8601String().split('T')[0],
-          'start_time': request.beginTime,
-          'end_time': request.endTime,
-          'duration': request.duration,
-          'reason': request.note ?? '',
-        }),
+        body: jsonEncode(request.toJson()),
       );
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         await fetchLeaves(request.employeeId);
-        await fetchBalances(request.employeeId);
         return true;
       }
       return false;
@@ -143,15 +140,19 @@ class LeaveController extends ChangeNotifier {
 
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/leaves/pending-approvals'),
         headers: {'Authorization': 'Bearer $token'},
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        _pendingApprovals = data.map((item) => LeaveModel.fromJson(item)).toList();
-        _status = LeaveStatus.loaded;
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          _pendingApprovals = decoded.whereType<Map<String, dynamic>>().map((item) => LeaveModel.fromJson(item)).toList();
+          _status = LeaveStatus.loaded;
+        } else {
+          _status = LeaveStatus.error;
+        }
       } else {
         _status = LeaveStatus.error;
       }
@@ -164,7 +165,7 @@ class LeaveController extends ChangeNotifier {
   Future<bool> approveLeave(String leaveId, String remarks) async {
     try {
       final token = await _getToken();
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse('${AppConfig.baseUrl}/api/leaves/approve'),
         headers: {
           'Content-Type': 'application/json',
@@ -189,7 +190,7 @@ class LeaveController extends ChangeNotifier {
   Future<bool> rejectLeave(String leaveId, String remarks) async {
     try {
       final token = await _getToken();
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse('${AppConfig.baseUrl}/api/leaves/reject'),
         headers: {
           'Content-Type': 'application/json',
@@ -217,7 +218,7 @@ class LeaveController extends ChangeNotifier {
   Future<void> fetchTeamCalendar() async {
     try {
       final token = await _getToken();
-      final response = await http.get(
+      final response = await ApiClient.get(
         Uri.parse('${AppConfig.baseUrl}/api/leaves/team-calendar'),
         headers: {'Authorization': 'Bearer $token'},
       );
