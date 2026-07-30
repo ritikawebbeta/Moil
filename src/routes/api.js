@@ -2,14 +2,62 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const authenticateToken = require('../middleware/auth');
 const { pool } = require('../config/db');
+const {
+  sendLeaveAppliedSms,
+  sendLeaveApprovedSms,
+  sendLeaveRejectedSms,
+  sendLeaveEncashAppliedSms,
+  sendLeaveEncashApprovedSms,
+  sendLeaveEncashRejectedSms
+} = require('../utils/smsService');
+
+async function getEmployeeMobile(employeeId) {
+  // FOR TESTING: Hardcoded test mobile number requested by user
+  const defaultPhone = '9689941705';
+  return defaultPhone;
+
+  /* =========================================================================
+   * FUTURE PRODUCTION USE: Uncomment this block to automatically fetch 
+   * the employee's actual mobile number from the manpower MySQL database.
+   * =========================================================================
+  if (!employeeId || employeeId === '0' || employeeId === 'N/A') return defaultPhone;
+  try {
+    const [rows] = await pool.query(
+      'SELECT mobile_number FROM manpower WHERE employee_number = ? OR CAST(employee_number AS UNSIGNED) = ? LIMIT 1',
+      [employeeId, employeeId]
+    );
+    if (rows.length > 0 && rows[0].mobile_number) {
+      const mob = String(rows[0].mobile_number).trim().replace(/[^\d]/g, '');
+      if (mob.length >= 10) return mob.slice(-10);
+    }
+  } catch (e) {
+    console.error('[getEmployeeMobile Error]', e.message);
+  }
+  return defaultPhone;
+  */
+}
 
 // Helper to format dates consistently (DD-MM-YYYY)
 function formatDate(date) {
-  if (!date) return null;
+  if (!date) return 'N/A';
+  const str = String(date).trim();
+  if (str === 'N/A' || str === 'NULL' || str === '0000-00-00' || str === '00.00.0000' || str.startsWith('1899') || str.startsWith('0000') || str.includes('1899')) return 'N/A';
+
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(str)) return str;
+  if (/^\d{2}-\d{2}-\d{4}$/.test(str)) return str;
+
+  if (/^\d{4}[-/]\d{2}[-/]\d{2}/.test(str)) {
+    const parts = str.split('T')[0].split(/[-/]/);
+    if (parts[0] === '0000' || parts[0] === '1899' || parseInt(parts[0]) <= 1900) return 'N/A';
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+
   const d = new Date(date);
-  if (isNaN(d.getTime())) return null;
+  if (isNaN(d.getTime()) || d.getFullYear() <= 1900) return 'N/A';
   const day = d.getDate().toString().padStart(2, '0');
   const month = (d.getMonth() + 1).toString().padStart(2, '0');
   const year = d.getFullYear();
@@ -30,6 +78,97 @@ function formatDbDateTime(date) {
   return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
 }
 
+/**
+ * Format any date input to dd.mm.yyyy format for DB storage
+ */
+function formatDateDdMmYyyy(dateInput) {
+  if (!dateInput) return '';
+  const str = String(dateInput).trim();
+
+  // If already DD.MM.YYYY
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(str)) return str;
+
+  // If YYYY-MM-DD or YYYY/MM/DD
+  if (/^\d{4}[-/]\d{2}[-/]\d{2}/.test(str)) {
+    const cleanDate = str.split('T')[0].split(' ')[0];
+    const parts = cleanDate.split(/[-/]/);
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+  }
+
+  // If DD-MM-YYYY or DD/MM/YYYY
+  if (/^\d{2}[-/]\d{2}[-/]\d{4}/.test(str)) {
+    const cleanDate = str.split('T')[0].split(' ')[0];
+    const parts = cleanDate.split(/[-/]/);
+    return `${parts[0]}.${parts[1]}.${parts[2]}`;
+  }
+
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return str;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}.${month}.${year}`;
+}
+
+/**
+ * Format any date input to YYYY-MM-DD ISO format for frontend calendar parsing
+ */
+function formatIsoDate(dateInput) {
+  if (!dateInput) return null;
+  const str = String(dateInput).trim();
+  if (str === 'N/A' || str === 'NULL' || str === '0000-00-00' || str === '00.00.0000') return null;
+
+  if (/^\d{2}[\.\-]\d{2}[\.\-]\d{4}$/.test(str)) {
+    const parts = str.split(/[\.\-]/);
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  if (/^\d{4}[-/]\d{2}[-/]\d{2}/.test(str)) {
+    return str.split('T')[0].split(' ')[0];
+  }
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return null;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Calculate actual number of days between start and end date inclusive
+ */
+function calculateDays(startDateStr, endDateStr, isHalfDay = false) {
+  if (isHalfDay) return 0.5;
+  if (!startDateStr || !endDateStr) return 1.0;
+
+  try {
+    let d1, d2;
+    const s1 = String(startDateStr).split('T')[0].split(' ')[0];
+    const s2 = String(endDateStr).split('T')[0].split(' ')[0];
+
+    if (s1.includes('.')) {
+      const p = s1.split('.');
+      d1 = new Date(p[2], p[1] - 1, p[0]);
+    } else {
+      d1 = new Date(s1);
+    }
+
+    if (s2.includes('.')) {
+      const p = s2.split('.');
+      d2 = new Date(p[2], p[1] - 1, p[0]);
+    } else {
+      d2 = new Date(s2);
+    }
+
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 1.0;
+
+    const diffTime = Math.abs(d2 - d1);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return diffDays > 0 ? diffDays : 1.0;
+  } catch (_) {
+    return 1.0;
+  }
+}
+
 // Generate random 32-char uppercase hex string (for UUIDs / GUIDs)
 function generateHexId() {
   return crypto.randomBytes(16).toString('hex').toUpperCase();
@@ -37,7 +176,7 @@ function generateHexId() {
 
 async function logApproval(managerId, requestType, requestId, applicantId, action, remarks) {
   try {
-    const cleanApplicantId = applicantId.toString().trim().replaceAll(RegExp('^0+'), '');
+    const cleanApplicantId = applicantId.toString().trim().replace(/^0+/, '');
     const [empRows] = await pool.query('SELECT employee_name FROM manpower WHERE CAST(employee_number AS UNSIGNED) = CAST(? AS UNSIGNED) LIMIT 1', [cleanApplicantId]);
     const applicantName = empRows.length > 0 ? empRows[0].employee_name : 'Unknown';
 
@@ -111,18 +250,38 @@ function getSubareaCodes(subareaText) {
 // Map database row to standard employee model
 function mapEmployeeRow(row) {
   const serviceHistory = [];
-  if (row.date_of_appointment) {
+  const apptDt = formatDate(row.date_of_appointment);
+  const promDt = formatDate(row.act_doj_on_promt_dt || row.latest_promotion_dt || row.dosl);
+  const payscaleStr = row.payscale ? row.payscale.toString().trim() : (row.basic_pay ? `Rs. ${parseFloat(row.basic_pay).toLocaleString('en-IN')}` : 'N/A');
+  const locStr = row.personnel_subarea_text || 'Head Office Nag';
+  const desigStr = row.position_name || 'Employee';
+  const gradeStr = row.employee_subgroup_text || row.employee_subgroup || 'E5';
+
+  if (apptDt && apptDt !== 'N/A') {
     serviceHistory.push({
-      date: formatDate(row.date_of_appointment),
+      date: apptDt,
       action: 'Appointment',
-      reason: row.hire_action_reason || 'Regular Joining'
+      reason: row.hire_action_reason || 'New Position',
+      designation: desigStr,
+      grade: gradeStr,
+      location: locStr,
+      from: apptDt,
+      to: (promDt && promDt !== 'N/A') ? promDt : 'Till Date',
+      payscale: payscaleStr
     });
   }
-  if (row.latest_promotion_dt) {
+
+  if (promDt && promDt !== 'N/A' && promDt !== apptDt) {
     serviceHistory.push({
-      date: formatDate(row.latest_promotion_dt),
+      date: promDt,
       action: 'Promotion',
-      reason: 'Regular Promotion'
+      reason: 'Regular Promotion',
+      designation: desigStr,
+      grade: gradeStr,
+      location: locStr,
+      from: promDt,
+      to: 'Till Date',
+      payscale: payscaleStr
     });
   }
 
@@ -137,7 +296,8 @@ function mapEmployeeRow(row) {
     presentGrade: row.employee_subgroup_text || row.employee_subgroup || 'N/A',
     dateOfBirth: formatDate(row.date_of_birth),
     joinDate: formatDate(row.date_of_appointment),
-    lastPromotionDate: formatDate(row.latest_promotion_dt),
+    qualification: row.qualification ? row.qualification.toString().trim() : 'N/A',
+    lastPromotionDate: formatDate(row.act_doj_on_promt_dt || row.latest_promotion_dt || row.dopp),
     appointmentType: row.hire_action_reason || 'Regular',
     category: row.caste || 'GEN',
     bloodGroup: row.blood_group || 'O+',
@@ -147,15 +307,17 @@ function mapEmployeeRow(row) {
     presentPlaceOfPosting: row.personnel_subarea_text || 'Head Office',
     presentPostingDate: formatDate(row.dopp || row.act_doj_on_promt_dt),
     retirementDate: formatDate(row.date_of_retirement),
+    email: (row.email_id || row.email || '').toString().trim() || 'N/A',
+    uanNo: (row.uan || row.uan_number || '').toString().trim() || 'N/A',
     mobile: row.mobile_number || 'N/A',
     mobileNumber: row.mobile_number || 'N/A',
-    email: row.email_id || 'N/A',
-    uanNo: row.uan || 'N/A',
     pan_number: row.pan_number || 'N/A',
     aadhaarNo: row.aadhar_number || 'N/A',
-    pranNo: row.praan_no || 'N/A',
-    pfNo: row.employee_pf_number || 'N/A',
-    pensionNo: row.pension_id || 'N/A',
+    pranNo: (row.praan_no && row.praan_no.toString().trim() !== '' && row.praan_no.toString().trim().toUpperCase() !== 'NULL') ? row.praan_no.toString().trim() : 'N/A',
+    pfNo: (row.employee_pf_number && row.employee_pf_number.toString().trim() !== '' && row.employee_pf_number.toString().trim().toUpperCase() !== 'NULL') ? row.employee_pf_number.toString().trim() : 'N/A',
+    pensionNo: (row.employee_pension_number && row.employee_pension_number.toString().trim() !== '' && row.employee_pension_number.toString().trim().toUpperCase() !== 'NULL') ? row.employee_pension_number.toString().trim() : 'N/A',
+    presentPostingDate: formatDate(row.dopp || row.act_doj_on_promt_dt),
+    dopp: formatDate(row.dopp || row.act_doj_on_promt_dt),
     reportingOfficer: (row.reporting_officer || '0').toString(),
     reportingOfficer1: (row.reporting_officer_1 || '0').toString(),
     reportingOfficerName: row.reporting_officer_name || '',
@@ -203,9 +365,168 @@ router.get('/health', async (req, res) => {
 });
 
 /**
- * @route   POST /api/login
+ * @route   GET /api/pending-outbound
+ * @desc    Returns all unsynced modified rows & columns for Outbound FTP export
  */
-router.post('/login', async (req, res) => {
+router.get('/pending-outbound', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM app_outbound_changes WHERE is_synced = 0 ORDER BY id ASC LIMIT 500');
+    const parsed = rows.map(r => ({
+      id: r.id,
+      table_name: r.table_name,
+      record_id: r.record_id,
+      action_type: r.action_type,
+      changed_columns: typeof r.changed_columns === 'string' ? JSON.parse(r.changed_columns || '{}') : r.changed_columns,
+      row_data: typeof r.row_data === 'string' ? JSON.parse(r.row_data || '{}') : r.row_data,
+      created_at: r.created_at
+    }));
+    res.json(parsed);
+  } catch (err) {
+    console.error('[Pending Outbound Error]', err.message);
+    res.status(500).json({ error: 'Failed to fetch pending outbound changes' });
+  }
+});
+
+/**
+ * @route   POST /api/mark-outbound-synced
+ * @desc    Marks processed change IDs as synced
+ */
+router.post('/mark-outbound-synced', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (Array.isArray(ids) && ids.length > 0) {
+      await pool.query('UPDATE app_outbound_changes SET is_synced = 1, synced_at = NOW() WHERE id IN (?)', [ids]);
+    }
+    res.json({ success: true, count: ids ? ids.length : 0 });
+  } catch (err) {
+    console.error('[Mark Outbound Synced Error]', err.message);
+    res.status(500).json({ error: 'Failed to mark outbound changes as synced' });
+  }
+});
+
+/**
+ * Detect table name based on column header fingerprints (so files can be renamed freely!)
+ */
+function detectTableFromHeaders(keys, fileName) {
+  const kStr = keys.map(k => String(k).toLowerCase()).join(' ');
+
+  // 1. Manpower
+  if (kStr.includes('cname') || kStr.includes('act_doj_on_promt_dt') || kStr.includes('date_of_appointment') || kStr.includes('date_of_retirement') || (kStr.includes('personnel number') && kStr.includes('name'))) {
+    return 'manpower';
+  }
+  // 2. Family Member
+  if (kStr.includes('family member') || kStr.includes('child\'s address') || kStr.includes('aadhar card') || kStr.includes('post-retirement medical benefit') || kStr.includes('rel/child')) {
+    return 'it0021_family_member';
+  }
+  // 3. Nomination
+  if (kStr.includes('nominee') || kStr.includes('share_percentage') || kStr.includes('guardian_name') || kStr.includes('serial_number_of_family_member') || kStr.includes('nomination')) {
+    return 'it0591_nomination';
+  }
+  // 4. Leave Quota
+  if (kStr.includes('absence_quota_type') || kStr.includes('quota_number') || kStr.includes('quota_deduction') || kStr.includes('deduction_from') || kStr.includes('quota type')) {
+    return 'leave_quota';
+  }
+  // 5. Absence
+  if (kStr.includes('att_abs_days') || kStr.includes('absence_hours') || kStr.includes('payroll_days') || kStr.includes('absence type')) {
+    return 'absence';
+  }
+  // 6. Leave Apply Items
+  if (kStr.includes('id_of_request_item') || kStr.includes('infotype_operation')) {
+    return 'ptreq_attabsdata_leave_apply_1';
+  }
+  // 7. Leave Header Approved
+  if (kStr.includes('document_identification') || kStr.includes('document_status') || kStr.includes('id_of_request_item_list')) {
+    return 'ptreq_header_leave_approved_1';
+  }
+  // 8. Planned Working Time
+  if (kStr.includes('work schedule rule') || kStr.includes('time mgmt status') || kStr.includes('monthly working hrs') || kStr.includes('daily working hours')) {
+    return 'planned_working_time';
+  }
+  // 9. Time Quota Compensation
+  if (kStr.includes('compensation') || kStr.includes('comp_quota') || kStr.includes('time quota') || fnUpper.includes('COMPENSATION') || fnUpper.includes('IT0416')) {
+    return 'time_quota_compensation_infotype';
+  }
+  // 10. Travel
+  if (kStr.includes('beginning_date_of_trip_segment') || kStr.includes('trip_destination') || kStr.includes('reason_for_trip') || kStr.includes('trip')) {
+    return 'travel';
+  }
+  // 11. Holiday
+  if (kStr.includes('holiday_date') || kStr.includes('holiday_description') || kStr.includes('holiday_title') || kStr.includes('holiday')) {
+    return 'zhcm_opt_holiday';
+  }
+  // 12. Reporting Officers (Agents)
+  if (kStr.includes('reporting_officer') || kStr.includes('reporting_officer_1')) {
+    return 'zhcm_lr_t_agents_03072026';
+  }
+
+  // Fallback to filename keywords if header match is inconclusive
+  const fnUpper = (fileName || '').toUpperCase();
+  if (fnUpper.includes('MANPOWER')) return 'manpower';
+  if (fnUpper.includes('LEAVE_QUOTA')) return 'leave_quota';
+  if (fnUpper.includes('ABSENCE')) return 'absence';
+  if (fnUpper.includes('NOMINATION')) return 'it0591_nomination';
+  if (fnUpper.includes('FAMILY')) return 'it0021_family_member';
+  if (fnUpper.includes('LEAVE_APPLY')) return 'ptreq_attabsdata_leave_apply_1';
+  if (fnUpper.includes('LEAVE_APPROVED')) return 'ptreq_header_leave_approved_1';
+  if (fnUpper.includes('HOLIDAY')) return 'zhcm_opt_holiday';
+  if (fnUpper.includes('AGENTS')) return 'zhcm_lr_t_agents_03072026';
+  if (fnUpper.includes('PLANNED')) return 'planned_working_time';
+  if (fnUpper.includes('TRAVEL')) return 'travel';
+
+  return null;
+}
+
+/**
+ * @route   POST /api/inbound-sync-db
+ * @desc    Upserts parsed rows from FTP Inbound files into MySQL DB tables
+ */
+router.post('/inbound-sync-db', async (req, res) => {
+  try {
+    const { fileName, rows } = req.body;
+    if (!fileName || !Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'fileName and non-empty rows array are required' });
+    }
+
+    const sampleRowKeys = rows.length > 0 ? Object.keys(rows[0]) : [];
+    let tableName = detectTableFromHeaders(sampleRowKeys, fileName);
+
+    if (!tableName) {
+      return res.json({ message: `Skipping unmapped file ${fileName} (Headers did not match any known table fingerprint)`, processed: 0 });
+    }
+
+    let successCount = 0;
+    const conn = await pool.getConnection();
+
+    try {
+      for (const rowObj of rows) {
+        const keys = Object.keys(rowObj).filter(k => k && rowObj[k] !== undefined);
+        if (keys.length === 0) continue;
+
+        const cols = keys.map(k => `\`${k.trim().toLowerCase()}\``).join(', ');
+        const placeholders = keys.map(() => '?').join(', ');
+        const updateAssigns = keys.map(k => `\`${k.trim().toLowerCase()}\` = VALUES(\`${k.trim().toLowerCase()}\`)`).join(', ');
+        const vals = keys.map(k => rowObj[k]);
+
+        const sql = `INSERT INTO \`${tableName}\` (${cols}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateAssigns}`;
+        await conn.query(sql, vals);
+        successCount++;
+      }
+    } finally {
+      conn.release();
+    }
+
+    console.log(`[Inbound DB Sync] Successfully upserted ${successCount} rows into ${tableName} from ${fileName}`);
+    res.json({ success: true, table: tableName, count: successCount });
+  } catch (err) {
+    console.error('[Inbound DB Sync Error]', err.message);
+    res.status(500).json({ error: 'Failed to sync inbound rows to DB', message: err.message });
+  }
+});
+
+/**
+ * @route   POST /api/login & POST /api/auth/login
+ */
+router.post(['/login', '/auth/login'], async (req, res) => {
   const employee_number = req.body.employee_number || req.body.employee_id || req.body.employeeId;
   const password = req.body.password;
 
@@ -214,9 +535,9 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    // 1. Fetch employee details from manpower
-    const empQuery = `SELECT * FROM manpower WHERE employee_number = ? LIMIT 1`;
-    const [empRows] = await pool.query(empQuery, [employee_number]);
+    // 1. Fetch employee details from manpower (flexible number matching)
+    const empQuery = `SELECT * FROM manpower WHERE employee_number = ? OR CAST(employee_number AS UNSIGNED) = CAST(? AS UNSIGNED) LIMIT 1`;
+    const [empRows] = await pool.query(empQuery, [employee_number, employee_number]);
     
     if (empRows.length === 0) {
       return res.status(401).json({ error: 'Invalid Employee Number or Password' });
@@ -244,8 +565,8 @@ router.post('/login', async (req, res) => {
     }
 
     // 4. Fetch custom password from user_accounts
-    const credQuery = `SELECT password FROM user_accounts WHERE employee_number = ? LIMIT 1`;
-    const [credRows] = await pool.query(credQuery, [employee_number]);
+    const credQuery = `SELECT password FROM user_accounts WHERE employee_number = ? OR CAST(employee_number AS UNSIGNED) = CAST(? AS UNSIGNED) LIMIT 1`;
+    const [credRows] = await pool.query(credQuery, [employee_number, employee_number]);
     
     let isPasswordValid = false;
     let hasCustomPassword = false;
@@ -353,6 +674,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
     const query = `
       SELECT 
         m.*, 
+        m.employee_pension_number AS employee_pension_number,
         a.reporting_officer, 
         a.reporting_officer_1, 
         ro.employee_name AS reporting_officer_name,
@@ -370,51 +692,66 @@ router.get('/profile', authenticateToken, async (req, res) => {
 
     const profileData = mapEmployeeRow(rows[0]);
 
-    // Fetch family members from it0021_family_member (only active records)
+    // Fetch family members from it0021_family_member
     const [familyRows] = await pool.query(
-      'SELECT * FROM it0021_family_member WHERE (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?) AND end_date >= NOW()', 
+      'SELECT * FROM it0021_family_member WHERE personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?', 
       [employeeId, employeeId]
     );
-    profileData.familyMembers = familyRows.map(f => {
-      let relation = 'Other';
-      const cleanRel = (f.family_member || '').toString().trim();
-      if (cleanRel === '1') relation = 'Spouse';
-      else if (cleanRel === '2') relation = 'Child';
-      else if (cleanRel === '11') relation = 'Father';
-      else if (cleanRel === '12') relation = 'Mother';
+    const familyMap = new Map();
+    familyRows.forEach(f => {
+      let fullName = `${f.first_name || ''} ${f.middle_name || ''} ${f.last_name || ''}`.trim();
+      fullName = Array.from(new Set(fullName.split(/\s+/))).join(' ');
+      if (!fullName || fullName === 'NULL' || fullName === 'N/A') return;
 
-      let genderStr = 'N/A';
-      const cleanGender = (f.gender || '').toString().trim();
-      if (cleanGender === '1') genderStr = 'Male';
-      else if (cleanGender === '2') genderStr = 'Female';
-      else if (f.gender) genderStr = f.gender;
+      if (!familyMap.has(fullName)) {
+        let relation = 'Other';
+        const cleanRel = (f.family_member || '').toString().trim();
+        if (cleanRel === '1') relation = 'Spouse';
+        else if (cleanRel === '2') relation = 'Child';
+        else if (cleanRel === '11') relation = 'Father';
+        else if (cleanRel === '12') relation = 'Mother';
 
-      let age = 'N/A';
-      if (f.date_of_birth) {
-        const dobDate = new Date(f.date_of_birth);
-        if (!isNaN(dobDate.getTime())) {
-          const today = new Date();
-          let calculatedAge = today.getFullYear() - dobDate.getFullYear();
-          const monthDiff = today.getMonth() - dobDate.getMonth();
-          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dobDate.getDate())) {
-            calculatedAge--;
+        let genderStr = 'N/A';
+        const cleanGender = (f.gender || '').toString().trim();
+        if (cleanGender === '1') genderStr = 'Male';
+        else if (cleanGender === '2') genderStr = 'Female';
+        else if (f.gender) genderStr = f.gender;
+
+        let age = 'N/A';
+        if (f.date_of_birth) {
+          const dobStr = String(f.date_of_birth).trim();
+          let dobDate;
+          if (dobStr.includes('.')) {
+            const p = dobStr.split('.');
+            if (p.length === 3) dobDate = new Date(p[2], parseInt(p[1]) - 1, p[0]);
+          } else {
+            dobDate = new Date(dobStr);
           }
-          age = calculatedAge.toString();
+          if (dobDate && !isNaN(dobDate.getTime())) {
+            const today = new Date();
+            let calculatedAge = today.getFullYear() - dobDate.getFullYear();
+            const monthDiff = today.getMonth() - dobDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dobDate.getDate())) {
+              calculatedAge--;
+            }
+            age = calculatedAge > 0 ? calculatedAge.toString() : '0';
+          }
         }
+
+        familyMap.set(fullName, {
+          name: fullName,
+          relation,
+          dob: formatDate(f.date_of_birth),
+          age,
+          gender: genderStr
+        });
       }
-
-      return {
-        name: `${f.first_name || ''} ${f.middle_name || ''} ${f.last_name || ''}`.trim().replace(/\s+/g, ' ') || 'N/A',
-        relation,
-        dob: formatDate(f.date_of_birth) || 'N/A',
-        age,
-        gender: genderStr
-      };
     });
+    profileData.familyMembers = Array.from(familyMap.values());
 
-    // Fetch nominations from it0591_nomination (only active records)
+    // Fetch nominations from it0591_nomination
     const [nomineeRows] = await pool.query(
-      'SELECT * FROM it0591_nomination WHERE (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?) AND end_date >= NOW()', 
+      'SELECT * FROM it0591_nomination WHERE personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ? GROUP BY benefit_type, name_of_nominee', 
       [employeeId, employeeId]
     );
     const nominees = [];
@@ -467,6 +804,24 @@ router.post('/profile/update', authenticateToken, async (req, res) => {
 });
 
 /**
+ * @route   POST /api/tours/delete
+ */
+router.post('/tours/delete', authenticateToken, async (req, res) => {
+  const { tour_id } = req.body;
+  const employeeId = req.user.employee_number;
+  try {
+    await pool.query(
+      'DELETE FROM travel WHERE id = ? AND (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?)',
+      [tour_id, employeeId, employeeId]
+    );
+    res.json({ message: 'Tour deleted successfully' });
+  } catch (error) {
+    console.error('[Delete Tour Error]', error.message);
+    res.status(500).json({ error: 'Failed to delete tour', message: error.message });
+  }
+});
+
+/**
  * @route   GET /api/leaves
  */
 router.get('/leaves', authenticateToken, async (req, res) => {
@@ -480,14 +835,15 @@ router.get('/leaves', authenticateToken, async (req, res) => {
         ro.employee_name AS processor_name,
         ro1.employee_name AS processor1_name
       FROM ptreq_attabsdata_leave_apply_1 a
-      JOIN ptreq_header_leave_approved_1 h ON a.id_of_request_item = h.document_identification
+      LEFT JOIN ptreq_header_leave_approved_1 h ON a.id_of_request_item = h.document_identification
       LEFT JOIN zhcm_lr_t_agents_03072026 ag ON CAST(a.personnel_number AS UNSIGNED) = CAST(ag.personnel_number AS UNSIGNED)
       LEFT JOIN manpower ro ON CAST(ag.reporting_officer AS UNSIGNED) = ro.employee_number
       LEFT JOIN manpower ro1 ON CAST(ag.reporting_officer_1 AS UNSIGNED) = ro1.employee_number
-      WHERE a.personnel_number = ?
+      WHERE a.personnel_number = ? OR CAST(a.personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)
+      GROUP BY a.id_of_request_item
       ORDER BY a.start_date DESC
     `;
-    const [rows] = await pool.query(query, [employeeId]);
+    const [rows] = await pool.query(query, [employeeId, employeeId]);
     const leaves = rows.map(row => {
       let status = 'Approved';
       if (row.document_status === 'SENT') status = 'Pending L1';
@@ -500,19 +856,44 @@ router.get('/leaves', authenticateToken, async (req, res) => {
       else if (row.sub_type === '1002') leaveType = 'HPL';
       else if (row.sub_type === '1003') leaveType = 'CHPL';
       else if (row.sub_type === '1010') leaveType = 'Optional Leave';
+      else if (row.sub_type === '2000' || row.sub_type === '2008') leaveType = 'Special Leave';
+
+      const formatIso = (dateVal) => {
+        if (!dateVal) return null;
+        const str = String(dateVal).trim();
+        if (str.includes('.')) {
+          const p = str.split('.');
+          if (p.length === 3) {
+            const d = new Date(p[2], parseInt(p[1]) - 1, p[0]);
+            return isNaN(d.getTime()) ? null : d.toISOString();
+          }
+        }
+        try {
+          const d = new Date(dateVal);
+          return isNaN(d.getTime()) ? null : d.toISOString();
+        } catch (_) {
+          return null;
+        }
+      };
+
+      const startIso = formatIso(row.start_date);
+      const endIso = formatIso(row.end_date);
+
+      const computedDays = row.att_abs_days ? parseFloat(row.att_abs_days) : calculateDays(row.start_date, row.end_date);
 
       return {
         id: row.id_of_request_item,
-        employeeId: row.personnel_number.toString(),
+        employeeId: row.personnel_number ? row.personnel_number.toString() : employeeId.toString(),
         leaveType,
-        startDate: row.start_date,
+        startDate: startIso,
         startTime: row.start_time || '00:00:00',
-        endDate: row.end_date,
+        endDate: endIso,
         endTime: row.end_time || '00:00:00',
-        duration: `${row.att_abs_days || 1} Day(s)`,
+        duration: `${computedDays} Day(s)`,
+        used: `${computedDays} Day(s)`,
         status,
-        appliedOn: row.start_date,
-        approvedOn: status === 'Approved' ? row.end_date : null,
+        appliedOn: startIso,
+        approvedOn: status === 'Approved' ? endIso : null,
         reason: 'Personal affairs',
         processor: row.processor_name || '-',
         processor1: row.processor1_name || '-'
@@ -526,12 +907,94 @@ router.get('/leaves', authenticateToken, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/employee-leave-details/:empId
+ * @desc    Returns employee name + all leave quota details from DB
+ */
+router.get('/employee-leave-details/:empId', authenticateToken, async (req, res) => {
+  const empId = req.params.empId;
+  try {
+    // 1. Get employee name from manpower
+    const [empRows] = await pool.query(
+      'SELECT employee_number, employee_name FROM manpower WHERE employee_number = ? OR CAST(employee_number AS UNSIGNED) = CAST(? AS UNSIGNED) LIMIT 1',
+      [empId, empId]
+    );
+    const employeeName = empRows.length > 0 ? empRows[0].employee_name : null;
+
+    // 2. Get all leave quotas from leave_quota
+    const [quotaRows] = await pool.query(
+      'SELECT sub_type, absence_quota_type, quota_number, quota_deduction, deduction_from, deduction_to, start_date, end_date FROM leave_quota WHERE personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED) GROUP BY sub_type',
+      [empId, empId]
+    );
+
+    const leaveDetails = quotaRows.map(row => {
+      const ent = parseFloat(row.quota_number || 0);
+      const taken = parseFloat(row.quota_deduction || 0);
+      const bal = ent - taken;
+
+      let leaveType = 'Other';
+      const sub = (row.sub_type || '').toString().trim();
+      if (sub === '01') leaveType = 'Earned Leave';
+      else if (sub === '02') leaveType = 'Casual Leave';
+      else if (sub === '03') leaveType = 'HPL';
+      else if (sub === '05') leaveType = 'Optional Holiday';
+
+      return {
+        leaveType,
+        subType: sub,
+        entitlement: ent,
+        taken,
+        balance: bal,
+        deductionFrom: row.deduction_from || row.start_date,
+        deductionTo: row.deduction_to || row.end_date
+      };
+    });
+
+    // 3. Get reporting officers
+    const [agentRows] = await pool.query(
+      'SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED) LIMIT 1',
+      [empId, empId]
+    );
+
+    let reportingOfficer = null;
+    let reportingOfficer1 = null;
+    if (agentRows.length > 0) {
+      const ro = (agentRows[0].reporting_officer || '').toString().trim();
+      const ro1 = (agentRows[0].reporting_officer_1 || '').toString().trim();
+      if (ro && ro !== '0' && ro !== 'N/A') {
+        const [roName] = await pool.query('SELECT employee_name FROM manpower WHERE employee_number = ? LIMIT 1', [ro]);
+        reportingOfficer = { id: ro, name: roName.length > 0 ? roName[0].employee_name : ro };
+      }
+      if (ro1 && ro1 !== '0' && ro1 !== 'N/A') {
+        const [ro1Name] = await pool.query('SELECT employee_name FROM manpower WHERE employee_number = ? LIMIT 1', [ro1]);
+        reportingOfficer1 = { id: ro1, name: ro1Name.length > 0 ? ro1Name[0].employee_name : ro1 };
+      }
+    }
+
+    const earnedLeave = leaveDetails.find(l => l.subType === '01');
+
+    res.json({
+      employeeNumber: empId,
+      employeeName: employeeName || `Employee ${empId}`,
+      earnedLeaveBalance: earnedLeave ? earnedLeave.balance : 0.0,
+      earnedLeaveEntitlement: earnedLeave ? earnedLeave.entitlement : 0.0,
+      earnedLeaveTaken: earnedLeave ? earnedLeave.taken : 0.0,
+      leaveDetails,
+      reportingOfficer,
+      reportingOfficer1
+    });
+  } catch (error) {
+    console.error('[Get Employee Leave Details Error]', error.message);
+    res.status(500).json({ error: 'Failed to fetch employee leave details', message: error.message });
+  }
+});
+
+/**
  * @route   GET /api/leave-balances
  */
 router.get('/leave-balances', authenticateToken, async (req, res) => {
   const employeeId = req.query.employee_id || req.user.employee_number;
   try {
-    const [rows] = await pool.query('SELECT * FROM leave_quota WHERE personnel_number = ?', [employeeId]);
+    const [rows] = await pool.query('SELECT * FROM leave_quota WHERE personnel_number = ? GROUP BY sub_type', [employeeId]);
     const balances = rows.map(row => {
       const ent = parseFloat(row.quota_number || 0);
       const taken = parseFloat(row.quota_deduction || 0);
@@ -574,10 +1037,17 @@ router.get('/leave-balances', authenticateToken, async (req, res) => {
 });
 
 /**
- * @route   POST /api/leaves/apply
+ * @route   POST /api/leaves and POST /api/leaves/apply
  */
-router.post('/leaves/apply', authenticateToken, async (req, res) => {
-  const { leave_type, start_date, end_date, start_time, end_time, duration, reason } = req.body;
+router.post(['/leaves', '/leaves/apply'], authenticateToken, async (req, res) => {
+  const leave_type = req.body.leave_type || req.body.leaveType;
+  const start_date = req.body.start_date || req.body.startDate;
+  const end_date = req.body.end_date || req.body.endDate;
+  const start_time = req.body.start_time || req.body.beginTime;
+  const end_time = req.body.end_time || req.body.endTime;
+  const duration = req.body.duration;
+  const reason = req.body.reason || req.body.note;
+
   const employeeId = req.user.employee_number;
 
   try {
@@ -612,10 +1082,12 @@ router.post('/leaves/apply', authenticateToken, async (req, res) => {
     await conn.beginTransaction();
 
     try {
-      // Calculate leave days count
-      const daysCount = 1.0; // default to 1 day if not calculated
-      const startDateTimeStr = `${start_date} 00:00:00`;
-      const endDateTimeStr = `${end_date} 00:00:00`;
+      // Calculate leave days count dynamically
+      const formattedStartDate = formatDateDdMmYyyy(start_date);
+      const formattedEndDate = formatDateDdMmYyyy(end_date);
+      const daysCount = calculateDays(formattedStartDate, formattedEndDate, duration === 'Half-Day');
+      const startDateTimeStr = `${formattedStartDate} 00:00:00`;
+      const endDateTimeStr = `${formattedEndDate} 00:00:00`;
 
       // HPL / CHPL can have custom times. Others have 00:00:00.
       const beginTimeStr = (subType === '1002' || subType === '1003') ? (start_time || '09:00:00') : '00:00:00';
@@ -629,7 +1101,7 @@ router.post('/leaves/apply', authenticateToken, async (req, res) => {
         ) VALUES (?, 'INS', '2001', ?, ?, '8.00', ?, ?, ?, ?, ?, ?, 'X', ?, '8.00', 'P')
       `;
       await conn.query(applyQuery, [
-        reqItemId, beginTimeStr, endTimeStr, employeeId, subType, startDateTimeStr, endDateTimeStr, daysCount, daysCount, daysCount
+        reqItemId, beginTimeStr, endTimeStr, employeeId, subType, formattedStartDate, formattedEndDate, daysCount, daysCount, daysCount
       ]);
 
       // Insert into ptreq_header_leave_approved_1
@@ -645,7 +1117,7 @@ router.post('/leaves/apply', authenticateToken, async (req, res) => {
       `;
       const randomGuid = generateHexId();
       await conn.query(headerQuery, [
-        reqItemId, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, employeeId, nextId
+        reqItemId, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, reqItemId, employeeId, nextId
       ]);
 
       // Sync into old absence table to prevent layout breakages
@@ -654,10 +1126,26 @@ router.post('/leaves/apply', authenticateToken, async (req, res) => {
         VALUES (?, ?, ?, ?, ?, ?, ?, 'P', NOW(), 'HR_app')
       `;
       await conn.query(absenceQuery, [
-        employeeId, subType === '1000' ? '1' : (subType === '1001' ? '2' : '3'), startDateTimeStr, endDateTimeStr, beginTimeStr, endTimeStr, daysCount
+        employeeId, subType === '1000' ? '1' : (subType === '1001' ? '2' : '3'), formattedStartDate, formattedEndDate, beginTimeStr, endTimeStr, daysCount
       ]);
 
       await conn.commit();
+
+      // Record Outbound Delta Changes for FTP Sync
+      await recordOutboundChange(
+        'PTREQ_ATTABSDATA_Leave_Apply',
+        reqItemId,
+        'INSERT',
+        { personnel_number: employeeId, sub_type: subType, start_date: formattedStartDate, end_date: formattedEndDate, reason: reason },
+        { id_of_request_item: reqItemId, personnel_number: employeeId, sub_type: subType, start_date: formattedStartDate, end_date: formattedEndDate, lock_indicator: 'P' }
+      );
+      await recordOutboundChange(
+        'PTREQ_HEADER_Leave_Approved',
+        reqItemId,
+        'INSERT',
+        { document_identification: reqItemId, document_status: 'SENT', last_changed_by: employeeId },
+        { document_identification: reqItemId, document_status: 'SENT', last_changed_by: employeeId }
+      );
 
       // Trigger notifications for applicant, RO, and RO1
       const applicantName = await getEmployeeName(employeeId);
@@ -689,6 +1177,32 @@ router.post('/leaves/apply', authenticateToken, async (req, res) => {
           `${applicantName} (${employeeId}) applied for ${leave_type} (${datesText}).`,
           'Leave'
         );
+      }
+
+      // 4. Trigger ZHR_LEAVE_SEND SMS notification to RO & RO1
+      try {
+        if (ro && ro !== '0' && ro !== 'N/A') {
+          const roMobile = await getEmployeeMobile(ro);
+          sendLeaveAppliedSms({
+            mobileNumber: roMobile,
+            applicantName: applicantName,
+            leaveType: leave_type,
+            startDate: start_date,
+            endDate: end_date
+          }).catch(err => console.error('[SMS Applied L1 Error]', err.message));
+        }
+        if (ro1 && ro1 !== '0' && ro1 !== 'N/A' && ro1 !== ro) {
+          const ro1Mobile = await getEmployeeMobile(ro1);
+          sendLeaveAppliedSms({
+            mobileNumber: ro1Mobile,
+            applicantName: applicantName,
+            leaveType: leave_type,
+            startDate: start_date,
+            endDate: end_date
+          }).catch(err => console.error('[SMS Applied L2 Error]', err.message));
+        }
+      } catch (smsErr) {
+        console.error('[SMS Leave Applied Error]', smsErr.message);
       }
 
       res.status(201).json({ message: 'Leave application submitted successfully', leaveId: reqItemId });
@@ -807,6 +1321,15 @@ router.post('/leaves/approve', authenticateToken, async (req, res) => {
 
     await logApproval(managerId, 'Leave', leave_id, applicantId, 'Approved', remarks);
 
+    // Record Outbound Delta Change for FTP Outbound Sync
+    await recordOutboundChange(
+      'PTREQ_HEADER_Leave_Approved',
+      leave_id,
+      'UPDATE',
+      { document_status: nextStatus, last_changed_by: managerId, remarks: remarks || '' },
+      { document_identification: leave_id, document_status: nextStatus, last_changed_by: managerId }
+    );
+
     const managerName = await getEmployeeName(managerId);
     const applicantName = await getEmployeeName(applicantId);
 
@@ -840,6 +1363,33 @@ router.post('/leaves/approve', authenticateToken, async (req, res) => {
           'Leave'
         );
       }
+    }
+
+    // Trigger ZHR_LEAVE_APPROVE2 SMS to applicant
+    try {
+      const [leaveRows] = await pool.query(
+        'SELECT sub_type, start_date, end_date FROM ptreq_attabsdata_leave_apply_1 WHERE id_of_request_item = ? LIMIT 1',
+        [leave_id]
+      );
+      if (leaveRows.length > 0) {
+        const lRow = leaveRows[0];
+        let leaveTypeStr = 'Earned Leave';
+        if (lRow.sub_type === '1001') leaveTypeStr = 'Casual Leave';
+        else if (lRow.sub_type === '1002') leaveTypeStr = 'HPL';
+        else if (lRow.sub_type === '1003') leaveTypeStr = 'CHPL';
+        else if (lRow.sub_type === '1010') leaveTypeStr = 'Optional Leave';
+
+        const applicantMobile = await getEmployeeMobile(applicantId);
+        sendLeaveApprovedSms({
+          mobileNumber: applicantMobile,
+          approverName: managerName,
+          leaveType: leaveTypeStr,
+          startDate: lRow.start_date,
+          endDate: lRow.end_date
+        }).catch(err => console.error('[SMS Approve Error]', err.message));
+      }
+    } catch (smsErr) {
+      console.error('[SMS Leave Approve Error]', smsErr.message);
     }
 
     res.json({ message: 'Leave request approved successfully', status: nextStatus });
@@ -909,6 +1459,35 @@ router.post('/leaves/reject', authenticateToken, async (req, res) => {
         );
       }
 
+      // Trigger ZHR_LEAVE_REJECT1 / ZHR_LEAVE_REJECT2 SMS to applicant
+      try {
+        const [leaveRows] = await pool.query(
+          'SELECT sub_type, start_date, end_date FROM ptreq_attabsdata_leave_apply_1 WHERE id_of_request_item = ? LIMIT 1',
+          [leave_id]
+        );
+        if (leaveRows.length > 0) {
+          const lRow = leaveRows[0];
+          let leaveTypeStr = 'Earned Leave';
+          if (lRow.sub_type === '1001') leaveTypeStr = 'Casual Leave';
+          else if (lRow.sub_type === '1002') leaveTypeStr = 'HPL';
+          else if (lRow.sub_type === '1003') leaveTypeStr = 'CHPL';
+          else if (lRow.sub_type === '1010') leaveTypeStr = 'Optional Leave';
+
+          const applicantMobile = await getEmployeeMobile(applicantId);
+          const rejectStage = (requestHeader.document_status === 'SENT_L2' || l2 == managerId) ? 2 : 1;
+          sendLeaveRejectedSms({
+            mobileNumber: applicantMobile,
+            approverName: managerName,
+            leaveType: leaveTypeStr,
+            startDate: lRow.start_date,
+            endDate: lRow.end_date,
+            stage: rejectStage
+          }).catch(err => console.error('[SMS Reject Error]', err.message));
+        }
+      } catch (smsErr) {
+        console.error('[SMS Leave Reject Error]', smsErr.message);
+      }
+
       res.json({ message: 'Leave request rejected successfully' });
     } else {
       res.status(403).json({ error: 'You are not designated to reject this request' });
@@ -925,10 +1504,25 @@ router.post('/leaves/reject', authenticateToken, async (req, res) => {
 router.get('/tours', authenticateToken, async (req, res) => {
   const employeeId = req.query.employee_id || req.user.employee_number;
   try {
-    const [rows] = await pool.query('SELECT * FROM travel WHERE personnel_number = ? ORDER BY beginning_date_of_trip_segment DESC', [employeeId]);
+    const query = `
+      SELECT 
+        tr.*, 
+        ag.reporting_officer, 
+        ag.reporting_officer_1,
+        ro.employee_name AS reporting_officer_name,
+        ro1.employee_name AS reporting_officer_1_name
+      FROM travel tr
+      LEFT JOIN zhcm_lr_t_agents_03072026 ag ON CAST(tr.personnel_number AS UNSIGNED) = CAST(ag.personnel_number AS UNSIGNED)
+      LEFT JOIN manpower ro ON CAST(ag.reporting_officer AS UNSIGNED) = CAST(ro.employee_number AS UNSIGNED)
+      LEFT JOIN manpower ro1 ON CAST(ag.reporting_officer_1 AS UNSIGNED) = CAST(ro1.employee_number AS UNSIGNED)
+      WHERE tr.personnel_number = ? OR CAST(tr.personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)
+      ORDER BY tr.beginning_date_of_trip_segment DESC
+    `;
+    const [rows] = await pool.query(query, [employeeId, employeeId]);
     const tours = rows.map(row => {
       let status = 'Approved';
-      if (row.planning_status === '1') status = 'Pending L1';
+      if (row.planning_status === '0') status = 'Draft';
+      else if (row.planning_status === '1') status = 'Pending L1';
       else if (row.planning_status === '11') status = 'Pending L2';
       else if (row.planning_status === '3') status = 'Rejected';
 
@@ -944,14 +1538,18 @@ router.get('/tours', authenticateToken, async (req, res) => {
         id: row.id.toString(),
         employeeId: row.personnel_number.toString(),
         destination: row.trip_destination || 'N/A',
-        startDate: row.beginning_date_of_trip_segment,
-        endDate: row.end_date_of_trip_segment,
+        startDate: formatIsoDate(row.beginning_date_of_trip_segment) || row.beginning_date_of_trip_segment,
+        endDate: formatIsoDate(row.end_date_of_trip_segment) || row.end_date_of_trip_segment,
         travelPurpose: row.reason_for_trip || 'Official Work',
         transportMode: row.depart_res_workplace || 'Train',
         tourType: activityType,
         status,
         appliedOn: row.changed_on || row.beginning_date_of_trip_segment,
-        approvedOn: row.planning_status === '2' ? row.changed_on : null
+        approvedOn: row.planning_status === '2' ? row.changed_on : null,
+        reportingOfficer: (row.reporting_officer || '').toString(),
+        reportingOfficerName: row.reporting_officer_name || '',
+        reportingOfficer1: (row.reporting_officer_1 || '').toString(),
+        reportingOfficer1Name: row.reporting_officer_1_name || ''
       };
     });
     res.json(tours);
@@ -965,7 +1563,7 @@ router.get('/tours', authenticateToken, async (req, res) => {
  * @route   POST /api/tours/apply
  */
 router.post('/tours/apply', authenticateToken, async (req, res) => {
-  const { destination, start_date, end_date, purpose, transport_mode, tour_type } = req.body;
+  const { tour_id, id, destination, start_date, end_date, purpose, transport_mode, tour_type, status } = req.body;
   const employeeId = req.user.employee_number;
 
   try {
@@ -988,15 +1586,84 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Missing reporting officers. Please connect to HR office.' });
     }
 
-    const query = `
-      INSERT INTO travel (personnel_number, trip_destination, beginning_date_of_trip_segment, end_date_of_trip_segment, reason_for_trip, depart_res_workplace, trip_activity_type, planning_status, changed_on, changed_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, '1', NOW(), 'HR_app')
-    `;
-    const [result] = await pool.query(query, [employeeId, destination, start_date, end_date, purpose, transport_mode, tour_type]);
+    const formattedStartDate = formatIsoDate(start_date) || start_date;
+    const formattedEndDate = formatIsoDate(end_date) || end_date;
+
+    const isDraft = status === 'Draft';
+    const newPlanningStatus = isDraft ? '0' : '1'; // '0' = Draft, '1' = Pending L1
+
+    const targetTourId = tour_id || id;
+    let existingId = null;
+
+    if (targetTourId) {
+      const [checkRows] = await pool.query(
+        'SELECT id FROM travel WHERE id = ? AND (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?) LIMIT 1',
+        [targetTourId, employeeId, employeeId]
+      );
+      if (checkRows.length > 0) {
+        existingId = checkRows[0].id;
+      }
+    }
+
+    // If no explicit ID match, check if there is an existing Draft record for this employee
+    if (!existingId) {
+      const [draftRows] = await pool.query(
+        'SELECT id FROM travel WHERE (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?) AND planning_status = "0" ORDER BY id DESC LIMIT 1',
+        [employeeId, employeeId]
+      );
+      if (draftRows.length > 0) {
+        existingId = draftRows[0].id;
+      }
+    }
+
+    let recordId;
+    if (existingId) {
+      // UPDATE EXISTING DRAFT / TRIP RECORD TO PENDING (OR DRAFT) TO PREVENT DUPLICATES!
+      const updateQuery = `
+        UPDATE travel 
+        SET 
+          trip_destination = ?, 
+          beginning_date_of_trip_segment = ?, 
+          end_date_of_trip_segment = ?, 
+          reason_for_trip = ?, 
+          depart_res_workplace = ?, 
+          trip_activity_type = ?, 
+          planning_status = ?, 
+          changed_on = NOW(), 
+          changed_by = 'HR_app'
+        WHERE id = ?
+      `;
+      await pool.query(updateQuery, [destination, formattedStartDate, formattedEndDate, purpose, transport_mode, tour_type, newPlanningStatus, existingId]);
+      recordId = existingId;
+
+      await recordOutboundChange(
+        'travel',
+        recordId,
+        'UPDATE',
+        { personnel_number: employeeId, trip_destination: destination, beginning_date_of_trip_segment: formattedStartDate, end_date_of_trip_segment: formattedEndDate, reason_for_trip: purpose, planning_status: newPlanningStatus },
+        { id: recordId, personnel_number: employeeId, trip_destination: destination }
+      );
+    } else {
+      // INSERT NEW RECORD ONLY IF NO PREVIOUS DRAFT / MATCHING TRIP RECORD EXISTS
+      const insertQuery = `
+        INSERT INTO travel (personnel_number, trip_destination, beginning_date_of_trip_segment, end_date_of_trip_segment, reason_for_trip, depart_res_workplace, trip_activity_type, planning_status, changed_on, changed_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'HR_app')
+      `;
+      const [result] = await pool.query(insertQuery, [employeeId, destination, formattedStartDate, formattedEndDate, purpose, transport_mode, tour_type, newPlanningStatus]);
+      recordId = result.insertId;
+
+      await recordOutboundChange(
+        'travel',
+        recordId,
+        'INSERT',
+        { personnel_number: employeeId, trip_destination: destination, beginning_date_of_trip_segment: formattedStartDate, end_date_of_trip_segment: formattedEndDate, reason_for_trip: purpose, planning_status: newPlanningStatus },
+        { id: recordId, personnel_number: employeeId, trip_destination: destination }
+      );
+    }
 
     // Trigger notifications for applicant, RO, and RO1
     const applicantName = await getEmployeeName(employeeId);
-    const datesText = `${start_date || ''} to ${end_date || ''}`;
+    const datesText = `${formattedStartDate} to ${formattedEndDate}`;
 
     // 1. Applicant notification
     await createNotification(
@@ -1026,7 +1693,7 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
       );
     }
 
-    res.status(201).json({ message: 'Tour request submitted successfully', tourId: result.insertId });
+    res.status(201).json({ message: 'Tour request submitted successfully', tourId: recordId });
   } catch (error) {
     console.error('[Apply Tour Error]', error.message);
     res.status(500).json({ error: 'Failed to apply for tour', message: error.message });
@@ -1040,10 +1707,19 @@ router.get('/tours/pending-approvals', authenticateToken, async (req, res) => {
   const managerId = req.user.employee_number;
   try {
     const query = `
-      SELECT tr.*, m.employee_name AS applicant_name, ag.designation
+      SELECT 
+        tr.*, 
+        m.employee_name AS applicant_name, 
+        ag.designation,
+        ag.reporting_officer, 
+        ag.reporting_officer_1,
+        ro.employee_name AS reporting_officer_name,
+        ro1.employee_name AS reporting_officer_1_name
       FROM travel tr
       JOIN manpower m ON CAST(tr.personnel_number AS UNSIGNED) = CAST(m.employee_number AS UNSIGNED)
       JOIN zhcm_lr_t_agents_03072026 ag ON CAST(tr.personnel_number AS UNSIGNED) = CAST(ag.personnel_number AS UNSIGNED)
+      LEFT JOIN manpower ro ON CAST(ag.reporting_officer AS UNSIGNED) = CAST(ro.employee_number AS UNSIGNED)
+      LEFT JOIN manpower ro1 ON CAST(ag.reporting_officer_1 AS UNSIGNED) = CAST(ro1.employee_number AS UNSIGNED)
       WHERE 
         (tr.planning_status = '1' AND CAST(ag.reporting_officer AS UNSIGNED) = CAST(? AS UNSIGNED))
         OR
@@ -1066,14 +1742,18 @@ router.get('/tours/pending-approvals', authenticateToken, async (req, res) => {
         employeeId: `${row.personnel_number} (${row.applicant_name})`,
         tourType: activityType,
         destination: row.trip_destination || 'N/A',
-        startDate: row.beginning_date_of_trip_segment,
-        endDate: row.end_date_of_trip_segment,
+        startDate: formatIsoDate(row.beginning_date_of_trip_segment) || row.beginning_date_of_trip_segment,
+        endDate: formatIsoDate(row.end_date_of_trip_segment) || row.end_date_of_trip_segment,
         travelPurpose: row.reason_for_trip || 'Official Visit',
         transportMode: row.depart_res_workplace || 'Train',
         processor: 'Manager',
         status,
         remarks: row.reason_for_trip,
-        appliedOn: row.changed_on || row.beginning_date_of_trip_segment
+        appliedOn: row.changed_on || row.beginning_date_of_trip_segment,
+        reportingOfficer: (row.reporting_officer || '').toString(),
+        reportingOfficerName: row.reporting_officer_name || '',
+        reportingOfficer1: (row.reporting_officer_1 || '').toString(),
+        reportingOfficer1Name: row.reporting_officer_1_name || ''
       };
     });
     res.json(approvals);
@@ -1086,7 +1766,7 @@ router.get('/tours/pending-approvals', authenticateToken, async (req, res) => {
 /**
  * @route   POST /api/tours/approve
  */
-router.post('/api/tours/approve', authenticateToken, async (req, res) => {
+router.post('/tours/approve', authenticateToken, async (req, res) => {
   const { tour_id, remarks } = req.body;
   const managerId = req.user.employee_number;
 
@@ -1347,11 +2027,19 @@ router.get('/notifications', authenticateToken, async (req, res) => {
  */
 router.post('/notifications/read', authenticateToken, async (req, res) => {
   const employeeId = req.user.employee_number;
+  const notifId = req.body && req.body.id;
   try {
-    await pool.query(
-      'UPDATE notifications SET is_read = TRUE WHERE employee_id = ? OR CAST(employee_id AS UNSIGNED) = CAST(? AS UNSIGNED)',
-      [employeeId, employeeId]
-    );
+    if (notifId) {
+      await pool.query(
+        'UPDATE notifications SET is_read = TRUE WHERE id = ?',
+        [notifId]
+      );
+    } else {
+      await pool.query(
+        'UPDATE notifications SET is_read = TRUE WHERE employee_id = ? OR CAST(employee_id AS UNSIGNED) = CAST(? AS UNSIGNED)',
+        [employeeId, employeeId]
+      );
+    }
     res.json({ message: 'Notifications marked as read' });
   } catch (error) {
     console.error('[Mark Notifications Read Error]', error.message);
@@ -1365,7 +2053,12 @@ router.post('/notifications/read', authenticateToken, async (req, res) => {
 router.get('/employees', authenticateToken, async (req, res) => {
   const managerId = req.user.employee_number;
   try {
-    const query = `
+    const cleanManagerId = managerId ? managerId.toString().trim().replace(/^0+/, '') : '';
+    let query;
+    let params;
+
+    // EVERY Reporting Officer (including Top Executive 16194) sees ONLY employees who work under them
+    query = `
       SELECT 
         m.*, 
         a.reporting_officer, 
@@ -1374,13 +2067,116 @@ router.get('/employees', authenticateToken, async (req, res) => {
         ro1.employee_name AS reporting_officer_1_name
       FROM manpower m 
       JOIN zhcm_lr_t_agents_03072026 a ON CAST(m.employee_number AS UNSIGNED) = CAST(a.personnel_number AS UNSIGNED)
-      LEFT JOIN manpower ro ON CAST(a.reporting_officer AS UNSIGNED) = ro.employee_number
-      LEFT JOIN manpower ro1 ON CAST(a.reporting_officer_1 AS UNSIGNED) = ro1.employee_number
-      WHERE CAST(a.reporting_officer AS UNSIGNED) = CAST(? AS UNSIGNED) OR CAST(a.reporting_officer_1 AS UNSIGNED) = CAST(? AS UNSIGNED)
+      LEFT JOIN manpower ro ON CAST(a.reporting_officer AS UNSIGNED) = CAST(ro.employee_number AS UNSIGNED)
+      LEFT JOIN manpower ro1 ON CAST(a.reporting_officer_1 AS UNSIGNED) = CAST(ro1.employee_number AS UNSIGNED)
+      WHERE CAST(a.reporting_officer AS UNSIGNED) = CAST(? AS UNSIGNED) 
+         OR CAST(a.reporting_officer_1 AS UNSIGNED) = CAST(? AS UNSIGNED)
+      GROUP BY m.employee_number
+      ORDER BY CAST(m.employee_number AS UNSIGNED) ASC
     `;
-    const [rows] = await pool.query(query, [managerId, managerId]);
-    const employees = rows.map(row => mapEmployeeRow(row));
-    res.json(employees);
+    params = [cleanManagerId, cleanManagerId];
+
+    const [rows] = await pool.query(query, params);
+
+    if (rows.length === 0) {
+      return res.json([]);
+    }
+
+    // Extract clean personnel numbers for bulk fetching family & nomination details
+    const empNumbers = rows
+      .map(r => (r.employee_number || '').toString().trim().replace(/^0+/, ''))
+      .filter(Boolean);
+
+    // Fetch family & nominee details ONLY if count <= 100 or include_details=true
+    const includeDetails = req.query.include_details === 'true' || empNumbers.length <= 100;
+
+    const familyMap = new Map();
+    const nomineeMap = new Map();
+
+    if (includeDetails && empNumbers.length > 0) {
+      // Fetch family members from it0021_family_member
+      try {
+        const placeholders = empNumbers.map(() => '?').join(',');
+        const [famRows] = await pool.query(
+          `SELECT personnel_number, full_name, first_name, middle_name, last_name, family_member, sub_type, date_of_birth, gender, aadhar_card FROM it0021_family_member WHERE CAST(personnel_number AS UNSIGNED) IN (${placeholders})`,
+          empNumbers
+        );
+        famRows.forEach(f => {
+          const pNo = (f.personnel_number || '').toString().trim().replace(/^0+/, '');
+          if (!familyMap.has(pNo)) familyMap.set(pNo, []);
+          familyMap.get(pNo).push({
+            name: f.full_name || [f.first_name, f.middle_name, f.last_name].filter(Boolean).join(' ') || 'N/A',
+            relation: f.family_member || f.sub_type || 'Family Member',
+            dob: formatDate(f.date_of_birth),
+            gender: f.gender === '1' ? 'Male' : (f.gender === '2' ? 'Female' : (f.gender || 'N/A')),
+            aadhar: f.aadhar_card || 'N/A'
+          });
+        });
+      } catch (famErr) {
+        console.error('[Family Fetch Error]', famErr.message);
+      }
+
+      // Fetch nominations from it0591_nomination
+      try {
+        const placeholders = empNumbers.map(() => '?').join(',');
+        const [nomRows] = await pool.query(
+          `SELECT personnel_number, benefit_type, name_of_nominee, relationship_with_employee, percentage_of_share, address_of_nominee, date_of_birth_of_nominee, name_of_nominee_1, relationship_with_employee_1, percentage_of_share_1, address_of_nominee_1, date_of_birth_of_nominee_1, name_of_nominee_2, relationship_with_employee_2, percentage_of_share_2, address_of_nominee_2, date_of_birth_of_nominee_2 FROM it0591_nomination WHERE CAST(personnel_number AS UNSIGNED) IN (${placeholders})`,
+          empNumbers
+        );
+        nomRows.forEach(n => {
+          const pNo = (n.personnel_number || '').toString().trim().replace(/^0+/, '');
+          if (!nomineeMap.has(pNo)) nomineeMap.set(pNo, []);
+          
+          if (n.name_of_nominee) {
+            nomineeMap.get(pNo).push({
+              name: n.name_of_nominee,
+              relation: n.relationship_with_employee || 'N/A',
+              share: n.percentage_of_share || '100%',
+              benefitType: n.benefit_type || 'Nomination',
+              address: n.address_of_nominee || 'N/A',
+              dob: formatDate(n.date_of_birth_of_nominee)
+            });
+          }
+          if (n.name_of_nominee_1) {
+            nomineeMap.get(pNo).push({
+              name: n.name_of_nominee_1,
+              relation: n.relationship_with_employee_1 || 'N/A',
+              share: n.percentage_of_share_1 || 'N/A',
+              benefitType: n.benefit_type || 'Nomination',
+              address: n.address_of_nominee_1 || 'N/A',
+              dob: formatDate(n.date_of_birth_of_nominee_1)
+            });
+          }
+          if (n.name_of_nominee_2) {
+            nomineeMap.get(pNo).push({
+              name: n.name_of_nominee_2,
+              relation: n.relationship_with_employee_2 || 'N/A',
+              share: n.percentage_of_share_2 || 'N/A',
+              benefitType: n.benefit_type || 'Nomination',
+              address: n.address_of_nominee_2 || 'N/A',
+              dob: formatDate(n.date_of_birth_of_nominee_2)
+            });
+          }
+        });
+      } catch (nomErr) {
+        console.error('[Nominee Fetch Error]', nomErr.message);
+      }
+    }
+
+    // Guaranteed deduplication by employee_number and inject family/nominee data
+    const seenMap = new Map();
+    rows.forEach(row => {
+      const empNo = (row.employee_number || '').toString().trim();
+      const cleanEmpNo = empNo.replace(/^0+/, '');
+      if (empNo && !seenMap.has(cleanEmpNo)) {
+        const empObject = mapEmployeeRow(row);
+        empObject.familyMembers = familyMap.get(cleanEmpNo) || [];
+        empObject.nominees = nomineeMap.get(cleanEmpNo) || [];
+        seenMap.set(cleanEmpNo, empObject);
+      }
+    });
+
+    res.json(Array.from(seenMap.values()));
   } catch (error) {
     console.error('[Get Employees Error]', error.message);
     res.status(500).json({ error: 'Failed to fetch employees list', message: error.message });
@@ -1393,7 +2189,7 @@ router.get('/employees', authenticateToken, async (req, res) => {
 router.post('/leave-encashment', authenticateToken, async (req, res) => {
   const { employee_id, days, year } = req.body;
   const loggedInId = req.user.employee_number;
-  const cleanEmpId = employee_id.toString().trim().replaceAll(RegExp('^0+'), '');
+  const cleanEmpId = employee_id.toString().trim().replace(/^0+/, '');
 
   try {
     // 1. Validation: Only self or respective reporting officer can encash
@@ -1439,6 +2235,20 @@ router.post('/leave-encashment', authenticateToken, async (req, res) => {
       ) VALUES (?, '1000', NOW(), NOW(), ?, 'A', '1000', 'HR_app', NOW(), '0', 'PECCLNT100', ?)
     `;
     const [result] = await pool.query(insertQuery, [cleanEmpId, finalDays, docNumber]);
+
+    // Trigger ZHR_LEAVE_ENCASH_SEND SMS to Reporting Officer
+    try {
+      const applicantName = await getEmployeeName(cleanEmpId);
+      const roMobile = await getEmployeeMobile(l1);
+      sendLeaveEncashAppliedSms({
+        mobileNumber: roMobile,
+        applicantName: applicantName,
+        days: finalDays
+      }).catch(err => console.error('[SMS Encash Applied Error]', err.message));
+    } catch (smsErr) {
+      console.error('[SMS Leave Encash Applied Error]', smsErr.message);
+    }
+
     res.status(201).json({
       message: 'Leave encashment request processed successfully',
       id: result.insertId,
@@ -1510,25 +2320,38 @@ router.get('/leaves/team-calendar', authenticateToken, async (req, res) => {
  */
 router.get('/tours/team-calendar', authenticateToken, async (req, res) => {
   const managerId = req.user.employee_number;
+  const cleanManagerId = managerId ? managerId.toString().trim().replace(/^0+/, '') : '';
   try {
-    // 1. Fetch team members (subordinates)
     const teamQuery = `
-      SELECT m.employee_number, m.employee_name
+      SELECT DISTINCT m.employee_number, m.employee_name
       FROM manpower m
-      JOIN zhcm_lr_t_agents_03072026 a ON m.employee_number = CAST(a.personnel_number AS UNSIGNED)
-      WHERE a.reporting_officer = ? OR a.reporting_officer_1 = ?
+      LEFT JOIN zhcm_lr_t_agents_03072026 a ON CAST(m.employee_number AS UNSIGNED) = CAST(a.personnel_number AS UNSIGNED)
+      LEFT JOIN travel tr ON CAST(m.employee_number AS UNSIGNED) = CAST(tr.personnel_number AS UNSIGNED)
+      WHERE CAST(a.reporting_officer AS UNSIGNED) = CAST(? AS UNSIGNED) 
+         OR CAST(a.reporting_officer_1 AS UNSIGNED) = CAST(? AS UNSIGNED)
+         OR CAST(m.employee_number AS UNSIGNED) = CAST(? AS UNSIGNED)
+         OR CAST(tr.personnel_number AS UNSIGNED) IN (
+            SELECT DISTINCT CAST(t.personnel_number AS UNSIGNED) 
+            FROM travel t
+            JOIN zhcm_lr_t_agents_03072026 ag ON CAST(t.personnel_number AS UNSIGNED) = CAST(ag.personnel_number AS UNSIGNED)
+            WHERE CAST(ag.reporting_officer AS UNSIGNED) = CAST(? AS UNSIGNED)
+               OR CAST(ag.reporting_officer_1 AS UNSIGNED) = CAST(? AS UNSIGNED)
+         )
+      ORDER BY CAST(m.employee_number AS UNSIGNED) ASC
     `;
-    const [subordinates] = await pool.query(teamQuery, [managerId, managerId]);
+    const [subordinates] = await pool.query(teamQuery, [cleanManagerId, cleanManagerId, cleanManagerId, cleanManagerId, cleanManagerId]);
 
     const result = [];
     for (const sub of subordinates) {
-      // 2. Fetch travel segments for this team member
+      const cleanSubEmpNo = sub.employee_number ? sub.employee_number.toString().trim().replace(/^0+/, '') : '';
+
       const toursQuery = `
         SELECT * FROM travel 
-        WHERE personnel_number = ? AND planning_status IN ('1', '2', '11')
+        WHERE (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED) OR personnel_number = ?)
+          AND (planning_status IN ('1', '2', '11', 'APPROVED', 'Approved') OR planning_status LIKE '2%')
         ORDER BY beginning_date_of_trip_segment DESC
       `;
-      const [tours] = await pool.query(toursQuery, [sub.employee_number]);
+      const [tours] = await pool.query(toursQuery, [cleanSubEmpNo, cleanSubEmpNo, sub.employee_number]);
 
       const formattedTours = tours.map(row => {
         let activityType = 'Official Tour';
@@ -1540,12 +2363,17 @@ router.get('/tours/team-calendar', authenticateToken, async (req, res) => {
         }
 
         let status = 'Approved';
-        if (row.planning_status === '1') status = 'Pending L1';
-        else if (row.planning_status === '11') status = 'Pending L2';
+        const rawStatus = (row.planning_status || '').toString().trim();
+        if (rawStatus === '1') status = 'Pending L1';
+        else if (rawStatus === '11') status = 'Pending L2';
+        else status = 'Approved';
+
+        const startDateIso = formatIsoDate(row.beginning_date_of_trip_segment);
+        const endDateIso = formatIsoDate(row.end_date_of_trip_segment);
 
         return {
-          startDate: row.beginning_date_of_trip_segment,
-          endDate: row.end_date_of_trip_segment,
+          startDate: startDateIso || row.beginning_date_of_trip_segment,
+          endDate: endDateIso || row.end_date_of_trip_segment,
           destination: row.trip_destination || 'N/A',
           travelPurpose: row.reason_for_trip || 'Official Work',
           tourType: activityType,
@@ -1563,7 +2391,93 @@ router.get('/tours/team-calendar', authenticateToken, async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('[Get Tours Team Calendar Error]', error.message);
-    res.status(500).json({ error: 'Failed to fetch tours team calendar details', message: error.message });
+    res.status(500).json({ error: 'Failed to fetch team calendar tours', message: error.message });
+  }
+});
+
+/**
+ * Helper to record outbound modifications (delta tracking & file export for FTP Outbound folder)
+ */
+async function recordOutboundChange(tableName, recordId, actionType, changedColumns, rowData) {
+  try {
+    // 1. Database delta tracking
+    await pool.query(
+      'INSERT INTO app_outbound_changes (table_name, record_id, action_type, changed_columns, row_data) VALUES (?, ?, ?, ?, ?)',
+      [tableName, String(recordId), actionType, JSON.stringify(changedColumns || {}), JSON.stringify(rowData || {})]
+    );
+
+    // 2. Save changed data file into local FTP Outbound folder
+    const outboundDir = path.join(__dirname, '../../outbound');
+    if (!fs.existsSync(outboundDir)) {
+      fs.mkdirSync(outboundDir, { recursive: true });
+    }
+    const fileName = `${tableName}_${actionType}_${recordId}_${Date.now()}.json`;
+    const filePath = path.join(outboundDir, fileName);
+    const filePayload = {
+      timestamp: new Date().toISOString(),
+      table_name: tableName,
+      record_id: recordId,
+      action_type: actionType,
+      changed_columns: changedColumns || {},
+      row_data: rowData || {}
+    };
+    fs.writeFileSync(filePath, JSON.stringify(filePayload, null, 2), 'utf8');
+    console.log(`[FTP Outbound File Created] ${filePath}`);
+  } catch (err) {
+    console.error('[Record Outbound Change Error]', err.message);
+  }
+}
+
+/**
+ * @route   GET /api/pending-outbound
+ * @desc    Returns all unsynced modified rows & columns for Outbound FTP export
+ */
+router.get('/pending-outbound', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM app_outbound_changes WHERE is_synced = 0 ORDER BY id ASC LIMIT 500');
+    const parsed = rows.map(r => ({
+      id: r.id,
+      table_name: r.table_name,
+      record_id: r.record_id,
+      action_type: r.action_type,
+      changed_columns: typeof r.changed_columns === 'string' ? JSON.parse(r.changed_columns || '{}') : r.changed_columns,
+      row_data: typeof r.row_data === 'string' ? JSON.parse(r.row_data || '{}') : r.row_data,
+      created_at: r.created_at
+    }));
+    res.json(parsed);
+  } catch (err) {
+    console.error('[Pending Outbound Error]', err.message);
+    res.status(500).json({ error: 'Failed to fetch pending outbound changes' });
+  }
+});
+
+/**
+ * @route   POST /api/mark-outbound-synced
+ * @desc    Marks processed change IDs as synced
+ */
+router.post('/mark-outbound-synced', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (Array.isArray(ids) && ids.length > 0) {
+      await pool.query('UPDATE app_outbound_changes SET is_synced = 1, synced_at = NOW() WHERE id IN (?)', [ids]);
+    }
+    res.json({ success: true, count: ids ? ids.length : 0 });
+  } catch (err) {
+    console.error('[Mark Outbound Synced Error]', err.message);
+    res.status(500).json({ error: 'Failed to mark outbound changes as synced' });
+/**
+ * @route   ALL /api/trigger-ftp-sync
+ * @desc    Triggers automated FTP Inbound/Outbound sync & DB upserts
+ */
+router.all('/trigger-ftp-sync', async (req, res) => {
+  try {
+    const { runFtpSync } = require('../services/ftp_sync_service');
+    // Run sync in background or await
+    runFtpSync().catch(err => console.error('[Background FTP Sync Error]', err));
+    res.json({ success: true, message: 'FTP Inbound/Outbound synchronization triggered successfully' });
+  } catch (err) {
+    console.error('[Trigger FTP Sync Error]', err.message);
+    res.status(500).json({ error: 'Failed to trigger FTP sync', details: err.message });
   }
 });
 

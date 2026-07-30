@@ -2,20 +2,40 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const { testConnection } = require('./config/db');
 const apiRouter = require('./routes/api');
-const syncRouter = require('./routes/sync');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires', 'X-Requested-With'],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+
+// Disable caching and allow CORS headers on all API responses
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control, Pragma, Expires, X-Requested-With');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
 // Static uploads folder
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -27,8 +47,6 @@ testConnection();
 // Routes
 app.use('/api', apiRouter);
 app.use('/test/moil_hr_app/api', apiRouter);
-app.use('/api/sync', syncRouter);
-app.use('/test/moil_hr_app/api/sync', syncRouter);
 
 // Root route
 app.get(['/', '/test/moil_hr_app/api'], (req, res) => {
@@ -49,16 +67,25 @@ app.use((req, res, next) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error('[Server Error]', err.stack || err.message);
-  res.status(err.status || 500).json({
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
+  console.error('[Unhandled Error]', err.stack);
+  res.status(500).json({ error: 'Internal Server Error', message: err.message });
 });
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`[Server] Express server is running on http://localhost:${PORT}`);
-});
+if (require.main === module || !module.parent) {
+  app.listen(PORT, () => {
+    console.log(`Moil Backend server listening on port ${PORT}`);
+
+    // Automated FTP Synchronization: Initial run after 10s, then repeat every 15 minutes
+    const { runFtpSync } = require('./services/ftp_sync_service');
+    setTimeout(() => {
+      runFtpSync().catch(err => console.error('[Initial FTP Sync Error]', err));
+    }, 10000);
+
+    const SYNC_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+    setInterval(() => {
+      runFtpSync().catch(err => console.error('[Periodic FTP Sync Error]', err));
+    }, SYNC_INTERVAL_MS);
+  });
+}
 
 module.exports = app;
