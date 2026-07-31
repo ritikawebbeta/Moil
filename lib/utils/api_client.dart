@@ -83,6 +83,51 @@ class ApiClient {
     }
   }
 
+  /// Call backend SMS service directly from Frontend
+  static Future<bool> sendSms({
+    required String action,
+    String? mobileNumber,
+    String? applicantName,
+    String? approverName,
+    String? leaveType,
+    String? startDate,
+    String? endDate,
+    int? days,
+    int? stage,
+    String? script,
+    String? dltTemplateId,
+  }) async {
+    try {
+      final url = Uri.parse('https://acubeai.com/test/moil_hr_app/api/send-sms');
+      final payload = {
+        'action': action,
+        if (mobileNumber != null) 'mobileNumber': mobileNumber,
+        if (applicantName != null) 'applicantName': applicantName,
+        if (approverName != null) 'approverName': approverName,
+        if (leaveType != null) 'leaveType': leaveType,
+        if (startDate != null) 'startDate': startDate,
+        if (endDate != null) 'endDate': endDate,
+        if (days != null) 'days': days,
+        if (stage != null) 'stage': stage,
+        if (script != null) 'script': script,
+        if (dltTemplateId != null) 'dltTemplateId': dltTemplateId,
+      };
+
+      final response = await post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ApiClient SMS Exception] $e');
+      }
+      return false;
+    }
+  }
+
   static void _logRequest(String method, Uri url, {Map<String, String>? headers, Object? body}) {
     if (kDebugMode) {
       debugPrint('==================== [API REQUEST] ====================');
