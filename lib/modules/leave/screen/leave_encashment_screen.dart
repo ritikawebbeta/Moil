@@ -9,6 +9,7 @@ import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../profile/controller/profile_controller.dart';
+import '../../../services/sms_direct_service.dart';
 
 class LeaveEncashmentScreen extends StatefulWidget {
   const LeaveEncashmentScreen({super.key});
@@ -224,6 +225,12 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
       _currentStep = 3; // Show success confirmation
       _isSubmitting = false;
     });
+
+    // Trigger Direct MyVI SMS for Leave Encashment Application
+    SmsDirectService.sendLeaveEncashAppliedSms(
+      applicantName: _employeeName,
+      days: _daysToEncashCtrl.text,
+    );
   }
 
   void _resetForm() {

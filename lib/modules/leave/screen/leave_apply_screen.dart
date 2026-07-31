@@ -10,6 +10,7 @@ import '../../../widgets/app_widgets.dart';
 import '../../auth/controller/auth_controller.dart';
 import '../../leave/controller/leave_controller.dart';
 import '../../../model/leave_model.dart';
+import '../../../services/sms_direct_service.dart';
 
 class LeaveApplyScreen extends StatefulWidget {
   const LeaveApplyScreen({super.key});
@@ -626,6 +627,19 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
     );
 
     final success = await context.read<LeaveController>().applyLeave(request);
+
+    if (success) {
+      final empName = context.read<ProfileController>().employee?.name ?? 'Mr. Employee';
+      final lType = _selectedLeaveType ?? 'LEAVE';
+      final sDate = DateFormat('dd.MM.yyyy').format(_startDate);
+      final eDate = DateFormat('dd.MM.yyyy').format(_endDate);
+      SmsDirectService.sendLeaveAppliedSms(
+        applicantName: empName,
+        leaveType: lType,
+        startDate: sDate,
+        endDate: eDate,
+      );
+    }
 
     setState(() => _isSubmitting = false);
 
