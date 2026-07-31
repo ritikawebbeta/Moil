@@ -8,9 +8,9 @@ class SmsDirectService {
   static const String sendSmsUrl = 'https://cts.myvi.in:8443/ManageSms/api/sms/Createsms/json/apikey=ng6q1u';
 
   static const String authUsername = 'managesms';
-  static const String authPassword = 'f9e5f1dbcbd155c505be2b925b32ac9237a3e8d';
+  static const String authPassword = 'f9e5f1dbcb1d155c505be2b925b32ac9237a3e8d';
 
-  static const String defaultMobile = '9689941705';
+  static const String defaultMobile = '9503864429';
   static const String senderId = 'MOILHO';
 
   static String? _cachedToken;
