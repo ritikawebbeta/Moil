@@ -53,7 +53,7 @@ class SmsDirectService {
     return null;
   }
 
-  /// Core Direct SMS dispatch to MyVI API
+  /// Core Direct SMS dispatch to MyVI API (with Web CORS handling)
   static Future<bool> sendSms({
     required String script,
     required String dltTemplateId,
@@ -65,6 +65,25 @@ class SmsDirectService {
           : defaultMobile;
 
       final targetPhone = (phone.length >= 10) ? phone.substring(phone.length - 10) : defaultMobile;
+
+      if (kIsWeb) {
+        // Web Browsers block direct cross-origin HTTP requests to port 8443 (CORS)
+        final proxyUrl = Uri.parse('https://acubeai.com/test/moil_hr_app/api/send-sms');
+        final response = await http.post(
+          proxyUrl,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'script': script,
+            'dltTemplateId': dltTemplateId,
+            'mobileNumber': targetPhone,
+          }),
+        );
+        if (kDebugMode) {
+          debugPrint('[SMS Web Proxy Response] Code: ${response.statusCode} | Body: ${response.body}');
+        }
+        return response.statusCode == 200;
+      }
+
       final token = await getAuthToken();
 
       final headers = <String, String>{
