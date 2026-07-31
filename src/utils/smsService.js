@@ -4,9 +4,9 @@ const AUTH_URL = 'https://cts.myvi.in:8443/ManageSms/api/AuthJwt/Authenticate';
 const SEND_SMS_URL = 'https://cts.myvi.in:8443/ManageSms/api/sms/Createsms/json/apikey=ng6q1u';
 
 const AUTH_USERNAME = 'managesms';
-const AUTH_PASSWORD = 'f9e5f1dbcbd155c505be2b925b32ac9237a3e8d';
+const AUTH_PASSWORD = 'f9e5f1dbcb1d155c505be2b925b32ac9237a3e8d';
 
-const DEFAULT_MOBILE = '9689941705';
+const DEFAULT_MOBILE = '9503864429';
 const SENDER_ID = 'MOILHO';
 
 // Cached JWT token
@@ -68,14 +68,8 @@ async function getAuthToken() {
  */
 async function sendSms({ mobileNumber, script, dltTemplateId }) {
   try {
-    // FOR TESTING: Hardcoded test mobile number requested by user
-    const targetPhone = '9689941705';
-
-    /* =========================================================================
-     * FUTURE PRODUCTION USE: Uncomment below to use dynamic recipient phone:
-     * const phone = mobileNumber ? String(mobileNumber).trim().replace(/[^\d]/g, '').slice(-10) : DEFAULT_MOBILE;
-     * const targetPhone = (phone.length === 10) ? phone : DEFAULT_MOBILE;
-     * ========================================================================= */
+    const phone = mobileNumber ? String(mobileNumber).trim().replace(/[^\d]/g, '').slice(-10) : DEFAULT_MOBILE;
+    const targetPhone = (phone.length === 10) ? phone : DEFAULT_MOBILE;
 
     const token = await getAuthToken();
 
