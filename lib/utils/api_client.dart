@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../services/sms_direct_service.dart';
 
 /// Custom HTTP Client wrapper that logs API requests & responses ONLY in debug mode.
 class ApiClient {
@@ -83,7 +84,7 @@ class ApiClient {
     }
   }
 
-  /// Call backend SMS service directly from Frontend
+  /// Call MyVI SMS Gateway API directly from Frontend (without backend endpoint)
   static Future<bool> sendSms({
     required String action,
     String? mobileNumber,
@@ -93,38 +94,74 @@ class ApiClient {
     String? startDate,
     String? endDate,
     int? days,
-    int? stage,
+    int stage = 1,
     String? script,
     String? dltTemplateId,
   }) async {
-    try {
-      final url = Uri.parse('https://acubeai.com/test/moil_hr_app/api/send-sms');
-      final payload = {
-        'action': action,
-        if (mobileNumber != null) 'mobileNumber': mobileNumber,
-        if (applicantName != null) 'applicantName': applicantName,
-        if (approverName != null) 'approverName': approverName,
-        if (leaveType != null) 'leaveType': leaveType,
-        if (startDate != null) 'startDate': startDate,
-        if (endDate != null) 'endDate': endDate,
-        if (days != null) 'days': days,
-        if (stage != null) 'stage': stage,
-        if (script != null) 'script': script,
-        if (dltTemplateId != null) 'dltTemplateId': dltTemplateId,
-      };
+    switch (action) {
+      case 'leave_applied':
+      case 'applied':
+        return await SmsDirectService.sendLeaveAppliedSms(
+          applicantName: applicantName ?? 'Mr. Employee',
+          leaveType: leaveType ?? 'LEAVE',
+          startDate: startDate ?? '',
+          endDate: endDate ?? '',
+          mobileNumber: mobileNumber,
+        );
 
-      final response = await post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(payload),
-      );
+      case 'leave_approved':
+      case 'approved':
+        return await SmsDirectService.sendLeaveApprovedSms(
+          approverName: approverName ?? 'Officer',
+          leaveType: leaveType ?? 'LEAVE',
+          startDate: startDate ?? '',
+          endDate: endDate ?? '',
+          mobileNumber: mobileNumber,
+        );
 
-      return response.statusCode == 200;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[ApiClient SMS Exception] $e');
-      }
-      return false;
+      case 'leave_rejected':
+      case 'rejected':
+        return await SmsDirectService.sendLeaveRejectedSms(
+          approverName: approverName ?? 'Officer',
+          leaveType: leaveType ?? 'LEAVE',
+          startDate: startDate ?? '',
+          endDate: endDate ?? '',
+          stage: stage,
+          mobileNumber: mobileNumber,
+        );
+
+      case 'encash_applied':
+        return await SmsDirectService.sendLeaveEncashAppliedSms(
+          applicantName: applicantName ?? 'Mr. Employee',
+          days: days ?? 0,
+          mobileNumber: mobileNumber,
+        );
+
+      case 'encash_approved':
+        return await SmsDirectService.sendLeaveEncashApprovedSms(
+          applicantName: applicantName ?? 'Mr. Employee',
+          approverName: approverName ?? 'Officer',
+          days: days ?? 0,
+          mobileNumber: mobileNumber,
+        );
+
+      case 'encash_rejected':
+        return await SmsDirectService.sendLeaveEncashRejectedSms(
+          applicantName: applicantName ?? 'Mr. Employee',
+          approverName: approverName ?? 'Officer',
+          days: days ?? 0,
+          mobileNumber: mobileNumber,
+        );
+
+      default:
+        if (script != null && dltTemplateId != null) {
+          return await SmsDirectService.sendSms(
+            script: script,
+            dltTemplateId: dltTemplateId,
+            mobileNumber: mobileNumber,
+          );
+        }
+        return false;
     }
   }
 
