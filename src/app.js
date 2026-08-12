@@ -59,6 +59,48 @@ app.get(['/payslip-pdf/:filename', '/test/moil_hr_app/payslip-pdf/:filename'], (
   return res.sendFile(filePath);
 });
 
+// Dedicated Profile Photo viewer/streamer route
+app.get(['/profile-photo/:empNo', '/test/moil_hr_app/profile-photo/:empNo', '/api/profile-photo/:empNo', '/test/moil_hr_app/api/profile-photo/:empNo'], (req, res) => {
+  const rawEmpNo = req.params.empNo || '';
+  const cleanId = rawEmpNo.trim().replace(/^0+/, '');
+  const paddedId = cleanId ? cleanId.padStart(8, '0') : '';
+
+  const candidateDirs = [
+    path.join(__dirname, '../uploads/profiles/Photo'),
+    path.join(__dirname, '../uploads/profiles'),
+    path.join(__dirname, '../uploads/Photo'),
+    path.join(__dirname, '../uploads'),
+    '/home/u156958239/domains/acubeai.com/public_html/test/moil_hr_app/uploads/profiles/Photo',
+    '/home/u156958239/domains/acubeai.com/public_html/test/moil_hr_app/uploads/profiles',
+    '/home/u156958239/domains/acubeai.com/public_html/test/moil_hr_app/uploads'
+  ];
+
+  const candidateNames = [
+    `${cleanId}.jpg`, `${cleanId}.png`, `${cleanId}.jpeg`, `${cleanId}.JPG`, `${cleanId}.PNG`,
+    `${paddedId}.jpg`, `${paddedId}.png`, `${paddedId}.jpeg`, `${paddedId}.JPG`, `${paddedId}.PNG`,
+    `${rawEmpNo}.jpg`, `${rawEmpNo}.png`, `${rawEmpNo}.jpeg`, `${rawEmpNo}.JPG`, `${rawEmpNo}.PNG`,
+    `${cleanId}_self.jpg`, `${cleanId}_self.png`, `${cleanId}_self.jpeg`,
+    `${paddedId}_self.jpg`, `${paddedId}_self.png`, `${paddedId}_self.jpeg`
+  ];
+
+  for (const dir of candidateDirs) {
+    if (!fs.existsSync(dir)) continue;
+    for (const name of candidateNames) {
+      if (!name) continue;
+      const fullPath = path.join(dir, name);
+      if (fs.existsSync(fullPath)) {
+        const ext = path.extname(name).toLowerCase();
+        const contentType = (ext === '.png') ? 'image/png' : 'image/jpeg';
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.sendFile(fullPath);
+      }
+    }
+  }
+
+  return res.status(404).send('Photo not found');
+});
+
 // Routes
 app.use('/api', apiRouter);
 app.use('/test/moil_hr_app/api', apiRouter);
