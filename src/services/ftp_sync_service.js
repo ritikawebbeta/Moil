@@ -191,6 +191,93 @@ function parseDataFile(filePath) {
 }
 
 /**
+ * Sync Employee Photos from FTP folders to DB & Local uploads
+ */
+async function syncPhotosFromFtp(client) {
+  try {
+    // Ensure employee_photos table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS employee_photos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        employee_number VARCHAR(50) UNIQUE,
+        file_name VARCHAR(255),
+        file_size BIGINT,
+        photo_url VARCHAR(500),
+        last_updated DATETIME
+      )
+    `);
+
+    // Ensure photo target directories exist
+    const localPhotoDir = path.join(__dirname, '../../uploads/profiles/Photo');
+    const publicPhotoDir = '/home/u156958239/domains/acubeai.com/public_html/test/moil_hr_app/uploads/profiles/Photo';
+    if (!fs.existsSync(localPhotoDir)) fs.mkdirSync(localPhotoDir, { recursive: true });
+    if (!fs.existsSync(publicPhotoDir) && fs.existsSync('/home/u156958239/domains/acubeai.com/public_html/test/moil_hr_app/uploads')) {
+      try { fs.mkdirSync(publicPhotoDir, { recursive: true }); } catch (_) {}
+    }
+
+    // Candidate FTP directories containing employee photos
+    const photoFtpDirs = [
+      '/HR_App/Inbound/Photo',
+      '/HR_App/Inbound/Profiles',
+      '/HR_App/Photo',
+      '/HR_App/Inbound'
+    ];
+
+    for (const ftpDir of photoFtpDirs) {
+      let files = [];
+      try {
+        files = await client.list(ftpDir);
+      } catch (_) {
+        continue;
+      }
+
+      for (const file of files) {
+        if (file.isDirectory) continue;
+        const ext = path.extname(file.name).toLowerCase();
+        if (!['.jpg', '.jpeg', '.png'].includes(ext)) continue;
+
+        console.log(`[FTP Photo Sync] Found photo on FTP (${ftpDir}): ${file.name} (${file.size} bytes)`);
+
+        const remotePath = `${ftpDir}/${file.name}`;
+        const localPath = path.join(localPhotoDir, file.name);
+
+        try {
+          await client.downloadTo(localPath, remotePath);
+
+          // Copy to public web path if available
+          if (fs.existsSync(path.dirname(publicPhotoDir))) {
+            try {
+              const publicPath = path.join(publicPhotoDir, file.name);
+              fs.copyFileSync(localPath, publicPath);
+            } catch (_) {}
+          }
+
+          // Parse employee ID from file name (e.g. 4428.jpg -> 4428, 00004428_self.png -> 4428)
+          const cleanEmpNo = file.name.split('.')[0].split('_')[0].trim().replace(/^0+/, '');
+          if (cleanEmpNo) {
+            const photoUrl = `https://acubeai.com/test/moil_hr_app/api/profile-photo/${cleanEmpNo}`;
+            await pool.query(`
+              INSERT INTO employee_photos (employee_number, file_name, file_size, photo_url, last_updated)
+              VALUES (?, ?, ?, ?, NOW())
+              ON DUPLICATE KEY UPDATE file_name = VALUES(file_name), file_size = VALUES(file_size), photo_url = VALUES(photo_url), last_updated = NOW()
+            `, [cleanEmpNo, file.name, file.size, photoUrl]);
+
+            // Also attempt to update manpower table if photo_url column exists
+            try {
+              await pool.query('UPDATE manpower SET photo_url = ? WHERE employee_number = ? OR CAST(employee_number AS UNSIGNED) = CAST(? AS UNSIGNED)', [photoUrl, cleanEmpNo, cleanEmpNo]);
+            } catch (_) {}
+          }
+        } catch (e) {
+          console.warn(`[FTP Photo Sync] Failed to download photo ${file.name}: ${e.message}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[FTP Photo Sync Warn] ${err.message}`);
+  }
+}
+
+/**
  * Core FTP Sync Runner
  */
 async function runFtpSync() {
@@ -214,6 +301,9 @@ async function runFtpSync() {
       secure: false
     });
     console.log(`[FTP Sync] Connected successfully to FTP server ${FTP_HOST}:${FTP_PORT} as ${FTP_USER}`);
+
+    // Step 0: Sync Employee Photos from FTP folders to DB & Local uploads
+    await syncPhotosFromFtp(client);
 
     // Ensure registry table exists
     await pool.query(`
