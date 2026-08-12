@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../utils/app_config.dart';
 
 /// Employee Avatar Widget
-/// Dynamically fetches profile photos from server Photo folder:
-/// https://acubeai.com/test/moil_hr_app/uploads/profiles/Photo/{empNo}.jpg
+/// Dynamically fetches profile photos from server Photo folder & API:
+/// https://acubeai.com/test/moil_hr_app/profile-photo/{empNo}
 /// Shows clean placeholder icon if photo is not present on server.
 class EmployeeAvatarWidget extends StatelessWidget {
   final String empNo;
@@ -28,12 +29,18 @@ class EmployeeAvatarWidget extends StatelessWidget {
     final rawId = rawEmpNo.trim();
     final paddedId = cleanId.padLeft(8, '0');
 
-    final Set<String> ids = {rawId, cleanId, paddedId};
+    final Set<String> ids = {cleanId, paddedId, rawId};
     final List<String> suffixes = ['_self', ''];
-    final List<String> exts = ['.jpg', '.png', '.jpeg', '.JPG', '.PNG', '.JPEG'];
+    final List<String> exts = ['', '.jpg', '.png', '.jpeg', '.JPG', '.PNG', '.JPEG'];
     final List<String> folders = [
+      '${AppConfig.baseUrl}/profile-photo/',
+      '${AppConfig.baseUrl}/api/profile-photo/',
+      'https://acubeai.com/test/moil_hr_app/profile-photo/',
+      'https://acubeai.com/test/moil_hr_app/api/profile-photo/',
       'https://acubeai.com/test/moil_hr_app/uploads/profiles/Photo/',
       'https://acubeai.com/test/moil_hr_app/uploads/profiles/',
+      'https://acubeai.com/test/moil_hr_app/uploads/Photo/',
+      'https://acubeai.com/test/moil_hr_app/uploads/',
     ];
 
     final List<String> urls = [];
