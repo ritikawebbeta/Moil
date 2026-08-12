@@ -4,42 +4,11 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const xlsx = require('xlsx');
 const authenticateToken = require('../middleware/auth');
 const { pool } = require('../config/db');
-const {
-  sendLeaveAppliedSms,
-  sendLeaveApprovedSms,
-  sendLeaveRejectedSms,
-  sendLeaveEncashAppliedSms,
-  sendLeaveEncashApprovedSms,
-  sendLeaveEncashRejectedSms
-} = require('../utils/smsService');
+const smsService = require('../utils/smsService');
 
-async function getEmployeeMobile(employeeId) {
-  // FOR TESTING: Hardcoded test mobile number requested by user
-  const defaultPhone = '9689941705';
-  return defaultPhone;
-
-  /* =========================================================================
-   * FUTURE PRODUCTION USE: Uncomment this block to automatically fetch 
-   * the employee's actual mobile number from the manpower MySQL database.
-   * =========================================================================
-  if (!employeeId || employeeId === '0' || employeeId === 'N/A') return defaultPhone;
-  try {
-    const [rows] = await pool.query(
-      'SELECT mobile_number FROM manpower WHERE employee_number = ? OR CAST(employee_number AS UNSIGNED) = ? LIMIT 1',
-      [employeeId, employeeId]
-    );
-    if (rows.length > 0 && rows[0].mobile_number) {
-      const mob = String(rows[0].mobile_number).trim().replace(/[^\d]/g, '');
-      if (mob.length >= 10) return mob.slice(-10);
-    }
-  } catch (e) {
-    console.error('[getEmployeeMobile Error]', e.message);
-  }
-  return defaultPhone;
-  */
-}
 
 // Helper to format dates consistently (DD-MM-YYYY)
 function formatDate(date) {
@@ -174,6 +143,32 @@ function generateHexId() {
   return crypto.randomBytes(16).toString('hex').toUpperCase();
 }
 
+// Generate HRAPP-prefixed request ID (HRAPP + 27 hex chars = 32 chars total)
+// Used exclusively for id_of_request_item on new leave/encashment requests
+function generateRequestId() {
+  const hexPart = crypto.randomBytes(14).toString('hex').toUpperCase().slice(0, 27);
+  return `HRAPP${hexPart}`;
+}
+
+// Lookup daily working hours from planned_working_time for an employee
+// Falls back to 8.5 if no record exists (existing default maintained)
+async function getPlannedHoursForEmployee(employeeId) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT daily_working_hours, monthly_working_hrs
+       FROM planned_working_time
+       WHERE CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)
+       ORDER BY start_date DESC LIMIT 1`,
+      [employeeId]
+    );
+    if (rows.length > 0) {
+      const daily = parseFloat(rows[0].daily_working_hours || rows[0].monthly_working_hrs / 22 || 0);
+      if (daily > 0) return daily;
+    }
+  } catch (_) { /* table may not have expected columns — fall through */ }
+  return 8.5; // existing hardcoded default as fallback
+}
+
 async function logApproval(managerId, requestType, requestId, applicantId, action, remarks) {
   try {
     const cleanApplicantId = applicantId.toString().trim().replace(/^0+/, '');
@@ -199,6 +194,9 @@ async function createNotification(employeeId, title, message, type) {
       VALUES (?, ?, ?, ?)
     `;
     await pool.query(query, [cleanEmpId, title, message, type || 'General']);
+
+    // Auto-delete notifications older than 1 month from DB
+    await pool.query('DELETE FROM notifications WHERE created_at < NOW() - INTERVAL 1 MONTH');
   } catch (error) {
     console.error('[createNotification Error]', error.message);
   }
@@ -409,6 +407,7 @@ router.post('/mark-outbound-synced', async (req, res) => {
  */
 function detectTableFromHeaders(keys, fileName) {
   const kStr = keys.map(k => String(k).toLowerCase()).join(' ');
+  const fnUpper = (fileName || '').toUpperCase();
 
   // 1. Manpower
   if (kStr.includes('cname') || kStr.includes('act_doj_on_promt_dt') || kStr.includes('date_of_appointment') || kStr.includes('date_of_retirement') || (kStr.includes('personnel number') && kStr.includes('name'))) {
@@ -460,7 +459,6 @@ function detectTableFromHeaders(keys, fileName) {
   }
 
   // Fallback to filename keywords if header match is inconclusive
-  const fnUpper = (fileName || '').toUpperCase();
   if (fnUpper.includes('MANPOWER')) return 'manpower';
   if (fnUpper.includes('LEAVE_QUOTA')) return 'leave_quota';
   if (fnUpper.includes('ABSENCE')) return 'absence';
@@ -494,21 +492,68 @@ router.post('/inbound-sync-db', async (req, res) => {
       return res.json({ message: `Skipping unmapped file ${fileName} (Headers did not match any known table fingerprint)`, processed: 0 });
     }
 
+    // Utility to parse dates correctly
+    function excelDateToDateString(val) {
+      if (val === null || val === undefined || val === '') return null;
+      const str = String(val).trim();
+      if (str === '' || str.toUpperCase() === 'NULL' || str === '0000-00-00' || str === '00.00.0000') return null;
+      if (/^\d{4,5}(\.\d+)?$/.test(str)) {
+        const num = parseFloat(str);
+        if (num > 1000) {
+          const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+          if (!isNaN(d.getTime())) {
+            const yyyy = d.getUTCFullYear();
+            const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const dd = String(d.getUTCDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+          }
+        }
+      }
+      if (/^\d{2}\.\d{2}\.\d{4}$/.test(str)) {
+        const p = str.split('.');
+        return `${p[2]}-${p[1]}-${p[0]}`;
+      }
+      if (/^\d{2}-\d{2}-\d{4}$/.test(str)) {
+        const p = str.split('-');
+        return `${p[2]}-${p[1]}-${p[0]}`;
+      }
+      return str;
+    }
+
     let successCount = 0;
     const conn = await pool.getConnection();
 
     try {
-      for (const rowObj of rows) {
-        const keys = Object.keys(rowObj).filter(k => k && rowObj[k] !== undefined);
-        if (keys.length === 0) continue;
+      const [tableColsRows] = await conn.query(`SHOW COLUMNS FROM \`${tableName}\``);
+      const validColsSet = new Set(tableColsRows.map(c => c.Field.toLowerCase()));
 
-        const cols = keys.map(k => `\`${k.trim().toLowerCase()}\``).join(', ');
-        const placeholders = keys.map(() => '?').join(', ');
-        const updateAssigns = keys.map(k => `\`${k.trim().toLowerCase()}\` = VALUES(\`${k.trim().toLowerCase()}\`)`).join(', ');
-        const vals = keys.map(k => rowObj[k]);
+      for (const rowObj of rows) {
+        const rawKeys = Object.keys(rowObj).filter(k => k && rowObj[k] !== undefined);
+        if (rawKeys.length === 0) continue;
+
+        const validKeys = [];
+        const validVals = [];
+
+        for (const k of rawKeys) {
+          let cleanK = k.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^_+|_+$/g, '');
+          if (validColsSet.has(cleanK)) {
+            validKeys.push(cleanK);
+            let val = rowObj[k];
+            if (cleanK.includes('date') || cleanK.includes('dob') || cleanK.includes('dt') || cleanK.includes('from') || cleanK.includes('to') || cleanK.includes('dosl') || cleanK.includes('dopp') || cleanK.includes('doj')) {
+              val = excelDateToDateString(val);
+            }
+            validVals.push(val);
+          }
+        }
+
+        if (validKeys.length === 0) continue;
+
+        const cols = validKeys.map(k => `\`${k}\``).join(', ');
+        const placeholders = validKeys.map(() => '?').join(', ');
+        const updateAssigns = validKeys.map(k => `\`${k}\` = VALUES(\`${k}\`)`).join(', ');
 
         const sql = `INSERT INTO \`${tableName}\` (${cols}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateAssigns}`;
-        await conn.query(sql, vals);
+        await conn.query(sql, validVals);
         successCount++;
       }
     } finally {
@@ -826,64 +871,196 @@ router.post('/tours/delete', authenticateToken, async (req, res) => {
  */
 router.get('/leaves', authenticateToken, async (req, res) => {
   const employeeId = req.query.employee_id || req.user.employee_number;
+  const showFrom = req.query.show_from || null;
+
   try {
-    const query = `
-      SELECT 
-        a.*, 
-        h.document_status, 
-        h.last_changed_by,
-        ro.employee_name AS processor_name,
-        ro1.employee_name AS processor1_name
-      FROM ptreq_attabsdata_leave_apply_1 a
-      LEFT JOIN ptreq_header_leave_approved_1 h ON a.id_of_request_item = h.document_identification
-      LEFT JOIN zhcm_lr_t_agents_03072026 ag ON CAST(a.personnel_number AS UNSIGNED) = CAST(ag.personnel_number AS UNSIGNED)
-      LEFT JOIN manpower ro ON CAST(ag.reporting_officer AS UNSIGNED) = ro.employee_number
-      LEFT JOIN manpower ro1 ON CAST(ag.reporting_officer_1 AS UNSIGNED) = ro1.employee_number
-      WHERE a.personnel_number = ? OR CAST(a.personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)
-      GROUP BY a.id_of_request_item
-      ORDER BY a.start_date DESC
-    `;
-    const [rows] = await pool.query(query, [employeeId, employeeId]);
-    const leaves = rows.map(row => {
-      let status = 'Approved';
-      if (row.document_status === 'SENT') status = 'Pending L1';
-      else if (row.document_status === 'SENT_L2') status = 'Pending L2';
-      else if (row.document_status === 'REJECTED') status = 'Rejected';
-      else if (row.document_status === 'APPROVED' || row.document_status === 'POSTED') status = 'Approved';
+    const rawPernr = employeeId.toString().trim();
+    const paddedPernr = rawPernr.padStart(8, '0');
+
+    let dateWhere = '';
+    const dateParams = [rawPernr, paddedPernr];
+    if (showFrom) {
+      dateWhere = ' AND (end_date >= ? OR start_date >= ? OR start_date IS NULL) ';
+      dateParams.push(showFrom, showFrom);
+    }
+
+    // 1. Fetch leave applications
+    const [leaveRows] = await pool.query(
+      `SELECT id_of_request_item, personnel_number, sub_type, start_date, end_date, start_time, end_time, calendar_days 
+       FROM ptreq_attabsdata_leave_apply_1 
+       WHERE (personnel_number = ? OR personnel_number = ?) ${dateWhere}
+       ORDER BY 
+         CASE 
+           WHEN start_date REGEXP '^[0-9]{2}\\\.[0-9]{2}\\\.[0-9]{4}$' THEN STR_TO_DATE(start_date, '%d.%m.%Y')
+           WHEN start_date REGEXP '^[0-9]{2}-[0-9]{2}-[0-9]{4}$' THEN STR_TO_DATE(start_date, '%d-%m-%Y')
+           WHEN start_date REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN STR_TO_DATE(start_date, '%Y-%m-%d')
+           ELSE NULL
+         END DESC,
+         row_id DESC`,
+      dateParams
+    );
+
+    if (leaveRows.length === 0) {
+      return res.json([]);
+    }
+
+    const itemGuids = leaveRows.map(l => l.id_of_request_item);
+
+    // 2. Fetch items table mapping
+    let guidToListMap = {};
+    let allListIds = [];
+    if (itemGuids.length > 0) {
+      const [items] = await pool.query(
+        `SELECT id_of_request_item_list, guid, guid_1 FROM ptreq_items WHERE guid IN (?) OR guid_1 IN (?)`,
+        [itemGuids, itemGuids]
+      );
+      items.forEach(i => {
+        if (i.guid) guidToListMap[i.guid] = i.id_of_request_item_list;
+        if (i.guid_1) guidToListMap[i.guid_1] = i.id_of_request_item_list;
+        if (i.id_of_request_item_list) allListIds.push(i.id_of_request_item_list);
+      });
+    }
+
+    // 3. Fetch header status
+    let headerStatusMap = {};
+    let headerTimeMap = {};
+    const searchDocIds = itemGuids.concat(allListIds).filter(Boolean);
+    if (searchDocIds.length > 0) {
+      const [headers] = await pool.query(
+        `SELECT document_identification, id_of_request_item_list, document_status, time_stamp 
+         FROM ptreq_header_leave_approved_1 
+         WHERE document_identification IN (?) OR id_of_request_item_list IN (?)`,
+        [searchDocIds, searchDocIds]
+      );
+      headers.forEach(h => {
+        const key1 = h.document_identification;
+        const key2 = h.id_of_request_item_list;
+        if (key1) {
+          headerStatusMap[key1] = (headerStatusMap[key1] || []).concat(h.document_status);
+          if (h.time_stamp) headerTimeMap[key1] = h.time_stamp;
+        }
+        if (key2) {
+          headerStatusMap[key2] = (headerStatusMap[key2] || []).concat(h.document_status);
+          if (h.time_stamp) headerTimeMap[key2] = h.time_stamp;
+        }
+      });
+    }
+
+    // 4. Fetch absence matches with sub-type mapping
+    const [absences] = await pool.query(
+      `SELECT sub_type, start_date FROM absence WHERE personnel_number = ? OR personnel_number = ?`,
+      [rawPernr, paddedPernr]
+    );
+    const absenceSet = new Set();
+    absences.forEach(ab => {
+      absenceSet.add(`${ab.sub_type}_${ab.start_date}`);
+      if (ab.sub_type === '1000') absenceSet.add(`01_${ab.start_date}`);
+      if (ab.sub_type === '1001') absenceSet.add(`02_${ab.start_date}`);
+      if (ab.sub_type === '1002') absenceSet.add(`03_${ab.start_date}`);
+      if (ab.sub_type === '1010') absenceSet.add(`05_${ab.start_date}`);
+    });
+
+    // 5. Fetch reporting officers
+    const [agents] = await pool.query(
+      `SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number = ? OR personnel_number = ? LIMIT 1`,
+      [rawPernr, paddedPernr]
+    );
+    const agent = agents[0] || {};
+    const roId = (agent.reporting_officer || '').toString().trim();
+    const ro1Id = (agent.reporting_officer_1 || '').toString().trim();
+
+    // 6. Fetch officer names
+    const officerIds = [roId, ro1Id].filter(id => id && id !== '0');
+    let officerMap = {};
+    if (officerIds.length > 0) {
+      const [officers] = await pool.query(
+        `SELECT employee_number, employee_name FROM manpower WHERE employee_number IN (?) OR CAST(employee_number AS UNSIGNED) IN (?)`,
+        [officerIds, officerIds]
+      );
+      officers.forEach(o => {
+        officerMap[o.employee_number.toString()] = o.employee_name;
+      });
+    }
+
+    const formatIso = (dateVal) => {
+      if (!dateVal) return null;
+      const str = String(dateVal).trim();
+      if (str === '' || str === 'null' || str === 'undefined') return null;
+
+      if (/^\d{4,5}(\.\d+)?$/.test(str)) {
+        const num = parseFloat(str);
+        if (num > 1000) {
+          const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+          return isNaN(d.getTime()) ? null : d.toISOString();
+        }
+      }
+
+      if (/^\d{1,2}[-./]\d{1,2}[-./]\d{4}/.test(str)) {
+        const parts = str.split(/[-./]/);
+        if (parts.length >= 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          const d = new Date(Date.UTC(year, month, day));
+          if (!isNaN(d.getTime())) return d.toISOString();
+        }
+      }
+
+      if (/^\d{4}[-./]\d{1,2}[-./]\d{1,2}/.test(str)) {
+        const parts = str.split(/[-./\sT]/);
+        if (parts.length >= 3) {
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const day = parseInt(parts[2], 10);
+          const d = new Date(Date.UTC(year, month, day));
+          if (!isNaN(d.getTime())) return d.toISOString();
+        }
+      }
+
+      try {
+        const d = new Date(str);
+        return isNaN(d.getTime()) ? null : d.toISOString();
+      } catch (_) {
+        return null;
+      }
+    };
+
+    const leaves = leaveRows.map(row => {
+      const listId = guidToListMap[row.id_of_request_item];
+      const statuses = (headerStatusMap[row.id_of_request_item] || []).concat(headerStatusMap[listId] || []);
+      const isAbsent = absenceSet.has(`${row.sub_type}_${row.start_date}`);
+      
+      let status = 'In Process';
+      if (isAbsent || statuses.includes('APPROVED') || statuses.includes('POSTED')) {
+        status = 'Approved';
+      } else if (statuses.includes('REJECTED')) {
+        status = 'Rejected';
+      } else if (statuses.includes('WITHDRAWN')) {
+        status = 'Withdrawn';
+      } else {
+        status = 'In Process';
+      }
 
       let leaveType = 'Earned leave';
-      if (row.sub_type === '1001') leaveType = 'Casual Leave';
-      else if (row.sub_type === '1002') leaveType = 'HPL';
+      if (row.sub_type === '1001' || row.sub_type === '02') leaveType = 'Casual Leave';
+      else if (row.sub_type === '1002' || row.sub_type === '03') leaveType = 'HPL';
       else if (row.sub_type === '1003') leaveType = 'CHPL';
-      else if (row.sub_type === '1010') leaveType = 'Optional Leave';
+      else if (row.sub_type === '1010' || row.sub_type === '05') leaveType = 'Optional Leave';
       else if (row.sub_type === '2000' || row.sub_type === '2008') leaveType = 'Special Leave';
 
-      const formatIso = (dateVal) => {
-        if (!dateVal) return null;
-        const str = String(dateVal).trim();
-        if (str.includes('.')) {
-          const p = str.split('.');
-          if (p.length === 3) {
-            const d = new Date(p[2], parseInt(p[1]) - 1, p[0]);
-            return isNaN(d.getTime()) ? null : d.toISOString();
-          }
-        }
-        try {
-          const d = new Date(dateVal);
-          return isNaN(d.getTime()) ? null : d.toISOString();
-        } catch (_) {
-          return null;
-        }
-      };
+      const timeStampRaw = headerTimeMap[row.id_of_request_item] || headerTimeMap[listId];
+      const timeStampIso = formatIso(timeStampRaw);
+      const startIso = formatIso(row.start_date) || timeStampIso;
+      const endIso = formatIso(row.end_date) || startIso;
 
-      const startIso = formatIso(row.start_date);
-      const endIso = formatIso(row.end_date);
+      const computedDays = row.calendar_days ? parseFloat(row.calendar_days) : calculateDays(row.start_date, row.end_date);
 
-      const computedDays = row.att_abs_days ? parseFloat(row.att_abs_days) : calculateDays(row.start_date, row.end_date);
+      const procName = officerMap[roId] || (roId && roId !== '0' ? roId : '-');
+      const proc1Name = officerMap[ro1Id] || (ro1Id && ro1Id !== '0' ? ro1Id : '-');
 
       return {
         id: row.id_of_request_item,
-        employeeId: row.personnel_number ? row.personnel_number.toString() : employeeId.toString(),
+        employeeId: row.personnel_number ? row.personnel_number.toString() : rawPernr,
         leaveType,
         startDate: startIso,
         startTime: row.start_time || '00:00:00',
@@ -892,13 +1069,14 @@ router.get('/leaves', authenticateToken, async (req, res) => {
         duration: `${computedDays} Day(s)`,
         used: `${computedDays} Day(s)`,
         status,
-        appliedOn: startIso,
-        approvedOn: status === 'Approved' ? endIso : null,
+        appliedOn: timeStampIso || startIso,
+        approvedOn: (status === 'Approved' || status === 'Rejected') ? (timeStampIso || startIso) : null,
         reason: 'Personal affairs',
-        processor: row.processor_name || '-',
-        processor1: row.processor1_name || '-'
+        processor: procName,
+        processor1: proc1Name
       };
     });
+
     res.json(leaves);
   } catch (error) {
     console.error('[Get Leaves Error]', error.message);
@@ -994,7 +1172,65 @@ router.get('/employee-leave-details/:empId', authenticateToken, async (req, res)
 router.get('/leave-balances', authenticateToken, async (req, res) => {
   const employeeId = req.query.employee_id || req.user.employee_number;
   try {
-    const [rows] = await pool.query('SELECT * FROM leave_quota WHERE personnel_number = ? GROUP BY sub_type', [employeeId]);
+    const query = `
+      SELECT 
+        sub_type,
+        MAX(absence_quota_type) AS absence_quota_type,
+        MAX(quota_number) AS quota_number,
+        MAX(quota_deduction) AS quota_deduction,
+        MAX(deduction_from) AS deduction_from,
+        MAX(deduction_to) AS deduction_to,
+        MAX(start_date) AS start_date,
+        MAX(end_date) AS end_date
+      FROM leave_quota 
+      WHERE personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED) 
+      GROUP BY sub_type
+    `;
+    const [rows] = await pool.query(query, [employeeId, employeeId]);
+
+    const formatIso = (dateVal) => {
+      if (!dateVal) return null;
+      const str = String(dateVal).trim();
+      if (str === '' || str === 'null' || str === 'undefined') return null;
+
+      if (/^\d{4,5}(\.\d+)?$/.test(str)) {
+        const num = parseFloat(str);
+        if (num > 1000) {
+          const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+          return isNaN(d.getTime()) ? null : d.toISOString();
+        }
+      }
+
+      if (/^\d{1,2}[-./]\d{1,2}[-./]\d{4}/.test(str)) {
+        const parts = str.split(/[-./]/);
+        if (parts.length >= 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          const d = new Date(Date.UTC(year, month, day));
+          if (!isNaN(d.getTime())) return d.toISOString();
+        }
+      }
+
+      if (/^\d{4}[-./]\d{1,2}[-./]\d{1,2}/.test(str)) {
+        const parts = str.split(/[-./\sT]/);
+        if (parts.length >= 3) {
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const day = parseInt(parts[2], 10);
+          const d = new Date(Date.UTC(year, month, day));
+          if (!isNaN(d.getTime())) return d.toISOString();
+        }
+      }
+
+      try {
+        const d = new Date(str);
+        return isNaN(d.getTime()) ? null : d.toISOString();
+      } catch (_) {
+        return null;
+      }
+    };
+
     const balances = rows.map(row => {
       const ent = parseFloat(row.quota_number || 0);
       const taken = parseFloat(row.quota_deduction || 0);
@@ -1018,6 +1254,9 @@ router.get('/leave-balances', authenticateToken, async (req, res) => {
         typeId = '1010';
       }
 
+      const fromIso = formatIso(row.deduction_from) || formatIso(row.start_date) || '2026-01-01T00:00:00.000Z';
+      const toIso = formatIso(row.deduction_to) || formatIso(row.end_date) || '2026-12-31T00:00:00.000Z';
+
       return {
         timeAccount: leaveType,
         typeId: typeId,
@@ -1025,8 +1264,8 @@ router.get('/leave-balances', authenticateToken, async (req, res) => {
         entitlement: ent,
         taken,
         planned: 0.0,
-        deductionFrom: row.deduction_from || row.start_date,
-        deductionTo: row.deduction_to || row.end_date
+        deductionFrom: fromIso,
+        deductionTo: toIso
       };
     });
     res.json(balances);
@@ -1077,7 +1316,22 @@ router.post(['/leaves', '/leaves/apply'], authenticateToken, async (req, res) =>
     else if (leave_type === 'CHPL') subType = '1003';
     else if (leave_type === 'Optional Leave') subType = '1010';
 
-    const reqItemId = generateHexId();
+    // 3. Idempotency: prevent duplicate submission for same employee + date range + subtype
+    const [dupCheck] = await pool.query(
+      `SELECT id_of_request_item FROM ptreq_attabsdata_leave_apply_1
+       WHERE CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)
+         AND sub_type = ? AND start_date = ? AND end_date = ?
+         AND lock_indicator NOT IN ('R','W') LIMIT 1`,
+      [employeeId, subType, formatDateDdMmYyyy(start_date), formatDateDdMmYyyy(end_date)]
+    );
+    if (dupCheck.length > 0) {
+      return res.status(409).json({ error: 'A leave request for this date range already exists', leaveId: dupCheck[0].id_of_request_item });
+    }
+
+    // 4. Get planned working hours from planned_working_time (fallback = 8.5)
+    const dailyHours = await getPlannedHoursForEmployee(employeeId);
+
+    const reqItemId = generateRequestId(); // HRAPP-prefixed 32-char ID
     const conn = await pool.getConnection();
     await conn.beginTransaction();
 
@@ -1093,19 +1347,48 @@ router.post(['/leaves', '/leaves/apply'], authenticateToken, async (req, res) =>
       const beginTimeStr = (subType === '1002' || subType === '1003') ? (start_time || '09:00:00') : '00:00:00';
       const endTimeStr = (subType === '1002' || subType === '1003') ? (end_time || '17:30:00') : '00:00:00';
 
-      // Insert into ptreq_attabsdata_leave_apply_1
+      const reqItemListId = generateHexId();
+
+      // Insert into ptreq_attabsdata_leave_apply_1 with all SAP columns
+      const isFullDay = duration === 'Half-Day' ? '' : 'X';
+      // Use planned working hours per employee; half-day = 0.5 × daily; multi-day = days × daily
+      const absHours = (daysCount * dailyHours).toFixed(2);
+
       const applyQuery = `
         INSERT INTO ptreq_attabsdata_leave_apply_1 (
           id_of_request_item, infotype_operation, infotype, start_time, end_time, absence_hours, 
-          personnel_number, sub_type, start_date, end_date, att_abs_days, calendar_days, full_day, payroll_days, payroll_hours, lock_indicator
-        ) VALUES (?, 'INS', '2001', ?, ?, '8.00', ?, ?, ?, ?, ?, ?, 'X', ?, '8.00', 'P')
+          personnel_number, sub_type, object_id, lock_indicator, end_date, start_date, 
+          infotype_record_no, customer_field, customer_field_1, customer_field_2, customer_field_3, 
+          customer_field_4, customer_field_5, customer_field_6, customer_field_7, customer_field_8, 
+          customer_field_9, prev__day_indicator, att__abs__days, calendar_days, set_hours, 
+          full_day, payroll_days, payroll_hours, desc__of_illness, desc__of_illness_1, 
+          days_credited, subs_sickness_ind, ind__for_repeated_illness
+        ) VALUES (
+          ?, 'INS', '2001', ?, ?, ?, 
+          ?, ?, '', 'P', ?, ?, 
+          '0', '', '', '', '', 
+          '', '', '', '', '', 
+          '', '', ?, ?, '', 
+          ?, ?, ?, '', '', 
+          '0', '0', '0'
+        )
       `;
       await conn.query(applyQuery, [
-        reqItemId, beginTimeStr, endTimeStr, employeeId, subType, formattedStartDate, formattedEndDate, daysCount, daysCount, daysCount
+        reqItemId, beginTimeStr, endTimeStr, absHours,
+        employeeId, subType, formattedEndDate, formattedStartDate,
+        daysCount, daysCount,
+        isFullDay, daysCount, absHours
       ]);
 
+      // Insert into ptreq_items
+      const itemQuery = `
+        INSERT INTO ptreq_items (id_of_request_item_list, request_item, guid, guid_1, request_item_type)
+        VALUES (?, 1, ?, ?, 'ATTABS')
+      `;
+      await conn.query(itemQuery, [reqItemListId, reqItemId, reqItemId]);
+
       // Insert into ptreq_header_leave_approved_1
-      const [maxIdRows] = await conn.query('SELECT MAX(CAST(id AS UNSIGNED)) AS max_id FROM ptreq_header_leave_approved_1');
+      const [maxIdRows] = await conn.query('SELECT MAX(CAST(row_id AS UNSIGNED)) AS max_id FROM ptreq_header_leave_approved_1');
       const nextId = (maxIdRows[0].max_id || 4800000) + 1;
 
       const headerQuery = `
@@ -1116,36 +1399,56 @@ router.post(['/leaves', '/leaves/apply'], authenticateToken, async (req, res) =>
         ) VALUES (?, '2', 'ABSREQ', 'SENT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'INDIA', ?)
       `;
       const randomGuid = generateHexId();
+      const paddedPernr = employeeId.toString().trim().padStart(8, '0');
+      const changedByFormatted = `HR_app_${paddedPernr}`;
       await conn.query(headerQuery, [
-        reqItemId, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, reqItemId, employeeId, nextId
+        reqItemId, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, reqItemListId, changedByFormatted, nextId
       ]);
 
-      // Sync into old absence table to prevent layout breakages
+      // Sync into absence table
       const absenceQuery = `
-        INSERT INTO absence (personnel_number, sub_type, start_date, end_date, start_time, end_time, att_abs_days, lock_indicator, changed_on, changed_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'P', NOW(), 'HR_app')
+        INSERT INTO absence (personnel_number, sub_type, start_date, end_date, start_time, end_time, att__abs__days, lock_indicator, changed_on, changed_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'P', NOW(), ?)
       `;
       await conn.query(absenceQuery, [
-        employeeId, subType === '1000' ? '1' : (subType === '1001' ? '2' : '3'), formattedStartDate, formattedEndDate, beginTimeStr, endTimeStr, daysCount
+        paddedPernr, subType === '1000' ? '1' : (subType === '1001' ? '2' : '3'), formattedStartDate, formattedEndDate, beginTimeStr, endTimeStr, daysCount, changedByFormatted
       ]);
 
-      await conn.commit();
+      // Write to SAP Outbound Table Files (.xlsx)
+      await writeLeaveOutboundFiles({
+        leaveRow: {
+          id_of_request_item: reqItemId,
+          infotype_operation: 'INS',
+          personnel_number: paddedPernr,
+          sub_type: subType,
+          start_date: formattedStartDate,
+          end_date: formattedEndDate,
+          att__abs__days: daysCount,
+          calendar_days: daysCount,
+          lock_indicator: 'P',
+          full_day: 'X'
+        },
+        headerRow: {
+          document_identification: reqItemListId,
+          document_version: 2,
+          document_status: 'SENT',
+          guid: randomGuid,
+          guid_1: randomGuid,
+          id_of_request_item_list: reqItemListId,
+          last_changed_by: changedByFormatted,
+          time_stamp: Date.now().toString(),
+          personnel_number: paddedPernr
+        },
+        itemRow: {
+          id_of_request_item_list: reqItemListId,
+          request_item: '1',
+          guid: randomGuid,
+          guid_1: reqItemId,
+          request_item_type: 'ATTABS'
+        }
+      });
 
-      // Record Outbound Delta Changes for FTP Sync
-      await recordOutboundChange(
-        'PTREQ_ATTABSDATA_Leave_Apply',
-        reqItemId,
-        'INSERT',
-        { personnel_number: employeeId, sub_type: subType, start_date: formattedStartDate, end_date: formattedEndDate, reason: reason },
-        { id_of_request_item: reqItemId, personnel_number: employeeId, sub_type: subType, start_date: formattedStartDate, end_date: formattedEndDate, lock_indicator: 'P' }
-      );
-      await recordOutboundChange(
-        'PTREQ_HEADER_Leave_Approved',
-        reqItemId,
-        'INSERT',
-        { document_identification: reqItemId, document_status: 'SENT', last_changed_by: employeeId },
-        { document_identification: reqItemId, document_status: 'SENT', last_changed_by: employeeId }
-      );
+      await conn.commit();
 
       // Trigger notifications for applicant, RO, and RO1
       const applicantName = await getEmployeeName(employeeId);
@@ -1179,31 +1482,26 @@ router.post(['/leaves', '/leaves/apply'], authenticateToken, async (req, res) =>
         );
       }
 
-      // 4. Trigger ZHR_LEAVE_SEND SMS notification to RO & RO1
+      // 4. DLT SMS Notification (Template 1: Leave Applied)
       try {
-        if (ro && ro !== '0' && ro !== 'N/A') {
-          const roMobile = await getEmployeeMobile(ro);
-          sendLeaveAppliedSms({
-            mobileNumber: roMobile,
-            applicantName: applicantName,
-            leaveType: leave_type,
-            startDate: start_date,
-            endDate: end_date
-          }).catch(err => console.error('[SMS Applied L1 Error]', err.message));
-        }
-        if (ro1 && ro1 !== '0' && ro1 !== 'N/A' && ro1 !== ro) {
-          const ro1Mobile = await getEmployeeMobile(ro1);
-          sendLeaveAppliedSms({
-            mobileNumber: ro1Mobile,
-            applicantName: applicantName,
-            leaveType: leave_type,
-            startDate: start_date,
-            endDate: end_date
-          }).catch(err => console.error('[SMS Applied L2 Error]', err.message));
-        }
+        await smsService.sendLeaveAppliedSms({
+          mobileNumber: smsService.DEFAULT_MOBILE,
+          applicantName,
+          leaveType: leave_type,
+          startDate: formattedStartDate,
+          endDate: formattedEndDate
+        });
       } catch (smsErr) {
-        console.error('[SMS Leave Applied Error]', smsErr.message);
+        console.error('[SMS Error Leave Apply]', smsErr.message);
       }
+
+
+
+      // Trigger immediate background FTP Sync to /HR_App/Outbound
+      try {
+        const { runFtpSync } = require('../services/ftp_sync_service');
+        runFtpSync().catch(err => console.error('[Immediate Leave Apply FTP Sync Error]', err.message));
+      } catch (_) {}
 
       res.status(201).json({ message: 'Leave application submitted successfully', leaveId: reqItemId });
     } catch (err) {
@@ -1225,48 +1523,292 @@ router.get('/leaves/pending-approvals', authenticateToken, async (req, res) => {
   const managerId = req.user.employee_number;
   try {
     // A manager sees a request if they are L1 and status is SENT, OR if they are L2 and status is SENT_L2
+    // Step 1: Pre-fetch all employees under this manager (fast indexed lookup)
+    const [agentRows] = await pool.query(
+      `SELECT personnel_number, reporting_officer, reporting_officer_1 
+       FROM zhcm_lr_t_agents_03072026 
+       WHERE reporting_officer = ? OR reporting_officer_1 = ?`,
+      [managerId, managerId]
+    );
+
+    if (!agentRows.length) return res.json([]);
+
+    // Build separate lists: L1 employees and L2 employees
+    const l1Employees = agentRows.filter(r => r.reporting_officer == managerId).map(r => r.personnel_number);
+    const l2Employees = agentRows.filter(r => r.reporting_officer_1 == managerId).map(r => r.personnel_number);
+
+    const allEmployees = [...new Set([...l1Employees, ...l2Employees])];
+
+    // Step 2: Fetch latest header status for ONLY those employees' leaves
+    const placeholders = allEmployees.map(() => '?').join(',');
     const query = `
-      SELECT a.*, h.document_status, m.employee_name AS applicant_name, 
-             ag.reporting_officer, ag.reporting_officer_1
+      SELECT 
+        a.id_of_request_item,
+        a.personnel_number,
+        a.sub_type,
+        a.start_date,
+        a.end_date,
+        a.start_time,
+        a.end_time,
+        COALESCE(a.att__abs__days, a.calendar_days, 1) AS computed_days,
+        h.document_status,
+        m.employee_name AS applicant_name
       FROM ptreq_attabsdata_leave_apply_1 a
-      JOIN ptreq_header_leave_approved_1 h ON a.id_of_request_item = h.document_identification
-      JOIN manpower m ON CAST(a.personnel_number AS UNSIGNED) = CAST(m.employee_number AS UNSIGNED)
-      JOIN zhcm_lr_t_agents_03072026 ag ON CAST(a.personnel_number AS UNSIGNED) = CAST(ag.personnel_number AS UNSIGNED)
-      WHERE 
-        (h.document_status = 'SENT' AND CAST(ag.reporting_officer AS UNSIGNED) = CAST(? AS UNSIGNED))
-        OR
-        (h.document_status = 'SENT_L2' AND CAST(ag.reporting_officer_1 AS UNSIGNED) = CAST(? AS UNSIGNED))
-      ORDER BY a.start_date DESC
+      JOIN manpower m ON a.personnel_number = m.employee_number
+      LEFT JOIN (
+        SELECT MAX(h2.row_id) AS max_rid, h2.document_identification
+        FROM ptreq_header_leave_approved_1 h2
+        WHERE h2.document_identification IN (
+          SELECT id_of_request_item FROM ptreq_attabsdata_leave_apply_1 
+          WHERE personnel_number IN (${placeholders})
+        )
+        GROUP BY h2.document_identification
+      ) hmax ON hmax.document_identification = a.id_of_request_item
+      LEFT JOIN ptreq_header_leave_approved_1 h ON h.row_id = hmax.max_rid
+      LEFT JOIN absence ab ON ab.personnel_number = a.personnel_number AND ab.start_date = a.start_date
+      WHERE a.personnel_number IN (${placeholders})
+        AND ab.personnel_number IS NULL
+        AND (
+          (a.personnel_number IN (${l1Employees.map(() => '?').join(',') || "''"}) 
+           AND (h.document_status IS NULL OR h.document_status IN ('SENT', 'PENDING', 'In Process')))
+          OR
+          (a.personnel_number IN (${l2Employees.length ? l2Employees.map(() => '?').join(',') : "''"}) 
+           AND h.document_status IN ('SENT_L2', 'L1_APPROVED'))
+        )
+      ORDER BY a.row_id DESC
     `;
-    const [rows] = await pool.query(query, [managerId, managerId]);
-    const pending = rows.map(row => {
+
+    const queryParams = [
+      ...allEmployees,    // for hmax subquery IN
+      ...allEmployees,    // for WHERE a.personnel_number IN
+      ...l1Employees,     // for L1 IN check
+      ...(l2Employees.length ? l2Employees : [])  // for L2 IN check
+    ];
+
+    const [rows] = await pool.query(query, queryParams);
+
+    if (!rows.length) return res.json([]);
+
+    // Step 3: Post-filter via correct join path
+    // ptreq_header uses id_of_request_item_list (NOT document_identification) to link to leaves
+    // Join path: leave.id_of_request_item → ptreq_items.guid_1 → ptreq_items.id_of_request_item_list → header.id_of_request_item_list
+    const allIds = rows.map(r => r.id_of_request_item);
+    const idPlaceholders = allIds.map(() => '?').join(',');
+
+    const [finalStatusRows] = await pool.query(
+      `SELECT pi.guid_1 AS leave_id, h.document_status
+       FROM ptreq_items pi
+       JOIN ptreq_header_leave_approved_1 h ON h.id_of_request_item_list = pi.id_of_request_item_list
+       WHERE pi.guid_1 IN (${idPlaceholders})
+         AND h.document_status IN ('APPROVED', 'POSTED', 'REJECTED', 'WITHDRAWN', 'CANCELED', 'STOPPED')`,
+      allIds
+    );
+
+    // Build a set of leave IDs that are already finalized
+    const finalizedIds = new Set(finalStatusRows.map(r => r.leave_id));
+
+    const pending = rows
+      .filter(row => !finalizedIds.has(row.id_of_request_item))
+      .map(row => {
       let leaveType = 'Earned leave';
       if (row.sub_type === '1001') leaveType = 'Casual Leave';
       else if (row.sub_type === '1002') leaveType = 'HPL';
       else if (row.sub_type === '1003') leaveType = 'CHPL';
       else if (row.sub_type === '1010') leaveType = 'Optional Leave';
 
+      const startIso = formatIsoDate(row.start_date);
+      const endIso = formatIsoDate(row.end_date) || startIso;
+
       return {
         id: row.id_of_request_item,
-        employeeId: `${row.personnel_number} (${row.applicant_name})`,
+        employeeId: row.applicant_name ? `${row.personnel_number} (${row.applicant_name})` : (row.personnel_number ? row.personnel_number.toString() : ''),
         leaveType,
-        startDate: row.start_date,
+        startDate: startIso,
         startTime: row.start_time || '00:00:00',
-        endDate: row.end_date,
+        endDate: endIso,
         endTime: row.end_time || '00:00:00',
-        duration: `${row.att_abs_days || 1} Day(s)`,
-        status: row.document_status === 'SENT' ? 'Pending L1' : 'Pending L2',
-        appliedOn: row.start_date,
+        duration: `${row.computed_days || 1} Day(s)`,
+        status: (row.document_status === 'SENT_L2' || row.document_status === 'L1_APPROVED') ? 'Pending L2' : 'Pending L1',
+        appliedOn: startIso,
         reason: 'Personal Emergency',
         processor: 'Manager'
       };
     });
     res.json(pending);
+
   } catch (error) {
     console.error('[Get Leave Approvals Error]', error.message);
     res.status(500).json({ error: 'Failed to fetch pending leave approvals', message: error.message });
   }
 });
+
+// In-memory mutex queue per file to prevent concurrent write corruption & file locking errors
+const fileWriteQueues = new Map();
+
+/**
+ * Helper to write/append rows to individual SAP table Excel files (.xlsx) in outbound dirs.
+ * Uses per-file serialized promise queues to prevent file lock & concurrency issues.
+ */
+async function writeTableOutboundExcel(fileName, sheetName, rowData) {
+  if (!rowData) return;
+
+  if (!fileWriteQueues.has(fileName)) {
+    fileWriteQueues.set(fileName, Promise.resolve());
+  }
+
+  const previousTask = fileWriteQueues.get(fileName);
+  const currentTask = (async () => {
+    await previousTask.catch(() => {});
+    const targetSheetName = 'Sheet1';
+    const outboundDirs = [
+      process.env.FTP_OUTBOUND_DIR_LOCAL,
+      path.join(__dirname, '../../outbound'),
+      '/home/u156958239/moil_backend/outbound',
+      '/Users/apple/WebBeta/MOIL_PROJECT/Moil_employee_data/Outbound',
+      path.join('/tmp', 'ftp_outbound')
+    ].filter(Boolean);
+
+    for (const dir of outboundDirs) {
+      if (!dir) continue;
+      try {
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const filePath = path.join(dir, fileName);
+        let wb;
+        if (fs.existsSync(filePath)) {
+          wb = xlsx.readFile(filePath);
+          const ws = wb.Sheets[targetSheetName] || wb.Sheets[wb.SheetNames[0]];
+          const existingRows = ws ? xlsx.utils.sheet_to_json(ws) : [];
+          existingRows.push(rowData);
+          const newWs = xlsx.utils.json_to_sheet(existingRows);
+          wb.SheetNames = [targetSheetName];
+          wb.Sheets[targetSheetName] = newWs;
+        } else {
+          wb = xlsx.utils.book_new();
+          const ws = xlsx.utils.json_to_sheet([rowData]);
+          xlsx.utils.book_append_sheet(wb, ws, targetSheetName);
+        }
+        xlsx.writeFile(wb, filePath);
+        console.log(`[Outbound Table Excel] Saved ${fileName} at ${filePath}`);
+      } catch (e) {
+        console.error(`[Outbound Table Excel Error for ${dir}]`, e.message);
+      }
+    }
+  })();
+
+  fileWriteQueues.set(fileName, currentTask);
+  return currentTask;
+}
+
+/**
+ * Write/append leave data into separate SAP table Excel files matching inbound structure
+ */
+async function writeLeaveOutboundFiles({ leaveRow, headerRow, itemRow, quotaRow }) {
+  function toSerial(d) {
+    if (!d) return '';
+    const dt = new Date(d);
+    if (isNaN(dt)) return d;
+    return Math.floor((dt - new Date(1899, 11, 30)) / 86400000);
+  }
+
+  // 1. PTREQ_ATTABSDATA_Leave_Apply.xlsx
+  if (leaveRow) {
+    const applyRow = {
+      'ID of Request Item':       leaveRow.id_of_request_item || '',
+      'Infotype operation':       leaveRow.infotype_operation || 'INS',
+      'Infotype':                 '2001',
+      'Start time':               leaveRow.start_time || 0,
+      'End time':                 leaveRow.end_time || 0,
+      'Absence hours':            leaveRow.absence_hours || (parseFloat(leaveRow.att__abs__days || '1') * 8.5),
+      'Personnel number':         (leaveRow.personnel_number || '').toString().replace(/^0+/, ''),
+      'Sub Type':                 leaveRow.sub_type || '1001',
+      'Object ID':                leaveRow.object_id || '',
+      'Lock indicator':           leaveRow.lock_indicator || '',
+      'End Date':                 toSerial(leaveRow.end_date),
+      'Start Date':               toSerial(leaveRow.start_date),
+      'Infotype record no.':      leaveRow.infotype_record_no || '0',
+      'Customer Field':           '', 'Customer Field_1': '', 'Customer Field_2': '', 'Customer Field_3': '', 'Customer Field_4': '',
+      'Customer Field_5': '', 'Customer Field_6': '', 'Customer Field_7': '', 'Customer Field_8': '', 'Customer Field_9': '',
+      'Prev. day indicator':      '',
+      'Att./abs. days':           parseFloat(leaveRow.att__abs__days || leaveRow.calendar_days || '1'),
+      'Calendar days':            parseFloat(leaveRow.calendar_days || '1'),
+      'Set hours':                '',
+      'Full-day':                 leaveRow.full_day || 'X',
+      'Payroll days':             parseFloat(leaveRow.payroll_days || leaveRow.att__abs__days || '1'),
+      'Payroll hours':            leaveRow.payroll_hours || (parseFloat(leaveRow.att__abs__days || '1') * 8.5),
+      'Desc. of illness':         '', 'Desc. of illness_1': '',
+      'Days credited':            0,
+      'Subs.sickness ind.':       0, 'Ind. for repeated illness': 0
+    };
+    await writeTableOutboundExcel('PTREQ_ATTABSDATA_Leave_Apply.xlsx', 'Sheet1', applyRow);
+  }
+
+  // 2. PTREQ_HEADER_Leave_Approved.xlsx
+  if (headerRow) {
+    const headRow = {
+      'Document Identification':  headerRow.document_identification || '',
+      'Document Version':         headerRow.document_version || 1,
+      'Document Category':        'ABSREQ',
+      'Document Status':          headerRow.document_status || 'SENT',
+      'GUID':                     headerRow.guid || '',
+      'GUID_1':                   headerRow.guid_1 || headerRow.guid || '',
+      'GUID_2':                   headerRow.guid || '',
+      'GUID_3':                   headerRow.guid || '',
+      'GUID_4':                   headerRow.guid || '',
+      'GUID_5':                   headerRow.guid || '',
+      'GUID_6':                   headerRow.guid || '',
+      'GUID_7':                   headerRow.guid || '',
+      'ID of Request Item List':  headerRow.id_of_request_item_list || '',
+      'Last Changed By':          (headerRow.last_changed_by || '').toString().replace(/^0+/, ''),
+      'Time Stamp':               headerRow.time_stamp || ((new Date() - new Date(1899, 11, 30)) / 86400000),
+      'Time Zone':                'INDIA',
+      'ID':                       (headerRow.personnel_number || headerRow.id || '').toString().replace(/^0+/, '')
+    };
+    await writeTableOutboundExcel('PTREQ_HEADER_Leave_Approved.xlsx', 'Sheet1', headRow);
+  }
+
+  // 3. PTREQ_ITEMS-Request Items.xlsx
+  if (itemRow) {
+    const itmRow = {
+      'ID of Request Item List':  itemRow.id_of_request_item_list || '',
+      'Request Item':             itemRow.request_item || 1,
+      'GUID':                     itemRow.guid || '',
+      'GUID_1':                   itemRow.guid_1 || itemRow.guid || '',
+      'Request Item Type':        itemRow.request_item_type || 'ATTABS'
+    };
+    await writeTableOutboundExcel('PTREQ_ITEMS-Request Items.xlsx', 'Sheet1', itmRow);
+  }
+
+  // 4. IT2006_Leave_quota.xlsx
+  if (quotaRow) {
+    const qtaRow = {
+      'Personnel number':         (quotaRow.personnel_number || '').toString().replace(/^0+/, ''),
+      'Sub Type':                 quotaRow.sub_type || '01',
+      'Object ID':                '', 'Lock indicator': '',
+      'End Date':                 toSerial(quotaRow.end_date || '2026-12-31'),
+      'Start Date':               toSerial(quotaRow.start_date || '2026-01-01'),
+      'Infotype record no.':      '0',
+      'Changed on':               toSerial(new Date().toISOString().slice(0, 10)),
+      'Changed by':               (quotaRow.changed_by || '').toString().replace(/^0+/, ''),
+      'Historical record': '', 'Text exists': '', 'Reference fields exist (cost assign.)': '', 'Conf. fields exist': '', 'Screen control': '', 'Reason for Change': '',
+      'Reserved Field/Unused Field': '', 'Reserved Field/Unused Field_1': '', 'Reserved Field/Unused Field_2': '', 'Reserved Field/Unused Field_3': '',
+      'Reserved Field/Unused Field of Length 2': '', 'Reserved Field/Unused Field of Length 2_1': '', 'Grouping Value': '',
+      'Start time': 0, 'End time': 0, 'Prev. day indicator': '',
+      'Absence quota type':       quotaRow.absence_quota_type || '1',
+      'Quota number':             parseFloat(quotaRow.quota_number || '0'),
+      'Quota deduction':          parseFloat(quotaRow.quota_deduction || '0'),
+      'Quota counter':            quotaRow.quota_counter || '0',
+      'Deduction from':           toSerial(quotaRow.deduction_from || '2026-01-01'),
+      'Deduction to':             toSerial(quotaRow.deduction_to || '2026-12-31'),
+      'Logical system':           'PECCLNT100', 'Definition set': '', 'Definition subset': '', 'Time data ID type': ''
+    };
+    await writeTableOutboundExcel('IT2006_Leave_quota.xlsx', 'Sheet1', qtaRow);
+  }
+}
+
+// Function wrapper for backwards compatibility
+async function writeLeaveCumulativeExcel(args) {
+  return await writeLeaveOutboundFiles(args);
+}
 
 /**
  * @route   POST /api/leaves/approve
@@ -1276,120 +1818,209 @@ router.post('/leaves/approve', authenticateToken, async (req, res) => {
   const managerId = req.user.employee_number;
 
   try {
-    const headerQuery = `SELECT * FROM ptreq_header_leave_approved_1 WHERE document_identification = ? LIMIT 1`;
-    const [headers] = await pool.query(headerQuery, [leave_id]);
-    if (headers.length === 0) {
-      return res.status(404).json({ error: 'Leave request not found' });
+    // 1. Fetch full leave request details
+    const [appRows] = await pool.query(
+      `SELECT * FROM ptreq_attabsdata_leave_apply_1 WHERE id_of_request_item = ? LIMIT 1`,
+      [leave_id]
+    );
+    if (appRows.length === 0) return res.status(404).json({ error: 'Leave request not found' });
+    const appRow = appRows[0];
+    const applicantId = appRow.personnel_number;
+
+    // 2. Get the ptreq_items bridge row (needed for correct header id_of_request_item_list)
+    const [itemRows] = await pool.query(
+      `SELECT * FROM ptreq_items WHERE guid_1 = ? LIMIT 1`,
+      [leave_id]
+    );
+    const itemRow = itemRows.length > 0 ? itemRows[0] : null;
+    const reqItemListId = itemRow ? itemRow.id_of_request_item_list : leave_id;
+
+    // 3. Get current latest header status via ptreq_items join (correct path)
+    const [headerRows] = await pool.query(
+      `SELECT h.* FROM ptreq_header_leave_approved_1 h
+       JOIN ptreq_items pi ON pi.id_of_request_item_list = h.id_of_request_item_list
+       WHERE pi.guid_1 = ?
+       ORDER BY h.row_id DESC LIMIT 1`,
+      [leave_id]
+    );
+    const currentStatus = headerRows.length > 0 ? headerRows[0].document_status : 'SENT';
+    const latestHeader = headerRows.length > 0 ? headerRows[0] : null;
+
+    // Already finalized — refuse
+    if (['APPROVED', 'POSTED', 'REJECTED', 'WITHDRAWN', 'CANCELED'].includes(currentStatus)) {
+      return res.status(409).json({ error: 'Leave already processed', status: currentStatus });
     }
 
-    const requestHeader = headers[0];
-    const applicantId = requestHeader.last_changed_by;
+    // 4. Fetch agent mapping for the applicant
+    const [agents] = await pool.query(
+      `SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number = ? LIMIT 1`,
+      [applicantId]
+    );
+    if (agents.length === 0) return res.status(404).json({ error: 'Agent mapping not found for employee' });
 
-    // Get reporting officers of applicant
-    const agentQuery = `SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number = ? LIMIT 1`;
-    const [agents] = await pool.query(agentQuery, [applicantId]);
-    if (agents.length === 0) {
-      return res.status(400).json({ error: 'Applicant agent mapping not found' });
+    const l1Raw = agents[0].reporting_officer ? agents[0].reporting_officer.toString().trim() : '0';
+    const l2Raw = agents[0].reporting_officer_1 ? agents[0].reporting_officer_1.toString().trim() : '0';
+    const hasValidL2 = l2Raw && l2Raw !== '0' && l2Raw !== '' && l2Raw !== 'N/A' && l2Raw !== l1Raw;
+
+    const managerStr = managerId.toString().trim();
+    const isL1 = (l1Raw !== '0' && l1Raw === managerStr) || (parseInt(l1Raw) === parseInt(managerStr));
+    const isL2 = hasValidL2 && ((l2Raw === managerStr) || (parseInt(l2Raw) === parseInt(managerStr)));
+
+    if (!isL1 && !isL2) {
+      return res.status(403).json({ error: 'You are not a designated reporting officer for this employee' });
     }
 
-    const { reporting_officer: l1, reporting_officer_1: l2 } = agents[0];
-    let nextStatus = 'APPROVED';
-
-    if (requestHeader.document_status === 'SENT' && l1 == managerId) {
-      // Approved by L1. Advance to L2 if L2 exists, else fully approve.
-      if (l2 && l2 !== '0' && l2 !== 'N/A') {
-        nextStatus = 'SENT_L2';
-      } else {
-        nextStatus = 'APPROVED';
-      }
-    } else if (requestHeader.document_status === 'SENT_L2' && l2 == managerId) {
-      // Approved by L2. Fully approve.
+    // 5. Determine next status based on level and hierarchy
+    let nextStatus;
+    if (isL1 && (currentStatus === 'SENT' || currentStatus === 'PENDING' || currentStatus === 'In Process')) {
+      nextStatus = hasValidL2 ? 'SENT_L2' : 'APPROVED';
+    } else if (isL2 && (currentStatus === 'SENT_L2' || currentStatus === 'L1_APPROVED')) {
+      nextStatus = 'APPROVED';
+    } else if (isL2 && currentStatus === 'SENT' && !hasValidL2) {
+      // L2 is also the only approver (edge case)
       nextStatus = 'APPROVED';
     } else {
-      return res.status(403).json({ error: 'You are not the designated approver for this request stage' });
+      return res.status(400).json({ error: `Cannot approve leave in current status: ${currentStatus}` });
     }
 
-    // Update status in header table
-    await pool.query('UPDATE ptreq_header_leave_approved_1 SET document_status = ? WHERE document_identification = ?', [nextStatus, leave_id]);
+    // 6. Formatted audit fields
+    const managerPaddedPernr = managerStr.padStart(8, '0');
+    const changedByFormatted = `HR_app_${managerPaddedPernr}`;
+    const nowTs = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const docVersion = latestHeader ? (parseInt(latestHeader.document_version || '1') + 1).toString() : '1';
+    const guid = latestHeader ? (latestHeader.guid || leave_id) : leave_id;
+    const docIdent = (latestHeader && latestHeader.document_identification) ? latestHeader.document_identification : reqItemListId;
 
-    // Sync state to old absence table
-    const lockIndicator = nextStatus === 'SENT_L2' ? 'P2' : (nextStatus === 'APPROVED' ? null : 'P');
-    await pool.query(
-      'UPDATE absence SET lock_indicator = ? WHERE personnel_number = ? AND start_date = (SELECT start_date FROM ptreq_attabsdata_leave_apply_1 WHERE id_of_request_item = ?)',
-      [lockIndicator, applicantId, leave_id]
-    );
+    // 7-9. Transactional: INSERT header row + UPDATE lock_indicator + deduct quota atomically
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    let quotaRowForExcel = null;
+    try {
+      // 7. INSERT new header row (audit trail — one row per status change)
+      await conn.query(
+        `INSERT INTO ptreq_header_leave_approved_1
+         (document_identification, document_version, document_category, document_status,
+          guid, guid_1, guid_2, guid_3, guid_4, guid_5, guid_6, guid_7,
+          id_of_request_item_list, last_changed_by, time_stamp, time_zone, id)
+         VALUES (?, ?, 'ABSREQ', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INDIA', ?)`,
+        [docIdent, docVersion, nextStatus,
+         guid, guid, guid, guid, guid, guid, guid, guid,
+         reqItemListId, changedByFormatted, nowTs, applicantId]
+      );
 
-    await logApproval(managerId, 'Leave', leave_id, applicantId, 'Approved', remarks);
+      // 8. Update lock_indicator in leave_apply table
+      const lockIndicator = nextStatus === 'SENT_L2' ? 'P2' : (nextStatus === 'APPROVED' ? '' : 'P');
+      await conn.query(
+        `UPDATE ptreq_attabsdata_leave_apply_1 SET lock_indicator = ? WHERE id_of_request_item = ?`,
+        [lockIndicator, leave_id]
+      );
 
-    // Record Outbound Delta Change for FTP Outbound Sync
+      // 9. If FULLY APPROVED → deduct from leave_quota (idempotency: check lock_indicator was NOT already blank)
+      if (nextStatus === 'APPROVED') {
+        const days = parseFloat(appRow.att__abs__days || appRow.calendar_days || 1);
+        // Sub type mapping: leave sub_type → quota sub_type
+        let quotaSubType = '01'; // EL (Earned Leave) - default
+        if      (appRow.sub_type === '1001') quotaSubType = '02'; // CL  (Casual Leave)
+        else if (appRow.sub_type === '1002') quotaSubType = '03'; // HPL (Half Pay Leave)
+        else if (appRow.sub_type === '1010') quotaSubType = '05'; // Optional Leave
+
+        // Guard: only deduct if the previous lock_indicator was NOT already blank (already approved)
+        if (appRow.lock_indicator !== '') {
+          await conn.query(
+            `UPDATE leave_quota
+             SET quota_deduction = CAST(CAST(COALESCE(quota_deduction, '0') AS DECIMAL(10,2)) + ? AS CHAR)
+             WHERE personnel_number = ? AND sub_type = ?`,
+            [days, applicantId, quotaSubType]
+          );
+        }
+
+        // Fetch updated quota row for Excel export (outside transaction is fine here)
+        const [updatedQuota] = await conn.query(
+          `SELECT * FROM leave_quota WHERE personnel_number = ? AND sub_type = ? LIMIT 1`,
+          [applicantId, quotaSubType]
+        );
+        quotaRowForExcel = updatedQuota.length > 0 ? updatedQuota[0] : null;
+      }
+
+      await conn.commit();
+    } catch (txErr) {
+      await conn.rollback();
+      throw txErr;
+    } finally {
+      conn.release();
+    }
+
+    // 10. Build the new header row data for Excel
+    const newHeaderRowData = {
+      document_identification: leave_id,
+      document_version: docVersion,
+      document_status: nextStatus,
+      guid, guid_1: guid,
+      id_of_request_item_list: reqItemListId,
+      last_changed_by: changedByFormatted,
+      time_stamp: nowTs,
+    };
+
+    // 11. Write to daily cumulative Excel (all affected tables as sheets)
+    await writeLeaveCumulativeExcel({
+      leaveRow: appRow,
+      headerRow: newHeaderRowData,
+      itemRow: itemRow || { id_of_request_item_list: reqItemListId, guid_1: leave_id },
+      quotaRow: quotaRowForExcel,
+    });
+
+    // 12. Record outbound change for FTP delta tracking
     await recordOutboundChange(
       'PTREQ_HEADER_Leave_Approved',
       leave_id,
       'UPDATE',
-      { document_status: nextStatus, last_changed_by: managerId, remarks: remarks || '' },
-      { document_identification: leave_id, document_status: nextStatus, last_changed_by: managerId }
+      { document_status: nextStatus, last_changed_by: changedByFormatted, req_item_list_id: reqItemListId },
+      newHeaderRowData
     );
 
+    // 13. Trigger background FTP sync
+    try {
+      const { runFtpSync } = require('../services/ftp_sync_service');
+      runFtpSync().catch(err => console.error('[Immediate FTP Sync Error]', err.message));
+    } catch (_) {}
+
+    // 14. Notify
+    await logApproval(managerId, 'Leave', leave_id, applicantId, 'Approved', remarks);
     const managerName = await getEmployeeName(managerId);
     const applicantName = await getEmployeeName(applicantId);
 
     if (nextStatus === 'APPROVED') {
-      await createNotification(
-        applicantId,
-        'Leave Request Approved',
-        `Your leave request has been approved by ${managerName}.${remarks ? ' Remarks: ' + remarks : ''}`,
-        'Leave'
-      );
-      if (l1 && l1 !== '0' && l1 !== 'N/A' && l1 != managerId) {
-        await createNotification(
-          l1,
-          'Leave Request Approved',
-          `Leave request for ${applicantName} has been approved by ${managerName}.`,
-          'Leave'
-        );
-      }
-    } else if (nextStatus === 'SENT_L2') {
-      await createNotification(
-        applicantId,
-        'Leave Request L1 Approved',
-        `Your leave request has been approved by L1 (${managerName}) and is pending L2 approval.`,
-        'Leave'
-      );
-      if (l2 && l2 !== '0' && l2 !== 'N/A') {
-        await createNotification(
-          l2,
-          'Pending Leave Approval',
-          `Leave request for ${applicantName} (approved by L1 ${managerName}) is pending your approval.`,
-          'Leave'
-        );
-      }
-    }
-
-    // Trigger ZHR_LEAVE_APPROVE2 SMS to applicant
-    try {
-      const [leaveRows] = await pool.query(
-        'SELECT sub_type, start_date, end_date FROM ptreq_attabsdata_leave_apply_1 WHERE id_of_request_item = ? LIMIT 1',
-        [leave_id]
-      );
-      if (leaveRows.length > 0) {
-        const lRow = leaveRows[0];
-        let leaveTypeStr = 'Earned Leave';
-        if (lRow.sub_type === '1001') leaveTypeStr = 'Casual Leave';
-        else if (lRow.sub_type === '1002') leaveTypeStr = 'HPL';
-        else if (lRow.sub_type === '1003') leaveTypeStr = 'CHPL';
-        else if (lRow.sub_type === '1010') leaveTypeStr = 'Optional Leave';
-
-        const applicantMobile = await getEmployeeMobile(applicantId);
-        sendLeaveApprovedSms({
-          mobileNumber: applicantMobile,
+      await createNotification(applicantId, 'Leave Request Approved',
+        `Your leave request has been fully approved by ${managerName}.${remarks ? ' Remarks: ' + remarks : ''}`,
+        'Leave');
+      try {
+        await smsService.sendLeaveApprovedSms({
+          mobileNumber: smsService.DEFAULT_MOBILE,
           approverName: managerName,
-          leaveType: leaveTypeStr,
-          startDate: lRow.start_date,
-          endDate: lRow.end_date
-        }).catch(err => console.error('[SMS Approve Error]', err.message));
+          leaveType: appRow.sub_type === '1001' ? 'Casual Leave' : (appRow.sub_type === '1002' ? 'HPL' : 'Earned Leave'),
+          startDate: appRow.start_date,
+          endDate: appRow.end_date
+        });
+      } catch (smsErr) { console.error('[SMS Error Approved]', smsErr.message); }
+    } else if (nextStatus === 'SENT_L2') {
+      await createNotification(applicantId, 'Leave Request L1 Approved',
+        `Your leave request was approved by L1 (${managerName}) and is now pending L2 approval.`, 'Leave');
+      if (hasValidL2) {
+        await createNotification(l2Raw, 'Pending Leave Approval',
+          `Leave request for ${applicantName} (L1 approved by ${managerName}) requires your approval.`, 'Leave');
       }
-    } catch (smsErr) {
-      console.error('[SMS Leave Approve Error]', smsErr.message);
+      try {
+        await smsService.sendLeaveL1ApprovedSms({
+          mobileNumber: smsService.DEFAULT_MOBILE,
+          title: 'Mr.',
+          applicantName,
+          leaveType: appRow.sub_type === '1001' ? 'Casual Leave' : (appRow.sub_type === '1002' ? 'HPL' : 'Earned Leave'),
+          startDate: appRow.start_date,
+          endDate: appRow.end_date,
+          l1Title: 'Mr.',
+          l1Name: managerName
+        });
+      } catch (smsErr) { console.error('[SMS Error L1 Approved]', smsErr.message); }
     }
 
     res.json({ message: 'Leave request approved successfully', status: nextStatus });
@@ -1407,91 +2038,128 @@ router.post('/leaves/reject', authenticateToken, async (req, res) => {
   const managerId = req.user.employee_number;
 
   try {
-    const headerQuery = `SELECT * FROM ptreq_header_leave_approved_1 WHERE document_identification = ? LIMIT 1`;
-    const [headers] = await pool.query(headerQuery, [leave_id]);
-    if (headers.length === 0) {
-      return res.status(404).json({ error: 'Leave request not found' });
+    // 1. Fetch leave details
+    const [appRows] = await pool.query(
+      `SELECT * FROM ptreq_attabsdata_leave_apply_1 WHERE id_of_request_item = ? LIMIT 1`,
+      [leave_id]
+    );
+    if (appRows.length === 0) return res.status(404).json({ error: 'Leave request not found' });
+    const appRow = appRows[0];
+    const applicantId = appRow.personnel_number;
+
+    // 2. Get ptreq_items bridge row
+    const [itemRows] = await pool.query(
+      `SELECT * FROM ptreq_items WHERE guid_1 = ? LIMIT 1`,
+      [leave_id]
+    );
+    const itemRow = itemRows.length > 0 ? itemRows[0] : null;
+    const reqItemListId = itemRow ? itemRow.id_of_request_item_list : leave_id;
+
+    // 3. Get current header status
+    const [headerRows] = await pool.query(
+      `SELECT h.* FROM ptreq_header_leave_approved_1 h
+       JOIN ptreq_items pi ON pi.id_of_request_item_list = h.id_of_request_item_list
+       WHERE pi.guid_1 = ?
+       ORDER BY h.row_id DESC LIMIT 1`,
+      [leave_id]
+    );
+    const latestHeader = headerRows.length > 0 ? headerRows[0] : null;
+    const currentStatus = latestHeader ? latestHeader.document_status : 'SENT';
+
+    if (['APPROVED', 'POSTED', 'REJECTED', 'WITHDRAWN', 'CANCELED'].includes(currentStatus)) {
+      return res.status(409).json({ error: 'Leave already processed', status: currentStatus });
     }
 
-    const requestHeader = headers[0];
-    const applicantId = requestHeader.last_changed_by;
-
-    // Get reporting officers of applicant
-    const agentQuery = `SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number = ? LIMIT 1`;
-    const [agents] = await pool.query(agentQuery, [applicantId]);
-    if (agents.length === 0) {
-      return res.status(400).json({ error: 'Applicant agent mapping not found' });
+    // 4. Validate manager is a designated reporting officer
+    const [agents] = await pool.query(
+      `SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number = ? LIMIT 1`,
+      [applicantId]
+    );
+    if (agents.length > 0) {
+      const l1Raw = agents[0].reporting_officer ? agents[0].reporting_officer.toString().trim() : '0';
+      const l2Raw = agents[0].reporting_officer_1 ? agents[0].reporting_officer_1.toString().trim() : '0';
+      const managerStr = managerId.toString().trim();
+      const isL1 = (l1Raw !== '0') && (l1Raw === managerStr || parseInt(l1Raw) === parseInt(managerStr));
+      const isL2 = (l2Raw !== '0') && (l2Raw === managerStr || parseInt(l2Raw) === parseInt(managerStr));
+      if (!isL1 && !isL2) {
+        return res.status(403).json({ error: 'You are not a designated reporting officer for this employee' });
+      }
     }
 
-    const { reporting_officer: l1, reporting_officer_1: l2 } = agents[0];
-    if (l1 == managerId || l2 == managerId) {
-      await pool.query('UPDATE ptreq_header_leave_approved_1 SET document_status = "REJECTED" WHERE document_identification = ?', [leave_id]);
-      await pool.query(
-        'UPDATE absence SET lock_indicator = "R" WHERE personnel_number = ? AND start_date = (SELECT start_date FROM ptreq_attabsdata_leave_apply_1 WHERE id_of_request_item = ?)',
-        [applicantId, leave_id]
-      );
-      await logApproval(managerId, 'Leave', leave_id, applicantId, 'Rejected', remarks);
+    // 5. Format audit fields
+    const managerPaddedPernr = managerId.toString().trim().padStart(8, '0');
+    const changedByFormatted = `HR_app_${managerPaddedPernr}`;
+    const nowTs = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const docVersion = latestHeader ? (parseInt(latestHeader.document_version || '1') + 1).toString() : '1';
+    const guid = latestHeader ? (latestHeader.guid || leave_id) : leave_id;
 
-      const managerName = await getEmployeeName(managerId);
-      const applicantName = await getEmployeeName(applicantId);
+    const docIdent = (latestHeader && latestHeader.document_identification) ? latestHeader.document_identification : reqItemListId;
 
-      await createNotification(
-        applicantId,
-        'Leave Request Rejected',
-        `Your leave request has been rejected by ${managerName}.${remarks ? ' Remarks: ' + remarks : ''}`,
-        'Leave'
-      );
+    // 6. INSERT new header row with REJECTED status (audit trail)
+    await pool.query(
+      `INSERT INTO ptreq_header_leave_approved_1
+       (document_identification, document_version, document_category, document_status,
+        guid, guid_1, guid_2, guid_3, guid_4, guid_5, guid_6, guid_7,
+        id_of_request_item_list, last_changed_by, time_stamp, time_zone, id)
+       VALUES (?, ?, 'ABSREQ', 'REJECTED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INDIA', ?)`,
+      [docIdent, docVersion,
+       guid, guid, guid, guid, guid, guid, guid, guid,
+       reqItemListId, changedByFormatted, nowTs, applicantId]
+    );
 
-      if (l1 && l1 !== '0' && l1 !== 'N/A' && l1 != managerId) {
-        await createNotification(
-          l1,
-          'Leave Request Rejected',
-          `Leave request for ${applicantName} has been rejected by ${managerName}.`,
-          'Leave'
-        );
-      }
-      if (l2 && l2 !== '0' && l2 !== 'N/A' && l2 != managerId && l2 != l1) {
-        await createNotification(
-          l2,
-          'Leave Request Rejected',
-          `Leave request for ${applicantName} has been rejected by ${managerName}.`,
-          'Leave'
-        );
-      }
+    // 7. Set lock_indicator to R (rejected)
+    await pool.query(
+      `UPDATE ptreq_attabsdata_leave_apply_1 SET lock_indicator = 'R' WHERE id_of_request_item = ?`,
+      [leave_id]
+    );
 
-      // Trigger ZHR_LEAVE_REJECT1 / ZHR_LEAVE_REJECT2 SMS to applicant
-      try {
-        const [leaveRows] = await pool.query(
-          'SELECT sub_type, start_date, end_date FROM ptreq_attabsdata_leave_apply_1 WHERE id_of_request_item = ? LIMIT 1',
-          [leave_id]
-        );
-        if (leaveRows.length > 0) {
-          const lRow = leaveRows[0];
-          let leaveTypeStr = 'Earned Leave';
-          if (lRow.sub_type === '1001') leaveTypeStr = 'Casual Leave';
-          else if (lRow.sub_type === '1002') leaveTypeStr = 'HPL';
-          else if (lRow.sub_type === '1003') leaveTypeStr = 'CHPL';
-          else if (lRow.sub_type === '1010') leaveTypeStr = 'Optional Leave';
+    // 8. Write to daily cumulative Excel for FTP outbound
+    const rejectedHeaderData = {
+      document_identification: leave_id,
+      document_version: docVersion,
+      document_status: 'REJECTED',
+      guid, guid_1: guid,
+      id_of_request_item_list: reqItemListId,
+      last_changed_by: changedByFormatted,
+      time_stamp: nowTs,
+    };
+    await writeLeaveCumulativeExcel({
+      leaveRow: appRow,
+      headerRow: rejectedHeaderData,
+      itemRow: itemRow || { id_of_request_item_list: reqItemListId, guid_1: leave_id },
+      quotaRow: null,
+    });
 
-          const applicantMobile = await getEmployeeMobile(applicantId);
-          const rejectStage = (requestHeader.document_status === 'SENT_L2' || l2 == managerId) ? 2 : 1;
-          sendLeaveRejectedSms({
-            mobileNumber: applicantMobile,
-            approverName: managerName,
-            leaveType: leaveTypeStr,
-            startDate: lRow.start_date,
-            endDate: lRow.end_date,
-            stage: rejectStage
-          }).catch(err => console.error('[SMS Reject Error]', err.message));
-        }
-      } catch (smsErr) {
-        console.error('[SMS Leave Reject Error]', smsErr.message);
-      }
+    // 9. Record outbound change
+    await recordOutboundChange(
+      'PTREQ_HEADER_Leave_Approved', leave_id, 'UPDATE',
+      { document_status: 'REJECTED', last_changed_by: changedByFormatted, req_item_list_id: reqItemListId },
+      rejectedHeaderData
+    );
 
-      res.json({ message: 'Leave request rejected successfully' });
-    } else {
-      res.status(403).json({ error: 'You are not designated to reject this request' });
-    }
+    // 10. Trigger FTP sync
+    try {
+      const { runFtpSync } = require('../services/ftp_sync_service');
+      runFtpSync().catch(err => console.error('[Immediate FTP Sync Error]', err.message));
+    } catch (_) {}
+
+    // 11. Notify
+    await logApproval(managerId, 'Leave', leave_id, applicantId, 'Rejected', remarks);
+    const managerName = await getEmployeeName(managerId);
+    await createNotification(applicantId, 'Leave Request Rejected',
+      `Your leave request has been rejected by ${managerName}.${remarks ? ' Remarks: ' + remarks : ''}`,
+      'Leave');
+    try {
+      await smsService.sendLeaveRejectedSms({
+        mobileNumber: smsService.DEFAULT_MOBILE,
+        approverName: managerName,
+        leaveType: appRow.sub_type === '1001' ? 'Casual Leave' : (appRow.sub_type === '1002' ? 'HPL' : 'Earned Leave'),
+        startDate: appRow.start_date,
+        endDate: appRow.end_date
+      });
+    } catch (smsErr) { console.error('[SMS Error Rejected]', smsErr.message); }
+
+    res.json({ message: 'Leave request rejected successfully' });
   } catch (error) {
     console.error('[Reject Leave Error]', error.message);
     res.status(500).json({ error: 'Failed to reject leave', message: error.message });
@@ -1591,6 +2259,8 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
 
     const isDraft = status === 'Draft';
     const newPlanningStatus = isDraft ? '0' : '1'; // '0' = Draft, '1' = Pending L1
+    const empPaddedPernr = employeeId.toString().trim().padStart(8, '0');
+    const empChangedBy = `HR_app_${empPaddedPernr}`;
 
     const targetTourId = tour_id || id;
     let existingId = null;
@@ -1630,10 +2300,10 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
           trip_activity_type = ?, 
           planning_status = ?, 
           changed_on = NOW(), 
-          changed_by = 'HR_app'
+          changed_by = ?
         WHERE id = ?
       `;
-      await pool.query(updateQuery, [destination, formattedStartDate, formattedEndDate, purpose, transport_mode, tour_type, newPlanningStatus, existingId]);
+      await pool.query(updateQuery, [destination, formattedStartDate, formattedEndDate, purpose, transport_mode, tour_type, newPlanningStatus, empChangedBy, existingId]);
       recordId = existingId;
 
       await recordOutboundChange(
@@ -1647,9 +2317,9 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
       // INSERT NEW RECORD ONLY IF NO PREVIOUS DRAFT / MATCHING TRIP RECORD EXISTS
       const insertQuery = `
         INSERT INTO travel (personnel_number, trip_destination, beginning_date_of_trip_segment, end_date_of_trip_segment, reason_for_trip, depart_res_workplace, trip_activity_type, planning_status, changed_on, changed_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'HR_app')
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
       `;
-      const [result] = await pool.query(insertQuery, [employeeId, destination, formattedStartDate, formattedEndDate, purpose, transport_mode, tour_type, newPlanningStatus]);
+      const [result] = await pool.query(insertQuery, [employeeId, destination, formattedStartDate, formattedEndDate, purpose, transport_mode, tour_type, newPlanningStatus, empChangedBy]);
       recordId = result.insertId;
 
       await recordOutboundChange(
@@ -1785,6 +2455,12 @@ router.post('/tours/approve', authenticateToken, async (req, res) => {
     const tour = rows[0];
     let nextStatus = '';
 
+    // Guard: already finalized?
+    if (['2', '3'].includes(tour.planning_status)) {
+      const statusLabel = tour.planning_status === '2' ? 'Approved' : 'Rejected';
+      return res.status(409).json({ error: `Tour already ${statusLabel}`, status: tour.planning_status });
+    }
+
     if (tour.planning_status === '1' && tour.reporting_officer == managerId) {
       if (tour.reporting_officer_1 && tour.reporting_officer_1 !== '0' && tour.reporting_officer_1 !== 'N/A') {
         nextStatus = '11'; // L2 pending
@@ -1797,11 +2473,21 @@ router.post('/tours/approve', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'You are not designated to approve this tour stage' });
     }
 
+    const managerPaddedPernr = managerId.toString().trim().padStart(8, '0');
+    const mgrChangedBy = `HR_app_${managerPaddedPernr}`;
     const updateQuery = `
-      UPDATE travel SET planning_status = ?, changed_on = NOW(), changed_by = 'HR_app' WHERE id = ?
+      UPDATE travel SET planning_status = ?, changed_on = NOW(), changed_by = ? WHERE id = ?
     `;
-    await pool.query(updateQuery, [nextStatus, tour_id]);
+    await pool.query(updateQuery, [nextStatus, mgrChangedBy, tour_id]);
     await logApproval(managerId, 'Tour', tour_id, tour.personnel_number, 'Approved', remarks);
+
+    await recordOutboundChange(
+      'travel',
+      tour_id,
+      'UPDATE',
+      { personnel_number: tour.personnel_number, trip_destination: tour.trip_destination, planning_status: nextStatus, changed_by: mgrChangedBy },
+      { id: tour_id, personnel_number: tour.personnel_number, planning_status: nextStatus }
+    );
 
     const managerName = await getEmployeeName(managerId);
     const applicantName = await getEmployeeName(tour.personnel_number);
@@ -1871,6 +2557,14 @@ router.post('/tours/reject', authenticateToken, async (req, res) => {
       `;
       await pool.query(updateQuery, [tour_id]);
       await logApproval(managerId, 'Tour', tour_id, tour.personnel_number, 'Rejected', remarks);
+
+      await recordOutboundChange(
+        'travel',
+        tour_id,
+        'UPDATE',
+        { personnel_number: tour.personnel_number, trip_destination: tour.trip_destination, planning_status: '3', changed_by: managerId },
+        { id: tour_id, personnel_number: tour.personnel_number, planning_status: '3' }
+      );
 
       const managerName = await getEmployeeName(managerId);
       const applicantName = await getEmployeeName(tour.personnel_number);
@@ -1984,7 +2678,7 @@ router.get('/holidays', authenticateToken, async (req, res) => {
     ];
 
     const optionalHolidays = holidayRows.map(row => ({
-      id: row.id.toString(),
+      id: (row.row_id || row.id || '').toString(),
       name: row.description || 'Optional Holiday',
       date: row.optional_holiday_date,
       type: 'Optional'
@@ -2189,12 +2883,14 @@ router.get('/employees', authenticateToken, async (req, res) => {
 router.post('/leave-encashment', authenticateToken, async (req, res) => {
   const { employee_id, days, year } = req.body;
   const loggedInId = req.user.employee_number;
-  const cleanEmpId = employee_id.toString().trim().replace(/^0+/, '');
+  const targetEmpId = (employee_id || loggedInId).toString().trim();
+  const cleanEmpId = targetEmpId.replace(/^0+/, '');
+  const paddedPernr = cleanEmpId.padStart(8, '0');
 
   try {
     // 1. Validation: Only self or respective reporting officer can encash
-    const agentQuery = `SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number = ? LIMIT 1`;
-    const [agents] = await pool.query(agentQuery, [cleanEmpId]);
+    const agentQuery = `SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED) LIMIT 1`;
+    const [agents] = await pool.query(agentQuery, [cleanEmpId, cleanEmpId]);
     if (agents.length === 0) {
       return res.status(400).json({ error: 'Applicant agent mapping not found' });
     }
@@ -2206,8 +2902,8 @@ router.post('/leave-encashment', authenticateToken, async (req, res) => {
 
     // 2. Encashment rule: Max 50% of available Earned Leave quota
     const [quotaRows] = await pool.query(
-      `SELECT * FROM leave_quota WHERE personnel_number = ? AND (absence_quota_type = '1' OR sub_type = '01') ORDER BY deduction_to DESC LIMIT 1`,
-      [cleanEmpId]
+      `SELECT * FROM leave_quota WHERE (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)) AND (absence_quota_type = '1' OR sub_type = '01' OR sub_type = '1000') ORDER BY deduction_to DESC LIMIT 1`,
+      [cleanEmpId, cleanEmpId]
     );
 
     if (quotaRows.length === 0) {
@@ -2226,38 +2922,337 @@ router.post('/leave-encashment', authenticateToken, async (req, res) => {
 
     // 3. Encashment rule: Cap requested days to 30
     const finalDays = Math.min(requestedDays, 30);
-
+    const loggedInPaddedPernr = loggedInId.toString().trim().padStart(8, '0');
+    const changedByFormatted = `HR_app_${loggedInPaddedPernr}`;
     const docNumber = '303' + Math.floor(100000000 + Math.random() * 900000000).toString();
+
+    // 4. Insert into time_quota_compensation_infotype table
     const insertQuery = `
       INSERT INTO time_quota_compensation_infotype (
-        personnel_number, sub_type, start_date, end_date, comp_quota_number, 
-        quota_type, time_quota_compensation_method, changed_by, changed_on, infotype_record_no, logical_system, document_number
-      ) VALUES (?, '1000', NOW(), NOW(), ?, 'A', '1000', 'HR_app', NOW(), '0', 'PECCLNT100', ?)
+        personnel_number, sub_type, start_date, end_date, comp__quota_number, 
+        quota_type, time_quota_compensation_method, changed_by, changed_on, infotype_record_no, logical_system, document_number,
+        encashment_status, is_quota_deducted
+      ) VALUES (?, '1000', CURDATE(), CURDATE(), ?, '01', '1000', ?, NOW(), '0', 'PECCLNT100', ?, 'PENDING', 0)
     `;
-    const [result] = await pool.query(insertQuery, [cleanEmpId, finalDays, docNumber]);
+    const [result] = await pool.query(insertQuery, [paddedPernr, finalDays, changedByFormatted, docNumber]);
 
-    // Trigger ZHR_LEAVE_ENCASH_SEND SMS to Reporting Officer
-    try {
-      const applicantName = await getEmployeeName(cleanEmpId);
-      const roMobile = await getEmployeeMobile(l1);
-      sendLeaveEncashAppliedSms({
-        mobileNumber: roMobile,
-        applicantName: applicantName,
-        days: finalDays
-      }).catch(err => console.error('[SMS Encash Applied Error]', err.message));
-    } catch (smsErr) {
-      console.error('[SMS Leave Encash Applied Error]', smsErr.message);
+    // 6. Record outbound change (pending — will be updated on approval)
+    await recordOutboundChange(
+      'time_quota_compensation_infotype',
+      docNumber,
+      'INSERT',
+      { personnel_number: paddedPernr, comp__quota_number: finalDays, changed_by: changedByFormatted, encashment_status: 'PENDING' },
+      { personnel_number: paddedPernr, sub_type: '1000', comp__quota_number: finalDays, quota_type: '01', time_quota_compensation_method: '1000', changed_by: changedByFormatted, document_number: docNumber, encashment_status: 'PENDING' }
+    );
+
+    // 7. Notify applicant + ROs
+    const applicantName = await getEmployeeName(cleanEmpId);
+    await createNotification(cleanEmpId, 'Leave Encashment Submitted',
+      `Your leave encashment request for ${finalDays} days has been submitted and is pending approval.`, 'Leave');
+    if (l1 && l1 !== '0' && l1 !== 'N/A') {
+      await createNotification(l1, 'New Encashment Request',
+        `${applicantName} (${cleanEmpId}) submitted a leave encashment request for ${finalDays} days.`, 'Leave');
+    }
+    if (l2 && l2 !== '0' && l2 !== 'N/A' && l2 !== l1) {
+      await createNotification(l2, 'New Encashment Request',
+        `${applicantName} (${cleanEmpId}) submitted a leave encashment request for ${finalDays} days.`, 'Leave');
     }
 
+    try {
+      await smsService.sendLeaveEncashAppliedSms({
+        mobileNumber: smsService.DEFAULT_MOBILE,
+        applicantName,
+        days: finalDays
+      });
+    } catch (smsErr) { console.error('[SMS Error Encash Apply]', smsErr.message); }
+
     res.status(201).json({
-      message: 'Leave encashment request processed successfully',
+      message: 'Leave encashment request submitted successfully. Pending approval.',
       id: result.insertId,
       docNumber,
-      appliedDays: finalDays
+      appliedDays: finalDays,
+      encashmentStatus: 'PENDING'
     });
   } catch (error) {
     console.error('[Leave Encashment Error]', error.message);
     res.status(500).json({ error: 'Failed to process leave encashment', message: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/leave-encashment/approve
+ * @desc    Approve a pending encashment — deducts quota ONCE using is_quota_deducted guard
+ */
+router.post('/leave-encashment/approve', authenticateToken, async (req, res) => {
+  const { encashment_id, remarks } = req.body;
+  const managerId = req.user.employee_number;
+
+  try {
+    if (!encashment_id) return res.status(400).json({ error: 'encashment_id is required' });
+
+    // 1. Fetch the pending encashment record
+    const [encRows] = await pool.query(
+      `SELECT * FROM time_quota_compensation_infotype WHERE id = ? LIMIT 1`,
+      [encashment_id]
+    );
+    if (encRows.length === 0) return res.status(404).json({ error: 'Encashment record not found' });
+    const enc = encRows[0];
+
+    // 2. Guard: already processed?
+    if (enc.encashment_status && enc.encashment_status !== 'PENDING') {
+      return res.status(409).json({ error: `Encashment already processed`, status: enc.encashment_status });
+    }
+
+    // 3. Verify manager is the L1 or L2 for the applicant
+    const cleanEmpId = enc.personnel_number.toString().replace(/^0+/, '');
+    const [agents] = await pool.query(
+      `SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED) LIMIT 1`,
+      [cleanEmpId, cleanEmpId]
+    );
+    if (agents.length > 0) {
+      const l1 = (agents[0].reporting_officer || '0').toString().trim();
+      const l2 = (agents[0].reporting_officer_1 || '0').toString().trim();
+      const mgrStr = managerId.toString().trim();
+      const isL1 = l1 !== '0' && (l1 === mgrStr || parseInt(l1) === parseInt(mgrStr));
+      const isL2 = l2 !== '0' && (l2 === mgrStr || parseInt(l2) === parseInt(mgrStr));
+      if (!isL1 && !isL2 && cleanEmpId !== mgrStr) {
+        return res.status(403).json({ error: 'You are not designated to approve this encashment' });
+      }
+    }
+
+    const managerPaddedPernr = managerId.toString().trim().padStart(8, '0');
+    const changedByFormatted = `HR_app_${managerPaddedPernr}`;
+    const finalDays = parseFloat(enc.comp__quota_number || 0);
+
+    // 4. Transactional: update status + deduct quota (idempotency via is_quota_deducted = 0 check)
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    try {
+      // Update encashment_status
+      await conn.query(
+        `UPDATE time_quota_compensation_infotype 
+         SET encashment_status = 'APPROVED', changed_by = ?, changed_on = NOW()
+         WHERE id = ? AND (encashment_status = 'PENDING' OR encashment_status IS NULL)`,
+        [changedByFormatted, encashment_id]
+      );
+
+      // Deduct quota ONLY if is_quota_deducted = 0 (double-deduction guard)
+      const [guardResult] = await conn.query(
+        `UPDATE time_quota_compensation_infotype SET is_quota_deducted = 1
+         WHERE id = ? AND is_quota_deducted = 0`,
+        [encashment_id]
+      );
+
+      if (guardResult.affectedRows === 1) {
+        // Safe to deduct — runs exactly once
+        await conn.query(
+          `UPDATE leave_quota 
+           SET quota_deduction = CAST(CAST(COALESCE(quota_deduction, '0') AS DECIMAL(10,2)) + ? AS CHAR) 
+           WHERE (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)) 
+             AND (absence_quota_type = '1' OR sub_type = '01' OR sub_type = '1000')`,
+          [finalDays, cleanEmpId, cleanEmpId]
+        );
+      }
+
+      await conn.commit();
+    } catch (txErr) {
+      await conn.rollback();
+      throw txErr;
+    } finally {
+      conn.release();
+    }
+
+    // 5. Write Excel outbound for IT0416 (encashment)
+    function toSerialDate(d) {
+      const dt = new Date(d);
+      return Math.floor((dt - new Date(1899, 11, 30)) / 86400000);
+    }
+    await writeTableOutboundExcel('IT0416_Time_Compensation.xlsx', 'time_quota_compensation_infotype', {
+      'Personnel number': enc.personnel_number,
+      'Sub Type': '1000',
+      'Start Date': toSerialDate(new Date(enc.start_date || new Date())),
+      'End Date': toSerialDate(new Date(enc.end_date || new Date())),
+      'Comp. quota number': finalDays,
+      'Quota type': 'A',
+      'Time quota compensation method': '1000',
+      'Changed On': toSerialDate(new Date()),
+      'Changed By': changedByFormatted,
+      'Infotype record no.': '0',
+      'Logical system': 'PECCLNT100',
+      'Document number': enc.document_number,
+      'Absence quota type': '1',
+      'Deduction rule': '0'
+    });
+    // 6. Record outbound change
+    await recordOutboundChange(
+      'time_quota_compensation_infotype',
+      enc.document_number,
+      'UPDATE',
+      { encashment_status: 'APPROVED', changed_by: changedByFormatted },
+      { personnel_number: enc.personnel_number, comp__quota_number: finalDays, encashment_status: 'APPROVED', document_number: enc.document_number }
+    );
+
+    // 7. Trigger FTP sync
+    try {
+      const { runFtpSync } = require('../services/ftp_sync_service');
+      runFtpSync().catch(err => console.error('[Encashment Approve FTP Sync Error]', err.message));
+    } catch (_) {}
+
+    // 8. Notify
+    await logApproval(managerId, 'Encashment', encashment_id, cleanEmpId, 'Approved', remarks);
+    const managerName = await getEmployeeName(managerId);
+    await createNotification(cleanEmpId, 'Leave Encashment Approved',
+      `Your leave encashment request for ${finalDays} days has been approved by ${managerName}.${remarks ? ' Remarks: ' + remarks : ''}`,
+      'Leave');
+    try {
+      await smsService.sendLeaveEncashApprovedSms({
+        mobileNumber: smsService.DEFAULT_MOBILE,
+        applicantName: await getEmployeeName(cleanEmpId),
+        days: finalDays,
+        approverName: managerName
+      });
+    } catch (smsErr) { console.error('[SMS Error Encash Approve]', smsErr.message); }
+
+    res.json({ message: 'Encashment approved successfully', appliedDays: finalDays, status: 'APPROVED' });
+  } catch (error) {
+    console.error('[Encashment Approve Error]', error.message);
+    res.status(500).json({ error: 'Failed to approve encashment', message: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/leave-encashment/reject
+ * @desc    Reject a pending encashment — quota is NOT deducted
+ */
+router.post('/leave-encashment/reject', authenticateToken, async (req, res) => {
+  const { encashment_id, remarks } = req.body;
+  const managerId = req.user.employee_number;
+
+  try {
+    if (!encashment_id) return res.status(400).json({ error: 'encashment_id is required' });
+
+    const [encRows] = await pool.query(
+      `SELECT * FROM time_quota_compensation_infotype WHERE id = ? LIMIT 1`,
+      [encashment_id]
+    );
+    if (encRows.length === 0) return res.status(404).json({ error: 'Encashment record not found' });
+    const enc = encRows[0];
+
+    if (enc.encashment_status && enc.encashment_status !== 'PENDING') {
+      return res.status(409).json({ error: 'Encashment already processed', status: enc.encashment_status });
+    }
+
+    const managerPaddedPernr = managerId.toString().trim().padStart(8, '0');
+    const changedByFormatted = `HR_app_${managerPaddedPernr}`;
+
+    // Update status to REJECTED — quota is untouched
+    await pool.query(
+      `UPDATE time_quota_compensation_infotype 
+       SET encashment_status = 'REJECTED', changed_by = ?, changed_on = NOW()
+       WHERE id = ? AND (encashment_status = 'PENDING' OR encashment_status IS NULL)`,
+      [changedByFormatted, encashment_id]
+    );
+
+    await recordOutboundChange(
+      'time_quota_compensation_infotype',
+      enc.document_number,
+      'UPDATE',
+      { encashment_status: 'REJECTED', changed_by: changedByFormatted },
+      { personnel_number: enc.personnel_number, encashment_status: 'REJECTED', document_number: enc.document_number }
+    );
+
+    await logApproval(managerId, 'Encashment', encashment_id, enc.personnel_number.toString().replace(/^0+/, ''), 'Rejected', remarks);
+    const managerName = await getEmployeeName(managerId);
+    await createNotification(enc.personnel_number.toString().replace(/^0+/, ''), 'Leave Encashment Rejected',
+      `Your leave encashment request has been rejected by ${managerName}.${remarks ? ' Remarks: ' + remarks : ''}`,
+      'Leave');
+    try {
+      await smsService.sendLeaveEncashRejectedSms({
+        mobileNumber: smsService.DEFAULT_MOBILE,
+        days: parseFloat(enc.comp__quota_number || 0)
+      });
+    } catch (smsErr) { console.error('[SMS Error Encash Reject]', smsErr.message); }
+
+    res.json({ message: 'Encashment rejected successfully', status: 'REJECTED' });
+  } catch (error) {
+    console.error('[Encashment Reject Error]', error.message);
+    res.status(500).json({ error: 'Failed to reject encashment', message: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/send-sms
+ * @desc    Send SMS notification using MOIL DLT templates (Templates 1 - 9)
+ *          Default fallback mobile number: 9503864429
+ */
+router.post('/send-sms', authenticateToken, async (req, res) => {
+  const {
+    template_id, templateId,
+    mobile, mobileNumber,
+    applicant_name, applicantName,
+    approver_name, approverName,
+    leave_type, leaveType,
+    start_date, startDate,
+    end_date, endDate,
+    days, title, l1_title, l1_name, actor_name
+  } = req.body;
+
+  const tId = String(template_id || templateId || '1').trim();
+  const targetPhone = mobile || mobileNumber || smsService.DEFAULT_MOBILE;
+  const appName = applicant_name || applicantName || 'Employee';
+  const apprName = approver_name || approverName || 'Officer';
+  const lType = leave_type || leaveType || 'Casual Leave';
+  const sDate = start_date || startDate || '2026-08-20';
+  const eDate = end_date || endDate || '2026-08-22';
+  const numDays = days || 1;
+
+  let result;
+  try {
+    switch (tId) {
+      case '1':
+      case '1107163177301329708':
+        result = await smsService.sendLeaveAppliedSms({ mobileNumber: targetPhone, applicantName: appName, leaveType: lType, startDate: sDate, endDate: eDate });
+        break;
+      case '2':
+      case '1107163177311027634':
+        result = await smsService.sendLeaveApprovedSms({ mobileNumber: targetPhone, approverName: apprName, leaveType: lType, startDate: sDate, endDate: eDate });
+        break;
+      case '3':
+      case '1107163177318779886':
+        result = await smsService.sendLeaveRejectedSms({ mobileNumber: targetPhone, approverName: apprName, leaveType: lType, startDate: sDate, endDate: eDate });
+        break;
+      case '4':
+      case '1107165717011044676':
+        result = await smsService.sendLeaveEncashApprovedSms({ mobileNumber: targetPhone, applicantName: appName, days: numDays, approverName: apprName });
+        break;
+      case '5':
+      case '1107165717016334079':
+        result = await smsService.sendLeaveEncashRejectedSms({ mobileNumber: targetPhone, days: numDays });
+        break;
+      case '6':
+      case '1107165717026952826':
+        result = await smsService.sendLeaveEncashAppliedVariantSms({ mobileNumber: targetPhone, applicantName: appName, days: numDays });
+        break;
+      case '7':
+      case '1107165901001503660':
+        result = await smsService.sendLeaveEncashAppliedSms({ mobileNumber: targetPhone, applicantName: appName, days: numDays });
+        break;
+      case '8':
+      case '1107165916221536406':
+        result = await smsService.sendLeaveL1ApprovedSms({ mobileNumber: targetPhone, title: title || 'Mr.', applicantName: appName, leaveType: lType, startDate: sDate, endDate: eDate, l1Title: l1_title || 'Mr.', l1Name: l1_name || apprName });
+        break;
+      case '9':
+      case '1107177547706676415':
+        result = await smsService.sendApplicationNotedSms({ mobileNumber: targetPhone, actorName: actor_name || apprName, leaveType: lType, startDate: sDate, endDate: eDate });
+        break;
+      default:
+        return res.status(400).json({ error: 'Invalid template_id. Must be 1-9 or valid DLT Template ID.' });
+    }
+
+    res.json({ message: 'SMS trigger initiated', templateId: tId, targetPhone, result });
+  } catch (error) {
+    console.error('[POST /api/send-sms Error]', error.message);
+    res.status(500).json({ error: 'Failed to send SMS', message: error.message });
   }
 });
 
@@ -2399,33 +3394,236 @@ router.get('/tours/team-calendar', authenticateToken, async (req, res) => {
  * Helper to record outbound modifications (delta tracking & file export for FTP Outbound folder)
  */
 async function recordOutboundChange(tableName, recordId, actionType, changedColumns, rowData) {
-  try {
-    // 1. Database delta tracking
-    await pool.query(
-      'INSERT INTO app_outbound_changes (table_name, record_id, action_type, changed_columns, row_data) VALUES (?, ?, ?, ?, ?)',
-      [tableName, String(recordId), actionType, JSON.stringify(changedColumns || {}), JSON.stringify(rowData || {})]
-    );
+  let insertId = null;
 
-    // 2. Save changed data file into local FTP Outbound folder
-    const outboundDir = path.join(__dirname, '../../outbound');
-    if (!fs.existsSync(outboundDir)) {
-      fs.mkdirSync(outboundDir, { recursive: true });
-    }
-    const fileName = `${tableName}_${actionType}_${recordId}_${Date.now()}.json`;
-    const filePath = path.join(outboundDir, fileName);
-    const filePayload = {
-      timestamp: new Date().toISOString(),
+  // 1. Store change record in app_outbound_changes table
+  try {
+    const changedJson = typeof changedColumns === 'string' ? changedColumns : JSON.stringify(changedColumns || {});
+    const rowJson = typeof rowData === 'string' ? rowData : JSON.stringify(rowData || {});
+
+    const [res] = await pool.query(
+      `INSERT INTO app_outbound_changes (table_name, record_id, action_type, changed_columns, row_data, is_synced, created_at)
+       VALUES (?, ?, ?, ?, ?, 0, NOW())`,
+      [tableName, recordId, actionType, changedJson, rowJson]
+    );
+    insertId = res.insertId;
+    console.log(`[Outbound Record DB] Stored outbound change #${insertId} for ${tableName}:${recordId}`);
+  } catch (dbErr) {
+    console.error('[Outbound Record DB Error]', dbErr.message);
+  }
+
+  // 2. Write JSON & Excel (.xlsx) export files for FTP Outbound Sync
+  try {
+    const outboundDirs = [
+      process.env.FTP_OUTBOUND_DIR_LOCAL,
+      path.join(__dirname, '../../outbound'),
+      '/Users/apple/WebBeta/MOIL_PROJECT/Moil_employee_data/Outbound',
+      path.join('/tmp', 'ftp_outbound')
+    ].filter(Boolean);
+
+    outboundDirs.forEach(dir => {
+      if (!fs.existsSync(dir)) {
+        try { fs.mkdirSync(dir, { recursive: true }); } catch (e) {}
+      }
+    });
+
+    const timestamp = Date.now();
+    const baseFileName = `outbound_${tableName}_${actionType}_${recordId}_${timestamp}`;
+    const parsedRowData = typeof rowData === 'string' ? JSON.parse(rowData || '{}') : (rowData || {});
+
+    // Prepare JSON Payload
+    const jsonFileName = `${baseFileName}.json`;
+    const payload = {
+      id: insertId,
       table_name: tableName,
       record_id: recordId,
       action_type: actionType,
-      changed_columns: changedColumns || {},
-      row_data: rowData || {}
+      changed_columns: typeof changedColumns === 'string' ? JSON.parse(changedColumns || '{}') : (changedColumns || {}),
+      row_data: parsedRowData,
+      created_at: new Date().toISOString()
     };
-    fs.writeFileSync(filePath, JSON.stringify(filePayload, null, 2), 'utf8');
-    console.log(`[FTP Outbound File Created] ${filePath}`);
-  } catch (err) {
-    console.error('[Record Outbound Change Error]', err.message);
+    const jsonStr = JSON.stringify(payload, null, 2);
+
+    // Convert SAP date string "DD.MM.YYYY" to Excel serial number (same as inbound)
+    function dateToExcelSerial(dateStr) {
+      if (!dateStr) return '';
+      const parts = dateStr.split('.');
+      if (parts.length === 3) {
+        const d = new Date(parts[2], parts[1] - 1, parts[0]);
+        return Math.floor((d - new Date(1899, 11, 30)) / 86400000);
+      }
+      const iso = new Date(dateStr);
+      if (!isNaN(iso)) return Math.floor((iso - new Date(1899, 11, 30)) / 86400000);
+      return dateStr;
+    }
+
+    const cc = typeof changedColumns === 'string' ? JSON.parse(changedColumns || '{}') : (changedColumns || {});
+    const rd = typeof rowData === 'string' ? JSON.parse(rowData || '{}') : (rowData || {});
+
+    let fileName = `${tableName}.xlsx`;
+    let sheetName = tableName;
+    let rowObj = null;
+
+    if (tableName === 'PTREQ_ATTABSDATA_Leave_Apply' || tableName === 'ptreq_attabsdata_leave_apply_1') {
+      fileName = 'PTREQ_ATTABSDATA_Leave_Apply.xlsx';
+      sheetName = 'PTREQ_ATTABSDATA_Leave_Apply';
+      const startDate = cc.start_date || rd.start_date || '';
+      const endDate   = cc.end_date   || rd.end_date   || '';
+      const days      = parseFloat(cc.days_count || rd.att__abs__days || '1');
+      const hours     = days * 8.5;
+      rowObj = {
+        'ID of Request Item':       recordId,
+        'Infotype operation':       actionType === 'INSERT' ? 'INS' : 'MOD',
+        'Infotype':                 '2001',
+        'Start time':               0,
+        'End time':                 0,
+        'Absence hours':            hours,
+        'Personnel number':         cc.personnel_number || rd.personnel_number || '',
+        'Sub Type':                 cc.sub_type         || rd.sub_type         || '1000',
+        'Object ID':                '',
+        'Lock indicator':           rd.lock_indicator   || 'P',
+        'End Date':                 dateToExcelSerial(endDate),
+        'Start Date':               dateToExcelSerial(startDate),
+        'Infotype record no.':      '0',
+        'Customer Field':           '', 'Customer Field_1': '', 'Customer Field_2': '', 'Customer Field_3': '', 'Customer Field_4': '',
+        'Customer Field_5': '', 'Customer Field_6': '', 'Customer Field_7': '', 'Customer Field_8': '', 'Customer Field_9': '',
+        'Prev. day indicator':      '',
+        'Att./abs. days':           days,
+        'Calendar days':            days,
+        'Set hours':                '',
+        'Full-day':                 'X',
+        'Payroll days':             days,
+        'Payroll hours':            hours,
+        'Desc. of illness':         '', 'Desc. of illness_1': '',
+        'Days credited':            0,
+        'End of continued pay':     '', 'End of sick pay': '', 'Certified start': '', 'Confirmed on': '',
+        'Subs.sickness ind.':       0, 'Ind. for repeated illness': 0,
+      };
+    } else if (tableName === 'PTREQ_HEADER_Leave_Approved' || tableName === 'ptreq_header_leave_approved_1') {
+      fileName = 'PTREQ_HEADER_Leave_Approved.xlsx';
+      sheetName = 'PTREQ_HEADER_Leave_Approved';
+      const now = new Date();
+      const excelTs = (now - new Date(1899, 11, 30)) / 86400000;
+      const status  = cc.document_status || rd.document_status || 'SENT';
+      const guid    = cc.document_identification || recordId || '';
+      rowObj = {
+        'Document Identification':    recordId,
+        'Document Version':           1,
+        'Document Category':          'ABSREQ',
+        'Document Status':            status,
+        'GUID':                       guid,
+        'GUID_1':                     guid,
+        'GUID_2':                     guid,
+        'GUID_3':                     guid,
+        'GUID_4':                     guid,
+        'GUID_5':                     guid,
+        'GUID_6':                     guid,
+        'GUID_7':                     guid,
+        'ID of Request Item List':    cc.req_item_list_id || rd.req_item_list_id || recordId,
+        'Last Changed By':            cc.last_changed_by || rd.last_changed_by || '',
+        'Time Stamp':                 excelTs,
+        'Time Zone':                  'INDIA',
+        'ID':                         cc.personnel_number || rd.personnel_number || cc.last_changed_by || '',
+      };
+    } else if (tableName === 'time_quota_compensation_infotype') {
+      fileName = 'IT0416_Time_Compensation.xlsx';
+      sheetName = 'Sheet1';
+      const pernr = (cc.personnel_number || rd.personnel_number || '').toString().replace(/^0+/, '');
+      rowObj = {
+        'Personnel number':           pernr,
+        'Sub Type':                   rd.sub_type || '1000',
+        'Object ID':                  '', 'Lock indicator': '',
+        'End Date':                   dateToExcelSerial(rd.end_date || new Date().toISOString().slice(0,10)),
+        'Start Date':                 dateToExcelSerial(rd.start_date || new Date().toISOString().slice(0,10)),
+        'Infotype record no.':        '0',
+        'Changed on':                 dateToExcelSerial(new Date().toISOString().slice(0,10)),
+        'Changed by':                 (cc.changed_by || rd.changed_by || pernr).toString().replace(/^0+/, ''),
+        'Historical record': '', 'Text exists': '', 'Reference fields exist (cost assign.)': '', 'Conf. fields exist': '', 'Screen control': '', 'Reason for Change': '',
+        'Reserved Field/Unused Field': '', 'Reserved Field/Unused Field_1': '', 'Reserved Field/Unused Field_2': '', 'Reserved Field/Unused Field_3': '',
+        'Reserved Field/Unused Field of Length 2': '', 'Reserved Field/Unused Field of Length 2_1': '', 'Grouping Value': '',
+        'Time Quota Compensation Method': '1000',
+        'Quota type':                 'A',
+        'Currency':                   '',
+        'Absence quota type':         '1',
+        'Deduction rule':             '0',
+        'Comp. quota number':         parseFloat(cc.comp__quota_number || rd.comp__quota_number || '0'),
+        'Compensation amount':        0,
+        'Wage Type':                  '5000',
+        'Quota counter':              '0',
+        'Logical system':             'PECCLNT100',
+        'Document number':            recordId || rd.document_number || '',
+        'Is not accounted':           ''
+      };
+    } else if (tableName === 'travel') {
+      fileName = 'FTPT_REQ_HEAD-Travel request.xlsx';
+      sheetName = 'Sheet1';
+      const pernr = cc.personnel_number || rd.personnel_number || '';
+      const tripNo = cc.trip_number || rd.trip_number || recordId || '';
+      const startDate = cc.beginning_date_of_trip_segment || rd.beginning_date_of_trip_segment || '';
+      const endDate = cc.end_date_of_trip_segment || rd.end_date_of_trip_segment || '';
+      const dest = cc.trip_destination || rd.trip_destination || '';
+      const reason = cc.reason_for_trip || rd.reason_for_trip || '';
+      const status = rd.planning_status || cc.planning_status || '1';
+      const changedBy = cc.changed_by || rd.changed_by || `HR_app_${pernr}`;
+
+      rowObj = {
+        'Personnel Number': pernr,
+        'Trip Number': tripNo,
+        'Version number of travel request': '99',
+        'Plan Request Indicator': 'R',
+        'Trip Destination': dest,
+        'Country Key': 'IN',
+        'Reason for Trip': reason,
+        'Beginning Date of Trip Segment': dateToExcelSerial(startDate),
+        'Start Time of Trip Segment': 0.8125,
+        'End Date of Trip Segment': dateToExcelSerial(endDate),
+        'End Time of Trip Segment': 0.83333333333333,
+        'Trip Activity Type': 'B',
+        'Total Cost': 0,
+        'Currency': 'INR',
+        'Planning Status': status,
+        'Changed on': dateToExcelSerial(new Date().toISOString().slice(0, 10)),
+        'Changed at': 0.75,
+        'Changed by': changedBy,
+        'Change Report': 'SAPMSSY1/',
+        'Depart Res./Workplace': '',
+        'Created By': pernr,
+        'Approved By': changedBy,
+        'Delivery Location': '',
+        'Delivery Area': '',
+        'Recipient of Delivery': '0',
+        'Arrival Accommodations/New Place of Work': '',
+        'Arrival at Home/Workplace': '',
+        'Trip Activity Type_1': 'B',
+        'Standing Approval of Bus.Trips': '',
+        'Trip Type: Statutory': 'B',
+        'TripType Enterprise': '',
+        'Full Trip Segment Reimbursement': '',
+        'Significant Official Interest': '',
+        'Number of Passengers': '0',
+        'Passenger with Other Employee': '',
+        'Time Work Commences': 0,
+        'Time Work Ends': 0,
+        'Increased Max. Trip Segment Reimbursm': ''
+      };
+    } else {
+      rowObj = Object.assign({}, cc, rd);
+    }
+
+    if (rowObj) {
+      await writeTableOutboundExcel(fileName, sheetName, rowObj);
+    }
+  } catch (fileErr) {
+    console.error('[Outbound Record File Error]', fileErr.message);
   }
+
+  // Trigger immediate background FTP Outbound Sync to /HR_App/Outbound
+  try {
+    const { runFtpSync } = require('../services/ftp_sync_service');
+    runFtpSync().catch(err => console.error('[Immediate Outbound FTP Sync Error]', err.message));
+  } catch (_) {}
+
+  return true;
 }
 
 /**
@@ -2465,6 +3663,65 @@ router.post('/mark-outbound-synced', async (req, res) => {
   } catch (err) {
     console.error('[Mark Outbound Synced Error]', err.message);
     res.status(500).json({ error: 'Failed to mark outbound changes as synced' });
+  }
+});
+
+/**
+ * @route   GET /api/inbound-registry
+ * @desc    Returns list of all processed inbound files
+ */
+router.get('/inbound-registry', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inbound_sync_registry (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        file_name VARCHAR(255) UNIQUE,
+        file_size BIGINT,
+        last_modified VARCHAR(100),
+        processed_at DATETIME
+      )
+    `);
+    const [rows] = await pool.query('SELECT file_name, file_size, last_modified FROM inbound_sync_registry');
+    res.json(rows);
+  } catch (err) {
+    console.error('[Inbound Registry GET Error]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @route   POST /api/inbound-registry
+ * @desc    Upserts processed inbound file record
+ */
+router.post('/inbound-registry', async (req, res) => {
+  try {
+    const { file_name, file_size, last_modified } = req.body;
+    if (!file_name) {
+      return res.status(400).json({ error: 'file_name is required' });
+    }
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inbound_sync_registry (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        file_name VARCHAR(255) UNIQUE,
+        file_size BIGINT,
+        last_modified VARCHAR(100),
+        processed_at DATETIME
+      )
+    `);
+    await pool.query(
+      `INSERT INTO inbound_sync_registry (file_name, file_size, last_modified, processed_at)
+       VALUES (?, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE file_size = VALUES(file_size), last_modified = VALUES(last_modified), processed_at = NOW()`,
+      [file_name, file_size, last_modified]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Inbound Registry POST Error]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 /**
  * @route   ALL /api/trigger-ftp-sync
  * @desc    Triggers automated FTP Inbound/Outbound sync & DB upserts
@@ -2472,12 +3729,86 @@ router.post('/mark-outbound-synced', async (req, res) => {
 router.all('/trigger-ftp-sync', async (req, res) => {
   try {
     const { runFtpSync } = require('../services/ftp_sync_service');
-    // Run sync in background or await
     runFtpSync().catch(err => console.error('[Background FTP Sync Error]', err));
     res.json({ success: true, message: 'FTP Inbound/Outbound synchronization triggered successfully' });
   } catch (err) {
     console.error('[Trigger FTP Sync Error]', err.message);
-    res.status(500).json({ error: 'Failed to trigger FTP sync', details: err.message });
+    res.status(500).json({ error: 'Failed to trigger FTP sync' });
+  }
+});
+
+const { getPayslipsForEmployee, syncPayslipsFromFtp, PAYSLIP_DIR } = require('../services/payslip_service');
+
+/**
+ * @route   GET /api/payslips
+ * @desc    Get available payslips for employee ({empNo}_{mm}_{yyyy}.pdf)
+ */
+router.get(['/payslips', '/payslips/list'], async (req, res) => {
+  try {
+    const employeeId = req.query.employee_id || req.query.employeeId || (req.user ? req.user.employee_number : null);
+
+    const forwardedHost = req.headers['x-forwarded-host'] || req.get('host') || '';
+    const isLocal = forwardedHost.includes('127.0.0.1') || forwardedHost.includes('localhost') || forwardedHost.includes('3000');
+    const publicBase = isLocal ? 'https://acubeai.com/test/moil_hr_app' : `https://${forwardedHost}/test/moil_hr_app`;
+
+    // Background FTP sync — runs without blocking the response
+    // Any new PDF placed in FTP /HR_App/Payslip will be picked up automatically
+    syncPayslipsFromFtp().catch(err => console.warn('[Auto FTP Sync]', err.message));
+
+    const payslips = await getPayslipsForEmployee(employeeId, publicBase);
+
+    res.json(payslips);
+  } catch (err) {
+    console.error('[Get Payslips Error]', err.message);
+    res.status(500).json({ error: 'Failed to fetch payslips list', message: err.message });
+  }
+});
+
+/**
+ * @route   GET /api/payslips/download/:filename
+ * @desc    View/Download payslip PDF file
+ */
+router.get(['/payslips/download/:filename', '/payslips/view/:filename'], (req, res) => {
+  try {
+    const filename = req.params.filename;
+    const safeFilename = path.basename(filename);
+    const filePath = path.join(PAYSLIP_DIR, safeFilename);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Payslip PDF file not found' });
+    }
+
+    const stat = fs.statSync(filePath);
+
+    // Explicit CORS headers so Flutter web can fetch binary PDF bytes
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+
+    const readStream = fs.createReadStream(filePath);
+    return readStream.pipe(res);
+  } catch (err) {
+    console.error('[Download Payslip Error]', err.message);
+    res.status(500).json({ error: 'Failed to download payslip' });
+  }
+});
+
+/**
+ * @route   POST /api/payslips/sync-ftp
+ * @desc    Trigger FTP sync for /HR_App/Payslip PDFs
+ */
+router.post('/payslips/sync-ftp', async (req, res) => {
+  try {
+    const count = await syncPayslipsFromFtp();
+    res.json({ success: true, message: `Synced ${count} payslips from FTP` });
+  } catch (err) {
+    console.error('[Payslip FTP Sync Error]', err.message);
+    res.status(500).json({ error: 'Failed to sync payslips from FTP' });
   }
 });
 

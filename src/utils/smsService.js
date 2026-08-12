@@ -79,7 +79,7 @@ async function sendSms({ mobileNumber, script, dltTemplateId }) {
       unicode: '0',
       senderid: SENDER_ID,
       pingbackurl: '',
-      DLTTemplateid: dltTemplateId
+      DLTTemplateid: String(dltTemplateId)
     });
 
     const headers = {
@@ -99,14 +99,14 @@ async function sendSms({ mobileNumber, script, dltTemplateId }) {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
-          console.log(`[SMS Sent] To: ${targetPhone} | DLT ID: ${dltTemplateId} | Status: ${res.statusCode} | Response: ${data}`);
-          resolve({ statusCode: res.statusCode, body: data });
+          console.log(`[SMS Sent] To: ${targetPhone} | DLT ID: ${dltTemplateId} | Script: "${script}" | Response: ${data}`);
+          resolve({ success: res.statusCode === 200, statusCode: res.statusCode, body: data, targetPhone, dltTemplateId });
         });
       });
 
       req.on('error', (err) => {
         console.error('[SMS Send Error]', err.message);
-        resolve({ error: err.message });
+        resolve({ success: false, error: err.message });
       });
 
       req.write(postData);
@@ -114,20 +114,11 @@ async function sendSms({ mobileNumber, script, dltTemplateId }) {
     });
   } catch (error) {
     console.error('[sendSms Exception]', error.message);
+    return { success: false, error: error.message };
   }
 }
 
-// Format Name (adds Mr. prefix if not present)
-function formatNameWithSalutation(name) {
-  if (!name) return 'Mr. Employee';
-  const trimmed = name.trim();
-  if (/^(Mr|Ms|Mrs|Dr)\b/i.test(trimmed)) {
-    return trimmed;
-  }
-  return `Mr. ${trimmed}`;
-}
-
-// Format Date as DD.MM.YYYY
+// Helper: Format Date as DD.MM.YYYY
 function formatSmsDate(dateInput) {
   if (!dateInput) return '01.01.2026';
   const str = String(dateInput).trim();
@@ -148,115 +139,110 @@ function formatSmsDate(dateInput) {
   return `${day}.${month}.${year}`;
 }
 
-// Format Days as 00030 (5-digit zero-padded)
-function formatDays5Digits(days) {
-  const num = parseInt(days, 10) || 0;
-  return String(num).padStart(5, '0');
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// MOIL DLT SMS TEMPLATE IMPLEMENTATIONS (1 - 9)
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * 1. ZHR_LEAVE_SEND (Leave Applied)
- * DLT ID: 1107163177301320100
- * Script: {Applicant_Name} has applied for {Leave_Type} from {Start_Date} to {End_Date} through ESS. Kindly take necessary action in this regard. MOIL Limited
+ * Template 1: Leave Applied (to Approver/RO)
+ * DLT ID: 1107163177301329708
+ * Text: {#var#} has applied for {#var#} from {#var#} to {#var#} through ESS. Kindly take necessary action in this regard. MOIL Limited
  */
 async function sendLeaveAppliedSms({ mobileNumber, applicantName, leaveType, startDate, endDate }) {
-  const formattedName = formatNameWithSalutation(applicantName);
-  const formattedStart = formatSmsDate(startDate);
-  const formattedEnd = formatSmsDate(endDate);
-
-  const script = `${formattedName} has applied for ${leaveType} from ${formattedStart} to ${formattedEnd} through ESS. Kindly take necessary action in this regard. MOIL Limited`;
-  const dltTemplateId = '1107163177301320100';
-
-  return await sendSms({ mobileNumber, script, dltTemplateId });
+  const script = `${applicantName} has applied for ${leaveType} from ${formatSmsDate(startDate)} to ${formatSmsDate(endDate)} through ESS. Kindly take necessary action in this regard. MOIL Limited`;
+  return await sendSms({ mobileNumber, script, dltTemplateId: '1107163177301329708' });
 }
 
 /**
- * 2. ZHR_LEAVE_APPROVE2 (Leave Approved)
- * DLT ID: 1107163177311020000
- * Script: {Approver_Name} has approved your application of {Leave_Type} from {Start_Date} to {End_Date} through ESS. This is for your information. MOIL Limited
+ * Template 2: Leave Approved (to Applicant)
+ * DLT ID: 1107163177311027634
+ * Text: {#var#} has approved your application for {#var#} from {#var#} to {#var#} through ESS. This is for your information. MOIL Limited
  */
 async function sendLeaveApprovedSms({ mobileNumber, approverName, leaveType, startDate, endDate }) {
-  const formattedName = formatNameWithSalutation(approverName);
-  const formattedStart = formatSmsDate(startDate);
-  const formattedEnd = formatSmsDate(endDate);
-
-  const script = `${formattedName} has approved your application of ${leaveType} from ${formattedStart} to ${formattedEnd} through ESS. This is for your information. MOIL Limited`;
-  const dltTemplateId = '1107163177311020000';
-
-  return await sendSms({ mobileNumber, script, dltTemplateId });
+  const script = `${approverName} has approved your application for ${leaveType} from ${formatSmsDate(startDate)} to ${formatSmsDate(endDate)} through ESS. This is for your information. MOIL Limited`;
+  return await sendSms({ mobileNumber, script, dltTemplateId: '1107163177311027634' });
 }
 
 /**
- * 3 & 4. ZHR_LEAVE_REJECT1 / ZHR_LEAVE_REJECT2 (Leave Rejected)
- * DLT ID: 1107163177318770000
- * Script L1: {Approver_Name} has rejected1 your application of {Leave_Type} from {Start_Date} to {End_Date} through ESS. This is for your information. MOIL Limited
- * Script L2: {Approver_Name} has rejected2 your application of {Leave_Type} from {Start_Date} to {End_Date} through ESS. This is for your information. MOIL Limited
+ * Template 3: Leave Rejected (to Applicant)
+ * DLT ID: 1107163177318779886
+ * Text: {#var#} has rejected your application for {#var#} from {#var#} to {#var#} through ESS. This is for your information. MOIL Limited
  */
-async function sendLeaveRejectedSms({ mobileNumber, approverName, leaveType, startDate, endDate, stage = 1 }) {
-  const formattedName = formatNameWithSalutation(approverName);
-  const formattedStart = formatSmsDate(startDate);
-  const formattedEnd = formatSmsDate(endDate);
-
-  const rejectWord = (stage === 2) ? 'rejected2' : 'rejected1';
-  const script = `${formattedName} has ${rejectWord} your application of ${leaveType} from ${formattedStart} to ${formattedEnd} through ESS. This is for your information. MOIL Limited`;
-  const dltTemplateId = '1107163177318770000';
-
-  return await sendSms({ mobileNumber, script, dltTemplateId });
+async function sendLeaveRejectedSms({ mobileNumber, approverName, leaveType, startDate, endDate }) {
+  const script = `${approverName} has rejected your application for ${leaveType} from ${formatSmsDate(startDate)} to ${formatSmsDate(endDate)} through ESS. This is for your information. MOIL Limited`;
+  return await sendSms({ mobileNumber, script, dltTemplateId: '1107163177318779886' });
 }
 
 /**
- * 5. ZHR_LEAVE_ENCASH_SEND (Encashment Applied)
- * DLT ID: 1107165901001500000
- * Script: {Applicant_Name} has applied for {Days} days encashment of leave through ESS. This is for your needful. MOIL Limited
+ * Template 4: Leave Encashment Approved
+ * DLT ID: 1107165717011044676
+ * Text: {#var#} leave encashment request for {#var#} days has been approved by {#var#} Kindly process. MOIL Limited
+ */
+async function sendLeaveEncashApprovedSms({ mobileNumber, applicantName, days, approverName }) {
+  const script = `${applicantName} leave encashment request for ${days} days has been approved by ${approverName} Kindly process. MOIL Limited`;
+  return await sendSms({ mobileNumber, script, dltTemplateId: '1107165717011044676' });
+}
+
+/**
+ * Template 5: Leave Encashment Rejected
+ * DLT ID: 1107165717016334079
+ * Text: Your leave encashment request for {#var#}days has been Rejected. This is for your information. MOIL Limited
+ */
+async function sendLeaveEncashRejectedSms({ mobileNumber, days }) {
+  const script = `Your leave encashment request for ${days}days has been Rejected. This is for your information. MOIL Limited`;
+  return await sendSms({ mobileNumber, script, dltTemplateId: '1107165717016334079' });
+}
+
+/**
+ * Template 6: Leave Encashment Applied (Variant A)
+ * DLT ID: 1107165717026952826
+ * Text: {#var#}has applied for{#var#} &lv_days& days encashment of leave through ESS.  This is for your needful. MOIL Limited
+ */
+async function sendLeaveEncashAppliedVariantSms({ mobileNumber, applicantName, days }) {
+  const script = `${applicantName}has applied for ${days} days encashment of leave through ESS.  This is for your needful. MOIL Limited`;
+  return await sendSms({ mobileNumber, script, dltTemplateId: '1107165717026952826' });
+}
+
+/**
+ * Template 7: Leave Encashment Applied (Variant B - Standard)
+ * DLT ID: 1107165901001503660
+ * Text: {#var#} has applied for {#var#} days encashment of leave through ESS.  This is for your needful. MOIL Limited
  */
 async function sendLeaveEncashAppliedSms({ mobileNumber, applicantName, days }) {
-  const formattedName = formatNameWithSalutation(applicantName);
-  const formattedDays = formatDays5Digits(days);
-
-  const script = `${formattedName} has applied for ${formattedDays} days encashment of leave through ESS. This is for your needful. MOIL Limited`;
-  const dltTemplateId = '1107165901001500000';
-
-  return await sendSms({ mobileNumber, script, dltTemplateId });
+  const script = `${applicantName} has applied for ${days} days encashment of leave through ESS.  This is for your needful. MOIL Limited`;
+  return await sendSms({ mobileNumber, script, dltTemplateId: '1107165901001503660' });
 }
 
 /**
- * 6. ZHR_LEAVE_ENCASH_APP1 (Encashment Approved)
- * DLT ID: 1107165717011040000
- * Script: {Applicant_Name} encashment request for {Days} days has been approved by {Approver_Name}. Kindly process. MOIL Limited
+ * Template 8: Leave L1 Approved (Passed to L2)
+ * DLT ID: 1107165916221536406
+ * Text: {#var#}   {#var#} has applied for {#var#} from  {#var#} to {#var#} through ESS, which is approved by  {#var#} {#var#}. This is for your needful. MOIL Limited
  */
-async function sendLeaveEncashApprovedSms({ mobileNumber, applicantName, approverName, days }) {
-  const formattedAppName = formatNameWithSalutation(applicantName);
-  const formattedApprName = formatNameWithSalutation(approverName);
-  const formattedDays = formatDays5Digits(days);
-
-  const script = `${formattedAppName} encashment request for ${formattedDays} days has been approved by ${formattedApprName}. Kindly process. MOIL Limited`;
-  const dltTemplateId = '1107165717011040000';
-
-  return await sendSms({ mobileNumber, script, dltTemplateId });
+async function sendLeaveL1ApprovedSms({ mobileNumber, title, applicantName, leaveType, startDate, endDate, l1Title, l1Name }) {
+  const script = `${title || 'Mr.'} ${applicantName} has applied for ${leaveType} from ${formatSmsDate(startDate)} to ${formatSmsDate(endDate)} through ESS, which is approved by ${l1Title || 'Mr.'} ${l1Name}. This is for your needful. MOIL Limited`;
+  return await sendSms({ mobileNumber, script, dltTemplateId: '1107165916221536406' });
 }
 
 /**
- * 7. ZHR_LEAVE_ENCASH_REJ1 (Encashment Rejected)
- * DLT ID: 1107165717016330000
- * Script: {Applicant_Name} encashment request for {Days} days has been rejected by {Approver_Name}. Kindly process. MOIL Limited
+ * Template 9: Application Noted
+ * DLT ID: 1107177547706676415
+ * Text: {#alp#} has noted your application for {#alp#} from {#alp#} to {#alp#} through ESS. This is for your information. MOIL Limited
  */
-async function sendLeaveEncashRejectedSms({ mobileNumber, applicantName, approverName, days }) {
-  const formattedAppName = formatNameWithSalutation(applicantName);
-  const formattedApprName = formatNameWithSalutation(approverName);
-  const formattedDays = formatDays5Digits(days);
-
-  const script = `${formattedAppName} encashment request for ${formattedDays} days has been rejected by ${formattedApprName}. Kindly process. MOIL Limited`;
-  const dltTemplateId = '1107165717016330000';
-
-  return await sendSms({ mobileNumber, script, dltTemplateId });
+async function sendApplicationNotedSms({ mobileNumber, actorName, leaveType, startDate, endDate }) {
+  const script = `${actorName} has noted your application for ${leaveType} from ${formatSmsDate(startDate)} to ${formatSmsDate(endDate)} through ESS. This is for your information. MOIL Limited`;
+  return await sendSms({ mobileNumber, script, dltTemplateId: '110777547706676415' });
 }
 
 module.exports = {
   sendSms,
-  sendLeaveAppliedSms,
-  sendLeaveApprovedSms,
-  sendLeaveRejectedSms,
-  sendLeaveEncashAppliedSms,
-  sendLeaveEncashApprovedSms,
-  sendLeaveEncashRejectedSms
+  sendLeaveAppliedSms,         // T1 - 1107163177301329708
+  sendLeaveApprovedSms,        // T2 - 1107163177311027634
+  sendLeaveRejectedSms,        // T3 - 1107163177318779886
+  sendLeaveEncashApprovedSms,  // T4 - 1107165717011044676
+  sendLeaveEncashRejectedSms,  // T5 - 1107165717016334079
+  sendLeaveEncashAppliedVariantSms, // T6 - 1107165717026952826
+  sendLeaveEncashAppliedSms,   // T7 - 1107165901001503660
+  sendLeaveL1ApprovedSms,      // T8 - 1107165916221536406
+  sendApplicationNotedSms,     // T9 - 1107177547706676415
+  DEFAULT_MOBILE
 };

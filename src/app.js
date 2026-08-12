@@ -44,6 +44,21 @@ app.use('/test/moil_hr_app/uploads', express.static(path.join(__dirname, '../upl
 // Test database connection on startup
 testConnection();
 
+// Dedicated PDF file viewer/downloader route
+app.get(['/payslip-pdf/:filename', '/test/moil_hr_app/payslip-pdf/:filename'], (req, res) => {
+  const filename = req.params.filename;
+  const safeFilename = path.basename(filename);
+  const filePath = path.join(__dirname, '../uploads/payslips', safeFilename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+  return res.sendFile(filePath);
+});
+
 // Routes
 app.use('/api', apiRouter);
 app.use('/test/moil_hr_app/api', apiRouter);

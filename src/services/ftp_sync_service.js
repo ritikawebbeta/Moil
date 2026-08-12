@@ -9,7 +9,7 @@ const { pool } = require('../config/db');
 const FTP_HOST = process.env.FTP_HOST || '172.16.1.51';
 const FTP_PORT = parseInt(process.env.FTP_PORT || '21', 10);
 const FTP_USER = process.env.FTP_USER || 'ftpuser2';
-const FTP_PASS = process.env.FTP_PASSWORD || '';
+const FTP_PASS = process.env.FTP_PASSWORD || 'Ftppo16$';
 const FTP_INBOUND_DIR = process.env.FTP_INBOUND_DIR || '/HR_App/Inbound';
 const FTP_OUTBOUND_DIR = process.env.FTP_OUTBOUND_DIR || '/HR_App/Outbound';
 
@@ -215,6 +215,17 @@ async function runFtpSync() {
     });
     console.log(`[FTP Sync] Connected successfully to FTP server ${FTP_HOST}:${FTP_PORT} as ${FTP_USER}`);
 
+    // Ensure registry table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inbound_sync_registry (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        file_name VARCHAR(255) UNIQUE,
+        file_size BIGINT,
+        last_modified VARCHAR(100),
+        processed_at DATETIME
+      )
+    `);
+
     // Step 1: Fetch latest files from FTP Inbound (/HR_App/Inbound)
     let inboundFiles = [];
     try {
@@ -225,6 +236,22 @@ async function runFtpSync() {
 
     for (const file of inboundFiles) {
       if (file.isDirectory) continue;
+
+      const lastModStr = file.modifiedAt ? file.modifiedAt.toISOString() : (file.rawModifiedAt || '');
+
+      // Check if file is already processed and unchanged
+      const [regRows] = await pool.query(
+        'SELECT * FROM inbound_sync_registry WHERE file_name = ? AND file_size = ? AND last_modified = ?',
+        [file.name, file.size, lastModStr]
+      );
+
+      if (regRows.length > 0) {
+        console.log(`[FTP Sync] Skipping unchanged inbound file: ${file.name}`);
+        continue;
+      }
+
+      console.log(`[FTP Sync] Processing updated inbound file: ${file.name} (${file.size} bytes)`);
+
       const remoteFilePath = `${FTP_INBOUND_DIR}/${file.name}`;
       const localFilePath = path.join(localInboundDir, file.name);
 
@@ -248,7 +275,29 @@ async function runFtpSync() {
           console.log(`[FTP Sync] Skipping unmapped file: ${file.name}`);
         }
       }
+
+      // Update registry
+      await pool.query(`
+        INSERT INTO inbound_sync_registry (file_name, file_size, last_modified, processed_at)
+        VALUES (?, ?, ?, NOW())
+        ON DUPLICATE KEY UPDATE file_size = VALUES(file_size), last_modified = VALUES(last_modified), processed_at = NOW()
+      `, [file.name, file.size, lastModStr]);
     }
+
+    // Ensure app_outbound_changes table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS app_outbound_changes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        table_name VARCHAR(100),
+        record_id VARCHAR(100),
+        action_type VARCHAR(50),
+        changed_columns TEXT,
+        row_data TEXT,
+        is_synced TINYINT(1) DEFAULT 0,
+        synced_at DATETIME,
+        created_at DATETIME
+      )
+    `);
 
     // Step 4 & 5: Sync local App Outbound changes to FTP Outbound & DB
     const [pendingOutbound] = await pool.query('SELECT * FROM app_outbound_changes WHERE is_synced = 0 ORDER BY id ASC LIMIT 500');
@@ -257,29 +306,47 @@ async function runFtpSync() {
       const syncedIds = [];
 
       for (const change of pendingOutbound) {
-        const fileName = `outbound_${change.table_name}_${change.action_type}_${change.record_id}_${Date.now()}.json`;
-        const localPath = path.join(localOutboundDir, fileName);
-        const payload = {
-          id: change.id,
-          table_name: change.table_name,
-          record_id: change.record_id,
-          action_type: change.action_type,
-          changed_columns: typeof change.changed_columns === 'string' ? JSON.parse(change.changed_columns || '{}') : change.changed_columns,
-          row_data: typeof change.row_data === 'string' ? JSON.parse(change.row_data || '{}') : change.row_data,
-          created_at: change.created_at
-        };
+        const timestamp = Date.now();
+        const baseFileName = `outbound_${change.table_name}_${change.action_type}_${change.record_id}_${timestamp}`;
+        const parsedRowData = typeof change.row_data === 'string' ? JSON.parse(change.row_data || '{}') : (change.row_data || {});
 
-        fs.writeFileSync(localPath, JSON.stringify(payload, null, 2), 'utf8');
+        const fileNameXlsx = `${baseFileName}.xlsx`;
+        const localXlsxPath = path.join(localOutboundDir, fileNameXlsx);
+        const wb = xlsx.utils.book_new();
+        const ws = xlsx.utils.json_to_sheet([parsedRowData]);
+        xlsx.utils.book_append_sheet(wb, ws, 'Sheet1');
+        const excelBuffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+        fs.writeFileSync(localXlsxPath, excelBuffer);
 
-        // Upload outbound change file to FTP Outbound directory
-        const remoteOutboundPath = `${FTP_OUTBOUND_DIR}/${fileName}`;
-        await client.uploadFrom(localPath, remoteOutboundPath);
-        syncedIds.push(change.id);
+        const remotePath = `${FTP_OUTBOUND_DIR}/${fileNameXlsx}`;
+        let xlsxUploaded = false;
+
+        // Retry loop for FTP upload with remote size verification
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            await client.uploadFrom(localXlsxPath, remotePath);
+            
+            // Remote verification: verify the file exists on remote FTP and size > 0
+            const remoteSize = await client.size(remotePath).catch(() => 0);
+            if (remoteSize > 0) {
+              xlsxUploaded = true;
+              console.log(`[FTP Sync Upload Verified] ${fileNameXlsx} (${remoteSize} bytes on remote FTP)`);
+              break;
+            }
+          } catch (e) {
+            console.warn(`[FTP Sync Attempt ${attempt}/3 Failed] Uploading ${fileNameXlsx}: ${e.message}`);
+            if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1000));
+          }
+        }
+
+        if (xlsxUploaded) {
+          syncedIds.push(change.id);
+        }
       }
 
       if (syncedIds.length > 0) {
         await pool.query('UPDATE app_outbound_changes SET is_synced = 1, synced_at = NOW() WHERE id IN (?)', [syncedIds]);
-        console.log(`[FTP Sync] Marked ${syncedIds.length} app outbound records as synced.`);
+        console.log(`[FTP Sync] Marked ${syncedIds.length} app outbound records as synced in DB.`);
       }
     }
 
