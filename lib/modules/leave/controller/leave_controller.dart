@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../model/leave_model.dart';
 import '../../../utils/app_config.dart';
@@ -16,9 +17,9 @@ class LeaveController extends ChangeNotifier {
   List<LeaveModel> _pendingApprovals = [];
   String? _errorMessage;
 
-  DateTime _showFrom = DateTime(2026, 2, 1);
+  DateTime _showFrom = DateTime(2026, 1, 1);
   String _selectedTimeAccount = 'All Types';
-  DateTime _timeAccountShowFrom = DateTime(2026, 1, 1);
+  DateTime _timeAccountShowFrom = DateTime(2021, 1, 1);
   int _activeTabIndex = 0;
 
   LeaveStatus get status => _status;
@@ -66,14 +67,21 @@ class LeaveController extends ChangeNotifier {
     return null;
   }
 
-  Future<void> fetchLeaves(String employeeId) async {
+  Future<void> fetchLeaves(String employeeId, {DateTime? showFromDate}) async {
+    if (showFromDate != null) {
+      _showFrom = showFromDate;
+    }
     _status = LeaveStatus.loading;
     notifyListeners();
 
+    // Fetch time account quota balances automatically on page load
+    fetchBalances(employeeId);
+
     try {
       final token = await _getToken();
+      final formattedShowFrom = DateFormat('yyyy-MM-dd').format(_showFrom);
       final response = await ApiClient.get(
-        Uri.parse('${AppConfig.baseUrl}/api/leaves?employee_id=$employeeId'),
+        Uri.parse('${AppConfig.baseUrl}/api/leaves?employee_id=$employeeId&show_from=$formattedShowFrom'),
         headers: {'Authorization': 'Bearer $token'},
       );
 

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-/// Direct MyVI Gateway SMS Service called entirely from Frontend
+/// Direct MyVI Gateway SMS Service called directly from Flutter Frontend
 class SmsDirectService {
   static const String authUrl = 'https://cts.myvi.in:8443/ManageSms/api/AuthJwt/Authenticate';
   static const String sendSmsUrl = 'https://cts.myvi.in:8443/ManageSms/api/sms/Createsms/json/apikey=ng6q1u';
@@ -53,7 +53,7 @@ class SmsDirectService {
     return null;
   }
 
-  /// Core Direct SMS dispatch to MyVI API (with Web CORS handling)
+  /// Core Direct SMS dispatch to MyVI API
   static Future<bool> sendSms({
     required String script,
     required String dltTemplateId,
@@ -61,29 +61,9 @@ class SmsDirectService {
   }) async {
     try {
       final phone = (mobileNumber != null && mobileNumber.trim().isNotEmpty)
-          ? mobileNumber.replaceAll(RegExp(r'[^\d]'), '')
+          ? mobileNumber.trim().replaceAll(RegExp(r'[^\d]'), '')
           : defaultMobile;
-
       final targetPhone = (phone.length >= 10) ? phone.substring(phone.length - 10) : defaultMobile;
-
-      if (kIsWeb) {
-        // Web Browsers block direct cross-origin HTTP requests to port 8443 (CORS)
-        final proxyUrl = Uri.parse('https://acubeai.com/test/moil_hr_app/api/send-sms');
-        final response = await http.post(
-          proxyUrl,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'script': script,
-            'dltTemplateId': dltTemplateId,
-            'mobileNumber': targetPhone,
-          }),
-        );
-        if (kDebugMode) {
-          debugPrint('[SMS Web Proxy Response] Code: ${response.statusCode} | Body: ${response.body}');
-        }
-        return response.statusCode == 200;
-      }
-
       final token = await getAuthToken();
 
       final headers = <String, String>{
@@ -103,7 +83,7 @@ class SmsDirectService {
       };
 
       if (kDebugMode) {
-        debugPrint('[SMS Direct Request] URL: $sendSmsUrl | Target: $targetPhone | Template: $dltTemplateId');
+        debugPrint('[SMS Direct Request] URL: $sendSmsUrl | Target: $targetPhone | Template: $dltTemplateId | Script: $script');
       }
 
       final response = await http.post(
@@ -155,13 +135,19 @@ class SmsDirectService {
     return '$day.$month.${d.year}';
   }
 
-  // Format Helper: 5-digit zero padded days (00030)
+  // Format Helper: Days count
   static String formatDays(dynamic days) {
-    final num = int.tryParse(days.toString()) ?? 0;
-    return num.toString().padLeft(5, '0');
+    final num = int.tryParse(days.toString()) ?? 1;
+    return num.toString();
   }
 
-  // 1. Leave Applied SMS
+  // ───────────────────────────────────────────────────────────────────────────
+  // MOIL DLT SMS TEMPLATES (1 - 9)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /// Template 1: Leave Applied (to Approver)
+  /// DLT ID: 1107163177301329708
+  /// Script: {#var#} has applied for {#var#} from {#var#} to {#var#} through ESS. Kindly take necessary action in this regard. MOIL Limited
   static Future<bool> sendLeaveAppliedSms({
     required String applicantName,
     required String leaveType,
@@ -173,12 +159,14 @@ class SmsDirectService {
     final sDate = formatDate(startDate);
     final eDate = formatDate(endDate);
     final script = '$name has applied for $leaveType from $sDate to $eDate through ESS. Kindly take necessary action in this regard. MOIL Limited';
-    const dltTemplateId = '1107163177301320100';
+    const dltTemplateId = '1107163177301329708';
 
     return await sendSms(script: script, dltTemplateId: dltTemplateId, mobileNumber: mobileNumber);
   }
 
-  // 2. Leave Approved SMS
+  /// Template 2: Leave Approved (to Applicant)
+  /// DLT ID: 1107163177311027634
+  /// Script: {#var#} has approved your application for {#var#} from {#var#} to {#var#} through ESS. This is for your information. MOIL Limited
   static Future<bool> sendLeaveApprovedSms({
     required String approverName,
     required String leaveType,
@@ -189,46 +177,35 @@ class SmsDirectService {
     final name = formatName(approverName);
     final sDate = formatDate(startDate);
     final eDate = formatDate(endDate);
-    final script = '$name has approved your application of $leaveType from $sDate to $eDate through ESS. This is for your information. MOIL Limited';
-    const dltTemplateId = '1107163177311020000';
+    final script = '$name has approved your application for $leaveType from $sDate to $eDate through ESS. This is for your information. MOIL Limited';
+    const dltTemplateId = '1107163177311027634';
 
     return await sendSms(script: script, dltTemplateId: dltTemplateId, mobileNumber: mobileNumber);
   }
 
-  // 3. Leave Rejected SMS
+  /// Template 3: Leave Rejected (to Applicant)
+  /// DLT ID: 1107163177318779886
+  /// Script: {#var#} has rejected your application for {#var#} from {#var#} to {#var#} through ESS. This is for your information. MOIL Limited
   static Future<bool> sendLeaveRejectedSms({
     required String approverName,
     required String leaveType,
     required String startDate,
     required String endDate,
-    int stage = 1,
+    int? stage = 1,
     String? mobileNumber,
   }) async {
     final name = formatName(approverName);
     final sDate = formatDate(startDate);
     final eDate = formatDate(endDate);
-    final rejectWord = (stage == 2) ? 'rejected2' : 'rejected1';
-    final script = '$name has $rejectWord your application of $leaveType from $sDate to $eDate through ESS. This is for your information. MOIL Limited';
-    const dltTemplateId = '1107163177318770000';
+    final script = '$name has rejected your application for $leaveType from $sDate to $eDate through ESS. This is for your information. MOIL Limited';
+    const dltTemplateId = '1107163177318779886';
 
     return await sendSms(script: script, dltTemplateId: dltTemplateId, mobileNumber: mobileNumber);
   }
 
-  // 4. Leave Encashment Applied SMS
-  static Future<bool> sendLeaveEncashAppliedSms({
-    required String applicantName,
-    required dynamic days,
-    String? mobileNumber,
-  }) async {
-    final name = formatName(applicantName);
-    final paddedDays = formatDays(days);
-    final script = '$name has applied for $paddedDays days encashment of leave through ESS. This is for your needful. MOIL Limited';
-    const dltTemplateId = '1107165901001500000';
-
-    return await sendSms(script: script, dltTemplateId: dltTemplateId, mobileNumber: mobileNumber);
-  }
-
-  // 5. Leave Encashment Approved SMS
+  /// Template 4: Leave Encashment Approved
+  /// DLT ID: 1107165717011044676
+  /// Script: {#var#} leave encashment request for {#var#} days has been approved by {#var#} Kindly process. MOIL Limited
   static Future<bool> sendLeaveEncashApprovedSms({
     required String applicantName,
     required String approverName,
@@ -237,25 +214,102 @@ class SmsDirectService {
   }) async {
     final appName = formatName(applicantName);
     final apprName = formatName(approverName);
-    final paddedDays = formatDays(days);
-    final script = '$appName encashment request for $paddedDays days has been approved by $apprName. Kindly process. MOIL Limited';
-    const dltTemplateId = '1107165717011040000';
+    final d = formatDays(days);
+    final script = '$appName leave encashment request for $d days has been approved by $apprName Kindly process. MOIL Limited';
+    const dltTemplateId = '1107165717011044676';
 
     return await sendSms(script: script, dltTemplateId: dltTemplateId, mobileNumber: mobileNumber);
   }
 
-  // 6. Leave Encashment Rejected SMS
+  /// Template 5: Leave Encashment Rejected
+  /// DLT ID: 1107165717016334079
+  /// Script: Your leave encashment request for {#var#}days has been Rejected. This is for your information. MOIL Limited
   static Future<bool> sendLeaveEncashRejectedSms({
+    required dynamic days,
+    String? applicantName,
+    String? approverName,
+    String? mobileNumber,
+  }) async {
+    final d = formatDays(days);
+    final script = 'Your leave encashment request for ${d}days has been Rejected. This is for your information. MOIL Limited';
+    const dltTemplateId = '1107165717016334079';
+
+    return await sendSms(script: script, dltTemplateId: dltTemplateId, mobileNumber: mobileNumber);
+  }
+
+  /// Template 6: Leave Encashment Applied (Variant A)
+  /// DLT ID: 1107165717026952826
+  /// Script: {#var#}has applied for{#var#} &lv_days& days encashment of leave through ESS.  This is for your needful. MOIL Limited
+  static Future<bool> sendLeaveEncashAppliedVariantSms({
     required String applicantName,
-    required String approverName,
     required dynamic days,
     String? mobileNumber,
   }) async {
     final appName = formatName(applicantName);
-    final apprName = formatName(approverName);
-    final paddedDays = formatDays(days);
-    final script = '$appName encashment request for $paddedDays days has been rejected by $apprName. Kindly process. MOIL Limited';
-    const dltTemplateId = '1107165717016330000';
+    final d = formatDays(days);
+    final script = '${appName}has applied for $d days encashment of leave through ESS.  This is for your needful. MOIL Limited';
+    const dltTemplateId = '1107165717026952826';
+
+    return await sendSms(script: script, dltTemplateId: dltTemplateId, mobileNumber: mobileNumber);
+  }
+
+  /// Template 7: Leave Encashment Applied (Variant B - Standard)
+  /// DLT ID: 1107165901001503660
+  /// Script: {#var#} has applied for {#var#} days encashment of leave through ESS.  This is for your needful. MOIL Limited
+  static Future<bool> sendLeaveEncashAppliedSms({
+    required String applicantName,
+    required dynamic days,
+    String? mobileNumber,
+  }) async {
+    final appName = formatName(applicantName);
+    final d = formatDays(days);
+    final script = '$appName has applied for $d days encashment of leave through ESS.  This is for your needful. MOIL Limited';
+    const dltTemplateId = '1107165901001503660';
+
+    return await sendSms(script: script, dltTemplateId: dltTemplateId, mobileNumber: mobileNumber);
+  }
+
+  /// Template 8: Leave L1 Approved (Sent to L2)
+  /// DLT ID: 1107165916221536406
+  /// Script: {#var#}   {#var#} has applied for {#var#} from  {#var#} to {#var#} through ESS, which is approved by  {#var#} {#var#}. This is for your needful. MOIL Limited
+  static Future<bool> sendLeaveL1ApprovedSms({
+    required String applicantName,
+    required String leaveType,
+    required String startDate,
+    required String endDate,
+    required String l1Name,
+    String? title,
+    String? l1Title,
+    String? mobileNumber,
+  }) async {
+    final appTitle = title ?? 'Mr.';
+    final appName = applicantName.trim();
+    final sDate = formatDate(startDate);
+    final eDate = formatDate(endDate);
+    final apprTitle = l1Title ?? 'Mr.';
+    final apprName = l1Name.trim();
+
+    final script = '$appTitle   $appName has applied for $leaveType from  $sDate to $eDate through ESS, which is approved by  $apprTitle $apprName. This is for your needful. MOIL Limited';
+    const dltTemplateId = '1107165916221536406';
+
+    return await sendSms(script: script, dltTemplateId: dltTemplateId, mobileNumber: mobileNumber);
+  }
+
+  /// Template 9: Application Noted
+  /// DLT ID: 1107177547706676415
+  /// Script: {#alp#} has noted your application for {#alp#} from {#alp#} to {#alp#} through ESS. This is for your information. MOIL Limited
+  static Future<bool> sendApplicationNotedSms({
+    required String actorName,
+    required String leaveType,
+    required String startDate,
+    required String endDate,
+    String? mobileNumber,
+  }) async {
+    final name = formatName(actorName);
+    final sDate = formatDate(startDate);
+    final eDate = formatDate(endDate);
+    final script = '$name has noted your application for $leaveType from $sDate to $eDate through ESS. This is for your information. MOIL Limited';
+    const dltTemplateId = '1107177547706676415';
 
     return await sendSms(script: script, dltTemplateId: dltTemplateId, mobileNumber: mobileNumber);
   }

@@ -39,25 +39,18 @@ class ProfilePdfHelper {
 
     pw.ImageProvider? avatarImg;
     final empId = emp.employeeId.trim().replaceAll(RegExp('^0+'), '');
-    if (empId == '16194') {
+    final paddedEmpId = empId.padLeft(8, '0');
+    final candidatePhotoUrls = [
+      'https://acubeai.com/test/moil_hr_app/uploads/profiles/Photo/$empId.jpg',
+      'https://acubeai.com/test/moil_hr_app/uploads/profiles/Photo/$paddedEmpId.jpg',
+      'https://acubeai.com/test/moil_hr_app/uploads/profiles/Photo/${emp.employeeId}.jpg',
+    ];
+
+    for (final url in candidatePhotoUrls) {
       try {
-        avatarImg = await imageFromAssetBundle('assets/images/rakesh_tumane.jpg');
-      } catch (_) {}
-    } else if (empId == '17110') {
-      try {
-        avatarImg = await imageFromAssetBundle('assets/images/sameer_banerjee.jpg');
-      } catch (_) {}
-    } else if (empId == '540') {
-      try {
-        avatarImg = await imageFromAssetBundle('assets/images/swapnil_manpe.jpg');
-      } catch (_) {}
-    } else if (empId == '4410') {
-      try {
-        avatarImg = await imageFromAssetBundle('assets/images/ranjeet_chouhan.jpg');
-      } catch (_) {}
-    } else if (empId == '4428') {
-      try {
-        avatarImg = await imageFromAssetBundle('assets/images/bcn_gautam.jpg');
+        final netImg = await networkImage(url);
+        avatarImg = netImg;
+        break;
       } catch (_) {}
     }
 

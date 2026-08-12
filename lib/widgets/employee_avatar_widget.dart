@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+/// Employee Avatar Widget
+/// Dynamically fetches profile photos from server Photo folder:
+/// https://acubeai.com/test/moil_hr_app/uploads/profiles/Photo/{empNo}.jpg
+/// Shows clean placeholder icon if photo is not present on server.
 class EmployeeAvatarWidget extends StatelessWidget {
   final String empNo;
   final double width;
@@ -46,54 +50,46 @@ class EmployeeAvatarWidget extends StatelessWidget {
     return urls;
   }
 
-  Widget _buildFallbackAsset(String cleanId) {
-    if (cleanId == '16194') {
-      return Image.asset('assets/images/rakesh_tumane.jpg', fit: fit, alignment: Alignment.topCenter);
-    } else if (cleanId == '17110') {
-      return Image.asset('assets/images/sameer_banerjee.jpg', fit: fit, alignment: Alignment.topCenter);
-    } else if (cleanId == '446') {
-      return Image.asset('assets/images/raja_talathoti.jpg', fit: fit, alignment: Alignment.topCenter);
-    } else if (cleanId == '540') {
-      return Image.asset('assets/images/swapnil_manpe.jpg', fit: fit, alignment: Alignment.topCenter);
-    } else if (cleanId == '4410') {
-      return Image.asset('assets/images/ranjeet_chouhan.jpg', fit: fit, alignment: Alignment.topCenter);
-    } else if (cleanId == '4428') {
-      return Image.asset('assets/images/bcn_gautam.jpg', fit: fit, alignment: Alignment.topCenter);
-    } else {
-      return Container(
-        color: Colors.grey.shade100,
-        child: Center(
-          child: height > 50
-              ? const Text(
-                  'Passport Size\nPhoto',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 8, color: Colors.grey),
-                )
-              : const Icon(Icons.person, color: Colors.grey, size: 18),
-        ),
-      );
-    }
+  Widget _buildPlaceholder() {
+    return Container(
+      color: Colors.grey.shade100,
+      child: Center(
+        child: height > 50
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.person, color: Colors.grey, size: 28),
+                  SizedBox(height: 4),
+                  Text(
+                    'Passport Size\nPhoto',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 8, color: Colors.grey),
+                  ),
+                ],
+              )
+            : const Icon(Icons.person, color: Colors.grey, size: 18),
+      ),
+    );
   }
 
-  Widget _buildCascadedNetworkImage(List<String> urls, int index, String cleanId) {
+  Widget _buildCascadedNetworkImage(List<String> urls, int index) {
     if (index >= urls.length) {
-      return _buildFallbackAsset(cleanId);
+      return _buildPlaceholder();
     }
 
     return CachedNetworkImage(
       imageUrl: urls[index],
       fit: fit,
       alignment: Alignment.topCenter,
-      errorWidget: (context, url, error) => _buildCascadedNetworkImage(urls, index + 1, cleanId),
+      errorWidget: (context, url, error) => _buildCascadedNetworkImage(urls, index + 1),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final cleanId = empNo.trim().replaceAll(RegExp('^0+'), '');
     final urls = _buildCandidateUrls(empNo);
 
-    Widget content = _buildCascadedNetworkImage(urls, 0, cleanId);
+    Widget content = _buildCascadedNetworkImage(urls, 0);
 
     if (borderRadius != null) {
       content = ClipRRect(

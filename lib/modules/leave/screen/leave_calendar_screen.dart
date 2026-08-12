@@ -32,12 +32,6 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
   late int _tempMonth;
   late int _tempYear;
 
-  final List<String> _teamMembers = [
-    'G Rohini Kumar',
-    'Nareshkumar Madhorao Gaidhane',
-    'Gautam Bose',
-  ];
-
   bool _getIsReportingOfficer(UserModel? user) {
     if (user == null) return false;
     final loggedInEmpNo = user.employeeId.trim().replaceAll(RegExp('^0+'), '');
@@ -434,13 +428,6 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
         });
       }
     } else {
-      final mockRanges = {
-        'Swapnil Kanthiram Manpe': [5, 6, 7],
-        'Ranjeet Singh Chouhan': [12, 13],
-        'B.C.N. Gautam': [19, 20, 21],
-        'Radheshyam Chandra': [25],
-      };
-
       final List<String> teamList = cleanCurrentUserId.isEmpty
           ? []
           : ProfileController.rawEmployees
@@ -449,14 +436,13 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                 final ro1 = (emp['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
                 return ro == cleanCurrentUserId || ro1 == cleanCurrentUserId;
               })
-              .map((emp) => emp['name']?.toString() ?? 'Unknown')
+              .map((emp) => emp['name']?.toString() ?? 'Employee')
               .toList();
-      final teamToDisplay = teamList.isNotEmpty ? teamList : _teamMembers;
 
-      for (var name in teamToDisplay) {
+      for (var name in teamList) {
         teamMembersWithLeaves.add({
           'name': name,
-          'leaveDays': mockRanges[name] ?? <int>[],
+          'leaveDays': <int>[],
         });
       }
     }

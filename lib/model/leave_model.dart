@@ -40,25 +40,48 @@ class LeaveModel {
   });
 
   factory LeaveModel.fromJson(Map<String, dynamic> json) {
-    DateTime parseDate(dynamic val) {
-      if (val == null) return DateTime.now();
+    DateTime parseSingle(dynamic val) {
+      if (val == null || val.toString().trim().isEmpty || val.toString() == 'null') return DateTime(2026, 1, 1);
       final str = val.toString().trim().replaceAll(' ', 'T');
-      return DateTime.tryParse(str) ?? DateTime.now();
+      final parsed = DateTime.tryParse(str);
+      if (parsed != null) return parsed;
+
+      final parts = str.split(RegExp(r'[-./]'));
+      if (parts.length >= 3) {
+        if (parts[0].length <= 2 && parts[2].length == 4) {
+          final day = int.tryParse(parts[0]);
+          final month = int.tryParse(parts[1]);
+          final year = int.tryParse(parts[2]);
+          if (day != null && month != null && year != null) {
+            return DateTime(year, month, day);
+          }
+        }
+      }
+      return DateTime(2026, 1, 1);
+    }
+
+    DateTime parseDate(dynamic val, {dynamic fallbackVal}) {
+      final primary = parseSingle(val);
+      if (primary.year != 2026 || primary.month != 1 || primary.day != 1) return primary;
+      return parseSingle(fallbackVal);
     }
 
     DateTime? parseNullableDate(dynamic val) {
-      if (val == null) return null;
+      if (val == null || val.toString().trim().isEmpty || val.toString() == 'null') return null;
       final str = val.toString().trim().replaceAll(' ', 'T');
       return DateTime.tryParse(str);
     }
+
+    final startDate = parseDate(json['startDate'], fallbackVal: json['appliedOn']);
+    final endDate = parseDate(json['endDate'], fallbackVal: json['startDate'] ?? json['appliedOn']);
 
     return LeaveModel(
       id: json['id']?.toString() ?? '',
       employeeId: json['employeeId']?.toString() ?? '',
       leaveType: json['leaveType']?.toString() ?? '',
-      startDate: parseDate(json['startDate']),
+      startDate: startDate,
       startTime: json['startTime']?.toString() ?? '00:00:00',
-      endDate: parseDate(json['endDate']),
+      endDate: endDate,
       endTime: json['endTime']?.toString() ?? '00:00:00',
       duration: json['duration']?.toString() ?? 'Full-Day',
       processor: json['processor']?.toString(),
