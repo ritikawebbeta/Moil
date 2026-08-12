@@ -3,9 +3,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/app_config.dart';
 
 /// Employee Avatar Widget
-/// Dynamically fetches profile photos from server Photo folder & API:
-/// https://acubeai.com/test/moil_hr_app/profile-photo/{empNo}
-/// Shows clean placeholder icon if photo is not present on server.
+/// Efficiently fetches profile photo via single backend streaming endpoint:
+/// ${AppConfig.baseUrl}/api/profile-photo/{cleanId}
+/// Displays clean generic passport photo placeholder if photo is not present on server.
 class EmployeeAvatarWidget extends StatelessWidget {
   final String empNo;
   final double width;
@@ -26,35 +26,12 @@ class EmployeeAvatarWidget extends StatelessWidget {
 
   List<String> _buildCandidateUrls(String rawEmpNo) {
     final cleanId = rawEmpNo.trim().replaceAll(RegExp('^0+'), '');
-    final rawId = rawEmpNo.trim();
-    final paddedId = cleanId.padLeft(8, '0');
+    if (cleanId.isEmpty) return [];
 
-    final Set<String> ids = {cleanId, paddedId, rawId};
-    final List<String> suffixes = ['_self', ''];
-    final List<String> exts = ['', '.jpg', '.png', '.jpeg', '.JPG', '.PNG', '.JPEG'];
-    final List<String> folders = [
-      '${AppConfig.baseUrl}/profile-photo/',
-      '${AppConfig.baseUrl}/api/profile-photo/',
-      'https://acubeai.com/test/moil_hr_app/profile-photo/',
-      'https://acubeai.com/test/moil_hr_app/api/profile-photo/',
-      'https://acubeai.com/test/moil_hr_app/uploads/profiles/Photo/',
-      'https://acubeai.com/test/moil_hr_app/uploads/profiles/',
-      'https://acubeai.com/test/moil_hr_app/uploads/Photo/',
-      'https://acubeai.com/test/moil_hr_app/uploads/',
+    return [
+      '${AppConfig.baseUrl}/api/profile-photo/$cleanId',
+      'https://acubeai.com/test/moil_hr_app/api/profile-photo/$cleanId',
     ];
-
-    final List<String> urls = [];
-    for (var folder in folders) {
-      for (var id in ids) {
-        if (id.isEmpty) continue;
-        for (var suffix in suffixes) {
-          for (var ext in exts) {
-            urls.add('$folder$id$suffix$ext');
-          }
-        }
-      }
-    }
-    return urls;
   }
 
   Widget _buildPlaceholder() {
@@ -62,9 +39,9 @@ class EmployeeAvatarWidget extends StatelessWidget {
       color: Colors.grey.shade100,
       child: Center(
         child: height > 50
-            ? Column(
+            ? const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
+                children: [
                   Icon(Icons.person, color: Colors.grey, size: 28),
                   SizedBox(height: 4),
                   Text(
