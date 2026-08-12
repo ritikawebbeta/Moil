@@ -3,9 +3,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/app_config.dart';
 
 /// Employee Avatar Widget
-/// Efficiently fetches profile photo via single backend streaming endpoint:
+/// Tries network photo from server photo API:
 /// ${AppConfig.baseUrl}/api/profile-photo/{cleanId}
-/// Displays clean generic passport photo placeholder if photo is not present on server.
+/// Falls back to local asset photo or clean passport photo placeholder as previous.
 class EmployeeAvatarWidget extends StatelessWidget {
   final String empNo;
   final double width;
@@ -24,56 +24,53 @@ class EmployeeAvatarWidget extends StatelessWidget {
     this.showBorder = false,
   });
 
-  List<String> _buildCandidateUrls(String rawEmpNo) {
-    final cleanId = rawEmpNo.trim().replaceAll(RegExp('^0+'), '');
-    if (cleanId.isEmpty) return [];
-
-    return [
-      '${AppConfig.baseUrl}/api/profile-photo/$cleanId',
-      'https://acubeai.com/test/moil_hr_app/api/profile-photo/$cleanId',
-    ];
-  }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      color: Colors.grey.shade100,
-      child: Center(
-        child: height > 50
-            ? const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.person, color: Colors.grey, size: 28),
-                  SizedBox(height: 4),
-                  Text(
-                    'Passport Size\nPhoto',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 8, color: Colors.grey),
-                  ),
-                ],
-              )
-            : const Icon(Icons.person, color: Colors.grey, size: 18),
-      ),
-    );
-  }
-
-  Widget _buildCascadedNetworkImage(List<String> urls, int index) {
-    if (index >= urls.length) {
-      return _buildPlaceholder();
+  Widget _buildFallbackAsset(String cleanId) {
+    if (cleanId == '16194') {
+      return Image.asset('assets/images/rakesh_tumane.jpg', fit: fit, alignment: Alignment.topCenter);
+    } else if (cleanId == '17110') {
+      return Image.asset('assets/images/sameer_banerjee.jpg', fit: fit, alignment: Alignment.topCenter);
+    } else if (cleanId == '446') {
+      return Image.asset('assets/images/raja_talathoti.jpg', fit: fit, alignment: Alignment.topCenter);
+    } else if (cleanId == '540') {
+      return Image.asset('assets/images/swapnil_manpe.jpg', fit: fit, alignment: Alignment.topCenter);
+    } else if (cleanId == '4410') {
+      return Image.asset('assets/images/ranjeet_chouhan.jpg', fit: fit, alignment: Alignment.topCenter);
+    } else if (cleanId == '4428') {
+      return Image.asset('assets/images/bcn_gautam.jpg', fit: fit, alignment: Alignment.topCenter);
+    } else {
+      return Container(
+        color: Colors.grey.shade100,
+        child: Center(
+          child: height > 50
+              ? const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.person, color: Colors.grey, size: 28),
+                    SizedBox(height: 4),
+                    Text(
+                      'Passport Size\nPhoto',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 8, color: Colors.grey),
+                    ),
+                  ],
+                )
+              : const Icon(Icons.person, color: Colors.grey, size: 18),
+        ),
+      );
     }
-
-    return CachedNetworkImage(
-      imageUrl: urls[index],
-      fit: fit,
-      alignment: Alignment.topCenter,
-      errorWidget: (context, url, error) => _buildCascadedNetworkImage(urls, index + 1),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final urls = _buildCandidateUrls(empNo);
+    final cleanId = empNo.trim().replaceAll(RegExp('^0+'), '');
+    final photoUrl = '${AppConfig.baseUrl}/api/profile-photo/$cleanId';
 
-    Widget content = _buildCascadedNetworkImage(urls, 0);
+    Widget content = CachedNetworkImage(
+      imageUrl: photoUrl,
+      fit: fit,
+      alignment: Alignment.topCenter,
+      errorWidget: (context, url, error) => _buildFallbackAsset(cleanId),
+    );
 
     if (borderRadius != null) {
       content = ClipRRect(
