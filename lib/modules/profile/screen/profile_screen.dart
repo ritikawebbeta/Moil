@@ -842,11 +842,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text.rich(
                   TextSpan(
                     children: [
-                      const TextSpan(text: 'PERMANENT ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black87)),
-                      TextSpan(text: '${data['permAddress']}\n', style: const TextStyle(fontSize: 10, color: Colors.black87)),
-                      const TextSpan(text: 'TEMPORARY ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black87)),
-                      TextSpan(text: '${data['tempAddress']}\n', style: const TextStyle(fontSize: 10, color: Colors.black87)),
-                      const TextSpan(text: 'CURRENT ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black87)),
+                      const TextSpan(text: 'PERMANENT ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5, color: Colors.black87)),
+                      TextSpan(text: '${data['permAddress']}\n\n', style: const TextStyle(fontSize: 10, color: Colors.black87)),
+                      const TextSpan(text: 'TEMPORARY ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5, color: Colors.black87)),
+                      TextSpan(text: '${data['tempAddress']}\n\n', style: const TextStyle(fontSize: 10, color: Colors.black87)),
+                      const TextSpan(text: 'CURRENT ADDRESS: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5, color: Colors.black87)),
                       TextSpan(text: '${data['emergAddress']}', style: const TextStyle(fontSize: 10, color: Colors.black87)),
                     ],
                   ),
