@@ -582,62 +582,78 @@ router.post(['/login', '/auth/login'], async (req, res) => {
   try {
     const cleanId = rawId.replace(/^0+/, '');
     const paddedId = cleanId ? cleanId.padStart(8, '0') : rawId;
-    const candidates = Array.from(new Set([rawId, cleanId, paddedId])).filter(Boolean);
 
-    // 1. Parallel Indexed Queries for Employee, Agent Hierarchy, and User Accounts
-    const [empPromise, agentPromise, credPromise] = await Promise.all([
-      pool.query('SELECT * FROM manpower WHERE employee_number IN (?) LIMIT 1', [candidates]),
-      pool.query('SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number IN (?) LIMIT 1', [candidates]),
-      pool.query('SELECT password FROM user_accounts WHERE employee_number IN (?) LIMIT 1', [candidates])
-    ]);
+    // 1. Fetch employee details from manpower (fast indexed lookup)
+    const [empRows] = await pool.query(
+      'SELECT * FROM manpower WHERE employee_number = ? OR employee_number = ? OR employee_number = ? LIMIT 1',
+      [rawId, cleanId, paddedId]
+    );
 
-    const empRows = empPromise[0];
-    if (empRows.length === 0) {
+    if (!empRows || empRows.length === 0) {
       return res.status(401).json({ error: 'Invalid Employee Number or Password' });
     }
 
     const employee = empRows[0];
-    const agentRows = agentPromise[0];
-    const credRows = credPromise[0];
+    const designation = employee.position_name || 'Employee';
 
-    const reportingOfficer = (agentRows.length > 0 && agentRows[0].reporting_officer) ? agentRows[0].reporting_officer : '0';
-    const reportingOfficer1 = (agentRows.length > 0 && agentRows[0].reporting_officer_1) ? agentRows[0].reporting_officer_1 : '0';
-
+    // 2. Fetch custom password from user_accounts if available
     let isPasswordValid = false;
     let hasCustomPassword = false;
 
-    if (credRows.length > 0 && credRows[0].password) {
-      isPasswordValid = credRows[0].password.toString().trim() === password;
-      hasCustomPassword = true;
-    } else {
-      if (employee.pan_number) {
-        isPasswordValid = employee.pan_number.toString().trim().toUpperCase() === password.toUpperCase();
+    try {
+      const [credRows] = await pool.query(
+        'SELECT password FROM user_accounts WHERE employee_number = ? OR employee_number = ? OR employee_number = ? LIMIT 1',
+        [rawId, cleanId, paddedId]
+      );
+      if (credRows && credRows.length > 0 && credRows[0].password) {
+        isPasswordValid = credRows[0].password.toString().trim() === password;
+        hasCustomPassword = true;
       }
+    } catch (_) {}
+
+    // Fallback: validate against PAN number
+    if (!isPasswordValid && employee.pan_number) {
+      isPasswordValid = employee.pan_number.toString().trim().toUpperCase() === password.toUpperCase();
     }
 
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid Employee Number or Password' });
     }
 
-    // 2. Fetch RO Names in parallel if present
-    const roCandidates = [];
-    if (reportingOfficer !== '0' && reportingOfficer !== 'N/A') roCandidates.push(reportingOfficer, reportingOfficer.replace(/^0+/, ''), reportingOfficer.padStart(8, '0'));
-    if (reportingOfficer1 !== '0' && reportingOfficer1 !== 'N/A') roCandidates.push(reportingOfficer1, reportingOfficer1.replace(/^0+/, ''), reportingOfficer1.padStart(8, '0'));
-
+    // 3. Fetch reporting officers (optional metadata guarded against locks)
+    let reportingOfficer = '0';
+    let reportingOfficer1 = '0';
     let reportingOfficerName = '';
     let reportingOfficer1Name = '';
 
-    if (roCandidates.length > 0) {
-      const [roRows] = await pool.query('SELECT employee_number, employee_name FROM manpower WHERE employee_number IN (?)', [roCandidates]);
-      for (const roRow of roRows) {
-        const roIdClean = roRow.employee_number.toString().trim().replace(/^0+/, '');
-        if (reportingOfficer.replace(/^0+/, '') === roIdClean) reportingOfficerName = roRow.employee_name;
-        if (reportingOfficer1.replace(/^0+/, '') === roIdClean) reportingOfficer1Name = roRow.employee_name;
+    try {
+      const [agentRows] = await pool.query(
+        'SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number = ? OR personnel_number = ? OR personnel_number = ? LIMIT 1',
+        [rawId, cleanId, paddedId]
+      );
+      if (agentRows && agentRows.length > 0) {
+        reportingOfficer = agentRows[0].reporting_officer || '0';
+        reportingOfficer1 = agentRows[0].reporting_officer_1 || '0';
       }
+
+      if (reportingOfficer !== '0' && reportingOfficer !== 'N/A') {
+        const roClean = reportingOfficer.toString().trim().replace(/^0+/, '');
+        const roPadded = roClean ? roClean.padStart(8, '0') : reportingOfficer;
+        const [roRows] = await pool.query('SELECT employee_name FROM manpower WHERE employee_number = ? OR employee_number = ? OR employee_number = ? LIMIT 1', [reportingOfficer, roClean, roPadded]);
+        if (roRows && roRows.length > 0) reportingOfficerName = roRows[0].employee_name;
+      }
+
+      if (reportingOfficer1 !== '0' && reportingOfficer1 !== 'N/A') {
+        const ro1Clean = reportingOfficer1.toString().trim().replace(/^0+/, '');
+        const ro1Padded = ro1Clean ? ro1Clean.padStart(8, '0') : reportingOfficer1;
+        const [ro1Rows] = await pool.query('SELECT employee_name FROM manpower WHERE employee_number = ? OR employee_number = ? OR employee_number = ? LIMIT 1', [reportingOfficer1, ro1Clean, ro1Padded]);
+        if (ro1Rows && ro1Rows.length > 0) reportingOfficer1Name = ro1Rows[0].employee_name;
+      }
+    } catch (agentErr) {
+      console.warn('[Login Reporting Officer Warning]', agentErr.message);
     }
 
     const mustChangePassword = !hasCustomPassword;
-    const designation = employee.position_name || 'Employee';
 
     // 6. Sign JWT token
     const tokenSecret = process.env.JWT_SECRET || 'fallback_secret';
