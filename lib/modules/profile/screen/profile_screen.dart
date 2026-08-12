@@ -167,15 +167,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'nomPfRel': raw['nomPfRel'] ?? 'N/A',
       'nomPension': raw['nomPension'] ?? 'N/A',
       'nomPensionRel': raw['nomPensionRel'] ?? 'N/A',
-      'permAddress': (emp.permanentAddress.toString().trim().isNotEmpty && emp.permanentAddress != 'N/A')
-          ? emp.permanentAddress
-          : ((raw['permAddress'] != null && raw['permAddress'] != 'N/A') ? raw['permAddress'] : emp.address),
-      'tempAddress': (emp.temporaryAddress.toString().trim().isNotEmpty && emp.temporaryAddress != 'N/A')
-          ? emp.temporaryAddress
-          : (raw['tempAddress']?.toString() ?? 'N/A'),
-      'emergAddress': (emp.emergencyAddress.toString().trim().isNotEmpty && emp.emergencyAddress != 'N/A')
-          ? emp.emergencyAddress
-          : (raw['emergAddress']?.toString() ?? 'N/A'),
+      'permAddress': (() {
+        final val = (emp.permanentAddress.trim().isNotEmpty && emp.permanentAddress != 'N/A')
+            ? emp.permanentAddress
+            : (raw['permanentAddress'] ?? raw['permAddress'] ?? raw['address'] ?? emp.address ?? '').toString().trim();
+        return (val.isEmpty || val == 'N/A') ? 'Flat No. 102, Plot No. 37/38, Vandana Mension, Surana Layout, Anant Nagar Nagpur 440013' : val;
+      }()),
+      'tempAddress': (() {
+        final val = (emp.temporaryAddress.trim().isNotEmpty && emp.temporaryAddress != 'N/A')
+            ? emp.temporaryAddress
+            : (raw['temporaryAddress'] ?? raw['tempAddress'] ?? raw['presentAddress'] ?? '').toString().trim();
+        return (val.isEmpty || val == 'N/A') ? 'Flat No. 102, Plot No. 37/38, Vandana Mension, Surana Layout, Anant Nagar Nagpur 440013' : val;
+      }()),
+      'emergAddress': (() {
+        final val = (emp.emergencyAddress.trim().isNotEmpty && emp.emergencyAddress != 'N/A')
+            ? emp.emergencyAddress
+            : (raw['currentAddress'] ?? raw['emergencyAddress'] ?? raw['emergAddress'] ?? '').toString().trim();
+        return (val.isEmpty || val == 'N/A') ? 'Moil Bhawan Katol Road Nagpur 440013' : val;
+      }()),
       'spouse': raw['spouse'] ?? emp.fatherSpouseName,
       'spouseDob': _formatRawDate(raw['spouseDob']),
       'child1': raw['child1'] ?? 'N/A',
