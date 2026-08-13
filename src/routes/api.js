@@ -7,6 +7,7 @@ const path = require('path');
 const xlsx = require('xlsx');
 const authenticateToken = require('../middleware/auth');
 const { pool } = require('../config/db');
+const smsService = require('../utils/smsService');
 
 
 // Helper to format dates consistently (DD-MM-YYYY)
@@ -3152,6 +3153,49 @@ router.post('/leave-encashment/reject', authenticateToken, async (req, res) => {
 
 
 
+
+/**
+ * @route   GET /api/sms/token
+ * @desc    Obtain JWT auth token from MyVI SMS Gateway for SMS dispatch
+ */
+router.get('/sms/token', async (req, res) => {
+  try {
+    const token = await smsService.getAuthToken();
+    if (token) {
+      res.json({ success: true, token });
+    } else {
+      res.status(500).json({ error: 'Failed to obtain JWT auth token from MyVI gateway' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/send-sms
+ * @desc    Send SMS notification using MOIL DLT templates (CORS-free server proxy)
+ */
+router.post('/send-sms', async (req, res) => {
+  const {
+    mobile, mobileNumber,
+    script, dlt_template_id, dltTemplateId, template_id
+  } = req.body;
+
+  const targetPhone = mobile || mobileNumber || smsService.DEFAULT_MOBILE;
+  const tId = dlt_template_id || dltTemplateId || template_id || '1107163177301329708';
+
+  try {
+    const result = await smsService.sendSms({
+      mobileNumber: targetPhone,
+      script: script || 'MOIL LMS Notification',
+      dltTemplateId: tId
+    });
+    res.json({ message: 'SMS trigger processed', targetPhone, result });
+  } catch (error) {
+    console.error('[POST /api/send-sms Error]', error.message);
+    res.status(500).json({ error: 'Failed to send SMS', message: error.message });
+  }
+});
 
 /**
  * @route   GET /api/leaves/team-calendar
