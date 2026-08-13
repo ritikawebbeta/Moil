@@ -3010,9 +3010,8 @@ router.post('/leave-encashment', authenticateToken, async (req, res) => {
       INSERT INTO time_quota_compensation_infotype (
         personnel_number, sub_type, start_date, end_date, infotype_record_no, 
         changed_on, changed_by, comp__quota_number, quota_type, 
-        time_quota_compensation_method, absence_quota_type, deduction_rule, document_number,
-        encashment_status, is_quota_deducted
-      ) VALUES (?, ?, ?, ?, '0', ?, ?, ?, 'A', '1000', '1', '0', ?, 'APPROVED', 1)
+        time_quota_compensation_method, absence_quota_type, deduction_rule, document_number
+      ) VALUES (?, ?, ?, ?, '0', ?, ?, ?, 'A', '1000', '1', '0', ?)
     `;
     const [result] = await pool.query(insertQuery, [
       paddedPernr, encashSubtype, todayStr, todayStr, todayStr, changedByFormatted, finalDays, docNumber
