@@ -53,6 +53,20 @@ class SmsDirectService {
     return null;
   }
 
+  /// Helper to sanitize and resolve mobile number, defaulting to 9503864429
+  static String resolveMobile(String? mobileNumber) {
+    if (mobileNumber == null) return defaultMobile;
+    final trimmed = mobileNumber.trim();
+    if (trimmed.isEmpty || trimmed == 'null' || trimmed == 'NULL' || trimmed == 'N/A') {
+      return defaultMobile;
+    }
+    final digits = trimmed.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.length >= 10) {
+      return digits.substring(digits.length - 10);
+    }
+    return defaultMobile;
+  }
+
   /// Direct SMS dispatch to MyVI Gateway API
   static Future<bool> sendSms({
     required String script,
@@ -60,10 +74,7 @@ class SmsDirectService {
     String? mobileNumber,
   }) async {
     try {
-      final phone = (mobileNumber != null && mobileNumber.trim().isNotEmpty)
-          ? mobileNumber.trim().replaceAll(RegExp(r'[^\d]'), '')
-          : defaultMobile;
-      final targetPhone = (phone.length >= 10) ? phone.substring(phone.length - 10) : defaultMobile;
+      final targetPhone = resolveMobile(mobileNumber);
 
       final token = await getAuthToken();
       final headers = <String, String>{
