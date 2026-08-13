@@ -6,7 +6,16 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const { testConnection } = require('./config/db');
 const apiRouter = require('./routes/api');
-const smsService = require('./utils/smsService');
+let smsService;
+try {
+  smsService = require('./utils/smsService');
+} catch (_) {
+  try {
+    smsService = require('./src/utils/smsService');
+  } catch (__) {
+    console.error('[smsService Load Warning]', _.message);
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
