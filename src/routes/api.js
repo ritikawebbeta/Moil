@@ -1930,14 +1930,29 @@ router.post('/leaves/approve', authenticateToken, async (req, res) => {
       // 9. If FULLY APPROVED → deduct from leave_quota (idempotency: check lock_indicator was NOT already blank)
       if (nextStatus === 'APPROVED') {
         const days = parseFloat(appRow.att__abs__days || appRow.calendar_days || 1);
-        // Sub type mapping: leave sub_type → quota sub_type
-        let quotaSubType = '01'; // EL (Earned Leave) - default
-        if      (appRow.sub_type === '1001') quotaSubType = '02'; // CL  (Casual Leave)
-        else if (appRow.sub_type === '1002') quotaSubType = '03'; // HPL (Half Pay Leave)
-        else if (appRow.sub_type === '1010') quotaSubType = '05'; // Optional Leave
+        // Sub type mapping: leave sub_type (A/AType) → quota sub_type
+        let quotaSubType = null;
+        const sub = (appRow.sub_type || '').toString().trim();
 
-        // Guard: only deduct if the previous lock_indicator was NOT already blank (already approved)
-        if (appRow.lock_indicator !== '') {
+        // 1. Quota 01 -> Earned Leave Quota (1000, 1018)
+        if (sub === '1000' || sub === '01' || sub === '1018') {
+          quotaSubType = '01';
+        }
+        // 2. Quota 02 -> Casual Leave Quota (1001, 1017, 1032, 1036)
+        else if (sub === '1001' || sub === '02' || sub === '1017' || sub === '1032' || sub === '1036') {
+          quotaSubType = '02';
+        }
+        // 3. Quota 03 -> Half Pay Leave / HPL Quota (1002, 1003, 1004, 1011, 1014, 1015, 1016, 1024)
+        else if (sub === '1002' || sub === '03' || sub === '1003' || sub === '1004' || sub === '1011' || sub === '1014' || sub === '1015' || sub === '1016' || sub === '1024') {
+          quotaSubType = '03';
+        }
+        // 4. Quota 05 -> Optional Holiday Quota (1010, 1038)
+        else if (sub === '1010' || sub === '05' || sub === '1038') {
+          quotaSubType = '05';
+        }
+
+        // Guard: only deduct if quotaSubType is valid and lock_indicator was NOT already blank
+        if (quotaSubType && appRow.lock_indicator !== '') {
           await conn.query(
             `UPDATE leave_quota
              SET quota_deduction = CAST(CAST(COALESCE(quota_deduction, '0') AS DECIMAL(10,2)) + ? AS CHAR)
