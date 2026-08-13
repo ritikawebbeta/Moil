@@ -63,7 +63,10 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
     _tempYear = _focusedDay.year;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<LeaveController>().fetchLeaves();
+      final empId = context.read<AuthController>().user?.employeeId ?? '';
+      if (empId.isNotEmpty) {
+        context.read<LeaveController>().fetchLeaves(empId);
+      }
       context.read<LeaveController>().fetchTeamCalendar();
       context.read<HolidayController>().fetchHolidays();
     });
@@ -248,9 +251,13 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
     if (_mandatoryHolidays.containsKey(dateKey)) {
       list.insert(0, LeaveModel(
         id: 'hol_$dateKey',
+        employeeId: 'SYS',
         leaveType: 'Holiday (${_mandatoryHolidays[dateKey]})',
         startDate: day,
+        startTime: '00:00:00',
         endDate: day,
+        endTime: '00:00:00',
+        duration: '1 Day',
         status: 'Holiday',
         reason: _mandatoryHolidays[dateKey] ?? 'Public Holiday',
         processor: 'System',
