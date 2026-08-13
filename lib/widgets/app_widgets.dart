@@ -263,23 +263,28 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       leading: leading ??
           (() {
-            if (Navigator.of(context).canPop() && showBack) {
+            BottomNavBarController? navBar;
+            try { navBar = context.read<BottomNavBarController>(); } catch (_) {}
+
+            if (showBack) {
               return IconButton(
                 icon: const Icon(Icons.arrow_back_ios_rounded, size: 20, color: Colors.white),
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () {
+                  FocusScope.of(context).unfocus();
+                  if (navBar != null && navBar.selectedIndex != 0) {
+                    navBar.setSelectedIndex(0);
+                  } else if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+                },
               );
             }
-            final isMobile = MediaQuery.of(context).size.width < 800;
-            if (!isMobile) return const SizedBox.shrink();
-            try {
-              final navBar = context.read<BottomNavBarController>();
-              if (navBar.selectedIndex != 0) {
-                return IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_rounded, size: 20, color: Colors.white),
-                  onPressed: () => navBar.setSelectedIndex(0),
-                );
-              }
-            } catch (_) {}
+            if (navBar != null && navBar.selectedIndex != 0) {
+              return IconButton(
+                icon: const Icon(Icons.arrow_back_ios_rounded, size: 20, color: Colors.white),
+                onPressed: () => navBar?.setSelectedIndex(0),
+              );
+            }
             return const SizedBox.shrink();
           }()),
       title: Text(
