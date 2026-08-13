@@ -481,39 +481,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  bool _getIsReportingOfficer(UserModel? user, ProfileController profileCtrl) {
-    if (user == null) return false;
-    final loggedInEmpNo = user.employeeId.trim().replaceAll(RegExp('^0+'), '');
-    if (loggedInEmpNo.isEmpty) return false;
-
-    if (ProfileController.rawEmployees.isNotEmpty) {
-      return ProfileController.rawEmployees.any((emp) {
-        final ro = (emp['reportingOfficer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
-        final ro1 = (emp['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
-        return ro == loggedInEmpNo || ro1 == loggedInEmpNo;
-      });
-    }
-
-    if (profileCtrl.employees.isNotEmpty) {
-      return profileCtrl.employees.any((emp) {
-        final ro = emp.reportingOfficer.trim().replaceAll(RegExp('^0+'), '');
-        final ro1 = emp.reportingOfficer1.trim().replaceAll(RegExp('^0+'), '');
-        return ro == loggedInEmpNo || ro1 == loggedInEmpNo;
-      });
-    }
-
-    return false;
-  }
-
   Widget _buildModuleGrid(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWeb = width > 800;
 
     final navBarController = context.read<BottomNavBarController>();
-    final user = context.watch<AuthController>().user;
     final profileController = context.watch<ProfileController>();
 
-    final isReportingOfficer = _getIsReportingOfficer(user, profileController);
+    final isReportingOfficer = profileController.employees.isNotEmpty;
 
     final modules = [
       _ModuleItem(

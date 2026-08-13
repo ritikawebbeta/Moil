@@ -441,7 +441,7 @@ class _TourCalendarTabState extends State<_TourCalendarTab>
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final user = auth.user;
-    final isReportingOfficer = _getIsReportingOfficer(user);
+    final isReportingOfficer = context.watch<ProfileController>().employees.isNotEmpty;
 
     if (!isReportingOfficer) {
       return _buildPersonalCalendar();
