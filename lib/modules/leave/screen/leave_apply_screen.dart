@@ -33,6 +33,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
   String _processor1 = '-';
   final _noteController = TextEditingController();
   bool _isSubmitting = false;
+  bool _showOverview = false;
 
   final List<String> _leaveTypes = [
     'Earned leave',
@@ -484,6 +485,32 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
   }
 
   Widget _buildOverviewSection() {
+    if (!_showOverview) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primary, width: 1.5),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              setState(() {
+                _showOverview = true;
+              });
+            },
+            icon: const Icon(Icons.visibility_rounded, size: 20),
+            label: const Text(
+              'View Application Overview',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+          ),
+        ),
+      );
+    }
+
     final daysCount = _endDate.difference(_startDate).inDays + 1;
     final isCasualLeave = _selectedLeaveType.toLowerCase().contains('casual leave');
 
@@ -492,9 +519,27 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionHeader(
-            title: 'Application Overview',
-            icon: Icons.assignment_outlined,
+          Row(
+            children: [
+              const Expanded(
+                child: SectionHeader(
+                  title: 'Application Overview',
+                  icon: Icons.assignment_outlined,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _showOverview = false;
+                    });
+                  },
+                  icon: const Icon(Icons.visibility_off_rounded, size: 18, color: AppColors.textSecondary),
+                  label: const Text('Hide', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                ),
+              ),
+            ],
           ),
           Padding(
             padding: const EdgeInsets.all(16),
