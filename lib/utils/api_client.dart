@@ -166,27 +166,23 @@ class ApiClient {
   }
 
   static void _logRequest(String method, Uri url, {Map<String, String>? headers, Object? body}) {
-    if (kDebugMode) {
-      debugPrint('==================== [API REQUEST] ====================');
-      debugPrint('🌐 Method: $method');
-      debugPrint('🔗 URL: $url');
-      if (headers != null && headers.isNotEmpty) {
-        debugPrint('📋 Headers: $headers');
-      }
-      if (body != null) {
-        debugPrint('📦 Request Body: $body');
-      }
-      debugPrint('======================================================');
+    print('==================== [API REQUEST] ====================');
+    print('🌐 Method: $method');
+    print('🔗 URL: $url');
+    if (headers != null && headers.isNotEmpty) {
+      print('📋 Headers: $headers');
     }
+    if (body != null) {
+      print('📦 Request Body: $body');
+    }
+    print('======================================================');
   }
 
   static void _logResponse(Uri url, http.Response response) {
-    if (kDebugMode) {
-      debugPrint('==================== [API RESPONSE] ====================');
-      debugPrint('🔗 URL: $url');
-      debugPrint('📊 Status Code: ${response.statusCode}');
-      debugPrint('📄 Response Body: ${response.body}');
-      debugPrint('=======================================================');
-    }
+    print('==================== [API RESPONSE] ====================');
+    print('🔗 URL: $url');
+    print('📊 Status Code: ${response.statusCode}');
+    print('📄 Response Body: ${response.body}');
+    print('=======================================================');
   }
 }
