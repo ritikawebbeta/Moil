@@ -1941,7 +1941,7 @@ router.post('/leaves/approve', authenticateToken, async (req, res) => {
     // 6. Formatted audit fields
     const managerPaddedPernr = managerStr.padStart(8, '0');
     const changedByFormatted = `HR_app_${managerPaddedPernr}`;
-    const nowTs = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const nowTs = ((new Date() - new Date(1899, 11, 30)) / 86400000).toString();
     const docVersion = latestHeader ? (parseInt(latestHeader.document_version || '1') + 1).toString() : '1';
     const guid = latestHeader ? (latestHeader.guid || leave_id) : leave_id;
     const docIdent = (latestHeader && latestHeader.document_identification) ? latestHeader.document_identification : reqItemListId;
@@ -2139,7 +2139,7 @@ router.post('/leaves/reject', authenticateToken, async (req, res) => {
     // 5. Format audit fields
     const managerPaddedPernr = managerId.toString().trim().padStart(8, '0');
     const changedByFormatted = `HR_app_${managerPaddedPernr}`;
-    const nowTs = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const nowTs = ((new Date() - new Date(1899, 11, 30)) / 86400000).toString();
     const docVersion = latestHeader ? (parseInt(latestHeader.document_version || '1') + 1).toString() : '1';
     const guid = latestHeader ? (latestHeader.guid || leave_id) : leave_id;
 
