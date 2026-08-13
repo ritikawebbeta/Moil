@@ -7,7 +7,6 @@ const path = require('path');
 const xlsx = require('xlsx');
 const authenticateToken = require('../middleware/auth');
 const { pool } = require('../config/db');
-const smsService = require('../utils/smsService');
 
 
 // Helper to format dates consistently (DD-MM-YYYY)
@@ -3150,98 +3149,7 @@ router.post('/leave-encashment/reject', authenticateToken, async (req, res) => {
   }
 });
 
-/**
- * @route   GET /api/sms/token
- * @desc    Obtain JWT auth token from MyVI SMS Gateway for SMS dispatch
- */
-router.get('/sms/token', async (req, res) => {
-  try {
-    const token = await smsService.getAuthToken();
-    if (token) {
-      res.json({ success: true, token });
-    } else {
-      res.status(500).json({ error: 'Failed to obtain JWT auth token from MyVI gateway' });
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
-/**
- * @route   POST /api/send-sms
- * @desc    Send SMS notification using MOIL DLT templates (Templates 1 - 9)
- *          Default fallback mobile number: 9503864429
- */
-router.post('/send-sms', async (req, res) => {
-  const {
-    template_id, templateId,
-    mobile, mobileNumber,
-    applicant_name, applicantName,
-    approver_name, approverName,
-    leave_type, leaveType,
-    start_date, startDate,
-    end_date, endDate,
-    days, title, l1_title, l1_name, actor_name
-  } = req.body;
-
-  const tId = String(template_id || templateId || '1').trim();
-  const targetPhone = mobile || mobileNumber || smsService.DEFAULT_MOBILE;
-  const appName = applicant_name || applicantName || 'Employee';
-  const apprName = approver_name || approverName || 'Officer';
-  const lType = leave_type || leaveType || 'Casual Leave';
-  const sDate = start_date || startDate || '2026-08-20';
-  const eDate = end_date || endDate || '2026-08-22';
-  const numDays = days || 1;
-
-  let result;
-  try {
-    switch (tId) {
-      case '1':
-      case '1107163177301329708':
-        result = await smsService.sendLeaveAppliedSms({ mobileNumber: targetPhone, applicantName: appName, leaveType: lType, startDate: sDate, endDate: eDate });
-        break;
-      case '2':
-      case '1107163177311027634':
-        result = await smsService.sendLeaveApprovedSms({ mobileNumber: targetPhone, approverName: apprName, leaveType: lType, startDate: sDate, endDate: eDate });
-        break;
-      case '3':
-      case '1107163177318779886':
-        result = await smsService.sendLeaveRejectedSms({ mobileNumber: targetPhone, approverName: apprName, leaveType: lType, startDate: sDate, endDate: eDate });
-        break;
-      case '4':
-      case '1107165717011044676':
-        result = await smsService.sendLeaveEncashApprovedSms({ mobileNumber: targetPhone, applicantName: appName, days: numDays, approverName: apprName });
-        break;
-      case '5':
-      case '1107165717016334079':
-        result = await smsService.sendLeaveEncashRejectedSms({ mobileNumber: targetPhone, days: numDays });
-        break;
-      case '6':
-      case '1107165717026952826':
-        result = await smsService.sendLeaveEncashAppliedVariantSms({ mobileNumber: targetPhone, applicantName: appName, days: numDays });
-        break;
-      case '7':
-      case '1107165901001503660':
-        result = await smsService.sendLeaveEncashAppliedSms({ mobileNumber: targetPhone, applicantName: appName, days: numDays });
-        break;
-      case '8':
-      case '1107165916221536406':
-        result = await smsService.sendLeaveL1ApprovedSms({ mobileNumber: targetPhone, title: title || 'Mr.', applicantName: appName, leaveType: lType, startDate: sDate, endDate: eDate, l1Title: l1_title || 'Mr.', l1Name: l1_name || apprName });
-        break;
-      case '9':
-      case '1107177547706676415':
-        result = await smsService.sendApplicationNotedSms({ mobileNumber: targetPhone, actorName: actor_name || apprName, leaveType: lType, startDate: sDate, endDate: eDate });
-        break;
-      default:
-        return res.status(400).json({ error: 'Invalid template_id. Must be 1-9 or valid DLT Template ID.' });
-    }
-
-    res.json({ message: 'SMS trigger initiated', templateId: tId, targetPhone, result });
-  } catch (error) {
-    console.error('[POST /api/send-sms Error]', error.message);
-    res.status(500).json({ error: 'Failed to send SMS', message: error.message });
-  }
-});
 
 /**
  * @route   GET /api/leaves/team-calendar
