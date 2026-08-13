@@ -1,5 +1,6 @@
 // lib/modules/bottom_nav_bar/screen/bottom_nav_bar_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../utils/app_colors.dart';
 import '../../../widgets/app_widgets.dart';
@@ -110,11 +111,26 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
   bool _getIsReportingOfficer(UserModel? user) {
     if (user == null) return false;
     final loggedInEmpNo = user.employeeId.trim().replaceAll(RegExp('^0+'), '');
-    return ProfileController.rawEmployees.any((emp) {
-      final ro = (emp['reportingOfficer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
-      final ro1 = (emp['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
-      return ro == loggedInEmpNo || ro1 == loggedInEmpNo;
-    });
+    if (loggedInEmpNo.isEmpty) return false;
+
+    if (ProfileController.rawEmployees.isNotEmpty) {
+      return ProfileController.rawEmployees.any((emp) {
+        final ro = (emp['reportingOfficer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+        final ro1 = (emp['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+        return ro == loggedInEmpNo || ro1 == loggedInEmpNo;
+      });
+    }
+
+    final profileCtrl = context.read<ProfileController>();
+    if (profileCtrl.employees.isNotEmpty) {
+      return profileCtrl.employees.any((emp) {
+        final ro = emp.reportingOfficer.trim().replaceAll(RegExp('^0+'), '');
+        final ro1 = emp.reportingOfficer1.trim().replaceAll(RegExp('^0+'), '');
+        return ro == loggedInEmpNo || ro1 == loggedInEmpNo;
+      });
+    }
+
+    return false;
   }
 
   void _showLogoutConfirmation(BuildContext context) {
@@ -197,20 +213,65 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
           const LeaveQuotaPage(),
         ];
 
-        return Scaffold(
-          backgroundColor: AppColors.background,
-          body: Row(
-            children: [
-              if (isWeb) _buildSidebar(navBarController, selectedIndex),
-              Expanded(
-                child: IndexedStack(
-                  index: selectedIndex,
-                  children: pages,
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (bool didPop, dynamic result) async {
+            if (didPop) return;
+            if (navBarController.selectedIndex != 0) {
+              navBarController.setSelectedIndex(0);
+              return;
+            }
+            final shouldExit = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                backgroundColor: AppColors.cardBg,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.exit_to_app_rounded, color: AppColors.warning, size: 24),
+                    SizedBox(width: 8),
+                    Text('Exit Application', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                  ],
                 ),
+                content: const Text(
+                  'Are you sure you want to exit the application?',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Exit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ],
               ),
-            ],
+            );
+            if (shouldExit == true) {
+              SystemNavigator.pop();
+            }
+          },
+          child: Scaffold(
+            backgroundColor: AppColors.background,
+            body: Row(
+              children: [
+                if (isWeb) _buildSidebar(navBarController, selectedIndex),
+                Expanded(
+                  child: IndexedStack(
+                    index: selectedIndex,
+                    children: pages,
+                  ),
+                ),
+              ],
+            ),
+            bottomNavigationBar: isWeb ? null : _buildBottomNav(navBarController, selectedIndex),
           ),
-          bottomNavigationBar: isWeb ? null : _buildBottomNav(navBarController, selectedIndex),
         );
       },
     );
