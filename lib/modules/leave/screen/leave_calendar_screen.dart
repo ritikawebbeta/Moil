@@ -64,13 +64,6 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthController>().user;
-    final isReportingOfficer = context.watch<ProfileController>().employees.isNotEmpty;
-
-    if (!isReportingOfficer) {
-      return _buildPersonalCalendar();
-    }
-
     return Column(
       children: [
         _buildSubTabBar(),
