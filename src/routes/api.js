@@ -669,35 +669,24 @@ router.post(['/login', '/auth/login'], async (req, res) => {
         );
       }
 
-      if (credRows && credRows.length > 0 && credRows[0].password) {
+      if (credRows && credRows.length > 0 && credRows[0].password && credRows[0].password.toString().trim() !== '') {
         savedDbPassword = credRows[0].password.toString().trim();
         hasCustomPassword = true;
       }
     } catch (_) {}
 
-    const inputUpper = password.toUpperCase();
+    const inputTrimmed = password.trim();
+    const inputUpper = inputTrimmed.toUpperCase();
+    const panUpper = (employee.pan_number || '').toString().trim().toUpperCase();
 
-    // Check saved account password (exact or case-insensitive)
-    if (savedDbPassword) {
-      if (savedDbPassword === password || savedDbPassword.toUpperCase() === inputUpper) {
-        isPasswordValid = true;
-      } else if (savedDbPassword.toUpperCase().replace(/\s+/g, '') === inputUpper.replace(/\s+/g, '')) {
-        isPasswordValid = true;
-      }
-    }
-
-    // Check PAN number fallback (case-insensitive)
-    if (!isPasswordValid && employee.pan_number) {
-      const panUpper = employee.pan_number.toString().trim().toUpperCase();
-      if (panUpper === inputUpper || inputUpper === panUpper + '2' || panUpper === inputUpper + '2') {
+    if (hasCustomPassword) {
+      // User has already set a custom password -> must login with custom password
+      if (savedDbPassword === inputTrimmed || savedDbPassword.toUpperCase() === inputUpper) {
         isPasswordValid = true;
       }
-    }
-
-    // Check saved DB password prefix/suffix matching
-    if (!isPasswordValid && savedDbPassword) {
-      const savedUpper = savedDbPassword.toUpperCase();
-      if (savedUpper === inputUpper + '2' || inputUpper === savedUpper + '2') {
+    } else {
+      // First-time login -> authenticate with PAN number (forces compulsory password change)
+      if (panUpper && (panUpper === inputUpper || inputUpper === panUpper + '2')) {
         isPasswordValid = true;
       }
     }
