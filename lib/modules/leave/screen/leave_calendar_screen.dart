@@ -13,6 +13,8 @@ import '../../auth/controller/auth_controller.dart';
 import '../../profile/controller/profile_controller.dart';
 import '../../../model/user_model.dart';
 
+import '../../holiday/controller/holiday_controller.dart';
+
 class LeaveCalendarScreen extends StatefulWidget {
   const LeaveCalendarScreen({super.key});
 
@@ -32,15 +34,24 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
   late int _tempMonth;
   late int _tempYear;
 
-  bool _getIsReportingOfficer(UserModel? user) {
-    if (user == null) return false;
-    final loggedInEmpNo = user.employeeId.trim().replaceAll(RegExp('^0+'), '');
-    return ProfileController.rawEmployees.any((emp) {
-      final ro = (emp['reportingOfficer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
-      final ro1 = (emp['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
-      return ro == loggedInEmpNo || ro1 == loggedInEmpNo;
-    });
-  }
+  static final Map<String, String> _mandatoryHolidays = {
+    '2025-01-26': 'Republic Day',
+    '2025-03-14': 'Holi',
+    '2025-04-14': 'Dr. Babasaheb Ambedkar Jayanti',
+    '2025-08-15': 'Independence Day',
+    '2025-08-24': 'Narbodh/Pola',
+    '2025-10-02': 'Mahatma Gandhi Jayanti',
+    '2025-10-20': 'Diwali',
+    '2025-10-21': 'Diwali',
+    '2026-01-26': 'Republic Day',
+    '2026-03-03': 'Holi',
+    '2026-04-14': 'Dr. Babasaheb Ambedkar Jayanti',
+    '2026-08-15': 'Independence Day',
+    '2026-09-12': 'Narbodh/Pola',
+    '2026-10-02': 'Mahatma Gandhi Jayanti',
+    '2026-11-08': 'Diwali',
+    '2026-11-09': 'Diwali',
+  };
 
   @override
   void initState() {
@@ -52,7 +63,9 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
     _tempYear = _focusedDay.year;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<LeaveController>().fetchLeaves();
       context.read<LeaveController>().fetchTeamCalendar();
+      context.read<HolidayController>().fetchHolidays();
     });
   }
 
@@ -113,7 +126,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
               GlassCard(
                 padding: EdgeInsets.zero,
                 child: TableCalendar(
-                  firstDay: DateTime(2024),
+                  firstDay: DateTime(2022),
                   lastDay: DateTime(DateTime.now().year + 5),
                   focusedDay: _focusedDay,
                   selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
@@ -145,9 +158,18 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                       final events = _getEventsForDay(day, controller.leaves);
                       if (events.isNotEmpty) {
                         final leave = events.first;
+                        final isHoliday = leave.status.toUpperCase() == 'HOLIDAY';
                         final isApproved = leave.status.toUpperCase() == 'APPROVED';
-                        final bg = isApproved ? AppColors.success.withOpacity(0.2) : AppColors.warning.withOpacity(0.2);
-                        final fg = isApproved ? AppColors.success : AppColors.warning;
+                        final bg = isHoliday
+                            ? AppColors.warning.withOpacity(0.3)
+                            : isApproved
+                                ? AppColors.success.withOpacity(0.2)
+                                : AppColors.primary.withOpacity(0.2);
+                        final fg = isHoliday
+                            ? AppColors.warning
+                            : isApproved
+                                ? AppColors.success
+                                : AppColors.primary;
                         return Container(
                           margin: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
@@ -218,9 +240,25 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
   }
 
   List<LeaveModel> _getEventsForDay(DateTime day, List<LeaveModel> leaves) {
-    return leaves.where((leave) {
+    final list = leaves.where((leave) {
       return !day.isBefore(leave.startDate) && !day.isAfter(leave.endDate);
     }).toList();
+
+    final dateKey = DateFormat('yyyy-MM-dd').format(day);
+    if (_mandatoryHolidays.containsKey(dateKey)) {
+      list.insert(0, LeaveModel(
+        id: 'hol_$dateKey',
+        leaveType: 'Holiday (${_mandatoryHolidays[dateKey]})',
+        startDate: day,
+        endDate: day,
+        status: 'Holiday',
+        reason: _mandatoryHolidays[dateKey] ?? 'Public Holiday',
+        processor: 'System',
+        processor1: 'System',
+      ));
+    }
+
+    return list;
   }
 
   Widget _buildLegend() {
@@ -231,12 +269,13 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
         runSpacing: 8,
         children: [
           _LegendItem(color: AppColors.primary.withOpacity(0.6), label: 'Sent'),
-          _LegendItem(color: AppColors.accent, label: 'Absent'),
+          _LegendItem(color: AppColors.success, label: 'Approved'),
           _LegendItem(color: AppColors.textHint, label: 'Non-Working Day'),
           _LegendItem(color: AppColors.officialTour, label: 'Travel'),
-          _LegendItem(color: AppColors.primaryLight, label: 'Multiple Entries'),
-          _LegendItem(color: AppColors.error, label: 'Deletion Requested'),
           _LegendItem(color: AppColors.warning, label: 'Holiday'),
+          _LegendItem(color: Colors.amber.shade700, label: 'Casual Leave (CL)'),
+          _LegendItem(color: AppColors.primary, label: 'Earned Leave (EL)'),
+          _LegendItem(color: Colors.purple.shade600, label: 'HPL / CHPL'),
         ],
       ),
     );
@@ -553,23 +592,28 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
           ...List.generate(daysInMonth, (i) {
             final day = i + 1;
             final date = DateTime(firstDay.year, firstDay.month, day);
+            final dateKey = DateFormat('yyyy-MM-dd').format(date);
+            final isHoliday = _mandatoryHolidays.containsKey(dateKey);
             final isWeekend = date.weekday == DateTime.sunday;
+
             return Container(
               width: 32,
               padding: const EdgeInsets.symmetric(vertical: 4),
+              color: isHoliday ? AppColors.warning.withOpacity(0.18) : Colors.transparent,
               child: Column(
                 children: [
                   Text(
-                    DateFormat('E').format(date).substring(0, 3),
+                    isHoliday ? 'HOL' : DateFormat('E').format(date).substring(0, 3),
                     style: TextStyle(
-                      color: isWeekend ? AppColors.error.withOpacity(0.7) : AppColors.textSecondary,
+                      color: isHoliday ? AppColors.warning : (isWeekend ? AppColors.error.withOpacity(0.7) : AppColors.textSecondary),
                       fontSize: 8,
+                      fontWeight: isHoliday ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                   Text(
                     '$day',
                     style: TextStyle(
-                      color: isWeekend ? AppColors.error.withOpacity(0.7) : AppColors.textPrimary,
+                      color: isHoliday ? AppColors.warning : (isWeekend ? AppColors.error.withOpacity(0.7) : AppColors.textPrimary),
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                     ),
@@ -605,8 +649,41 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
               ...List.generate(daysInMonth, (i) {
                 final day = i + 1;
                 final date = DateTime(firstDay.year, firstDay.month, day);
+                final dateKey = DateFormat('yyyy-MM-dd').format(date);
+                final isHoliday = _mandatoryHolidays.containsKey(dateKey);
                 final isWeekend = date.weekday == DateTime.sunday;
                 final leaveInfo = leaveDaysMap[day];
+
+                if (isHoliday) {
+                  final holName = _mandatoryHolidays[dateKey] ?? 'Holiday';
+                  return Tooltip(
+                    message: '$holName (Public Holiday)',
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withOpacity(0.12),
+                        border: Border(
+                          left: BorderSide(color: AppColors.cardBorder.withOpacity(0.3), width: 0.5),
+                        ),
+                      ),
+                      child: Container(
+                        width: 24,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: AppColors.warning,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'HOL',
+                          style: TextStyle(color: Colors.black87, fontSize: 8, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  );
+                }
 
                 if (leaveInfo != null) {
                   final type = leaveInfo['type'] ?? 'Leave';
