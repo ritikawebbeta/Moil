@@ -51,7 +51,7 @@ class SmsDirectService {
       final proxyRes = await http.get(Uri.parse('${AppConfig.baseUrl}/api/sms/token'));
       if (proxyRes.statusCode == 200) {
         final decoded = jsonDecode(proxyRes.body);
-        final token = decoded['token']?.toString()?.trim() ?? '';
+        final token = decoded['token']?.toString().trim() ?? '';
         if (token.isNotEmpty) {
           _cachedToken = token;
           _tokenExpiry = DateTime.now().add(const Duration(minutes: 50));
