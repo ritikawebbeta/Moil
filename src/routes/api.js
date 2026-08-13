@@ -7,7 +7,6 @@ const path = require('path');
 const xlsx = require('xlsx');
 const authenticateToken = require('../middleware/auth');
 const { pool } = require('../config/db');
-const smsService = require('../utils/smsService');
 
 
 // Helper to format dates consistently (DD-MM-YYYY)
@@ -1494,18 +1493,7 @@ router.post(['/leaves', '/leaves/apply'], authenticateToken, async (req, res) =>
         );
       }
 
-      // 4. DLT SMS Notification (Template 1: Leave Applied)
-      try {
-        await smsService.sendLeaveAppliedSms({
-          mobileNumber: smsService.DEFAULT_MOBILE,
-          applicantName,
-          leaveType: leave_type,
-          startDate: formattedStartDate,
-          endDate: formattedEndDate
-        });
-      } catch (smsErr) {
-        console.error('[SMS Error Leave Apply]', smsErr.message);
-      }
+
 
 
 
@@ -2020,15 +2008,7 @@ router.post('/leaves/approve', authenticateToken, async (req, res) => {
       await createNotification(applicantId, 'Leave Request Approved',
         `Your leave request has been fully approved by ${managerName}.${remarks ? ' Remarks: ' + remarks : ''}`,
         'Leave');
-      try {
-        await smsService.sendLeaveApprovedSms({
-          mobileNumber: smsService.DEFAULT_MOBILE,
-          approverName: managerName,
-          leaveType: appRow.sub_type === '1001' ? 'Casual Leave' : (appRow.sub_type === '1002' ? 'HPL' : 'Earned Leave'),
-          startDate: appRow.start_date,
-          endDate: appRow.end_date
-        });
-      } catch (smsErr) { console.error('[SMS Error Approved]', smsErr.message); }
+
     } else if (nextStatus === 'SENT_L2') {
       await createNotification(applicantId, 'Leave Request L1 Approved',
         `Your leave request was approved by L1 (${managerName}) and is now pending L2 approval.`, 'Leave');
@@ -2036,18 +2016,6 @@ router.post('/leaves/approve', authenticateToken, async (req, res) => {
         await createNotification(l2Raw, 'Pending Leave Approval',
           `Leave request for ${applicantName} (L1 approved by ${managerName}) requires your approval.`, 'Leave');
       }
-      try {
-        await smsService.sendLeaveL1ApprovedSms({
-          mobileNumber: smsService.DEFAULT_MOBILE,
-          title: 'Mr.',
-          applicantName,
-          leaveType: appRow.sub_type === '1001' ? 'Casual Leave' : (appRow.sub_type === '1002' ? 'HPL' : 'Earned Leave'),
-          startDate: appRow.start_date,
-          endDate: appRow.end_date,
-          l1Title: 'Mr.',
-          l1Name: managerName
-        });
-      } catch (smsErr) { console.error('[SMS Error L1 Approved]', smsErr.message); }
     }
 
     res.json({ message: 'Leave request approved successfully', status: nextStatus });
@@ -2176,15 +2144,7 @@ router.post('/leaves/reject', authenticateToken, async (req, res) => {
     await createNotification(applicantId, 'Leave Request Rejected',
       `Your leave request has been rejected by ${managerName}.${remarks ? ' Remarks: ' + remarks : ''}`,
       'Leave');
-    try {
-      await smsService.sendLeaveRejectedSms({
-        mobileNumber: smsService.DEFAULT_MOBILE,
-        approverName: managerName,
-        leaveType: appRow.sub_type === '1001' ? 'Casual Leave' : (appRow.sub_type === '1002' ? 'HPL' : 'Earned Leave'),
-        startDate: appRow.start_date,
-        endDate: appRow.end_date
-      });
-    } catch (smsErr) { console.error('[SMS Error Rejected]', smsErr.message); }
+
 
     res.json({ message: 'Leave request rejected successfully' });
   } catch (error) {
@@ -2985,13 +2945,7 @@ router.post('/leave-encashment', authenticateToken, async (req, res) => {
         `${applicantName} (${cleanEmpId}) submitted a leave encashment request for ${finalDays} days.`, 'Leave');
     }
 
-    try {
-      await smsService.sendLeaveEncashAppliedSms({
-        mobileNumber: smsService.DEFAULT_MOBILE,
-        applicantName,
-        days: finalDays
-      });
-    } catch (smsErr) { console.error('[SMS Error Encash Apply]', smsErr.message); }
+
 
     res.status(201).json({
       message: 'Leave encashment request submitted successfully. Pending approval.',
@@ -3131,14 +3085,7 @@ router.post('/leave-encashment/approve', authenticateToken, async (req, res) => 
     await createNotification(cleanEmpId, 'Leave Encashment Approved',
       `Your leave encashment request for ${finalDays} days has been approved by ${managerName}.${remarks ? ' Remarks: ' + remarks : ''}`,
       'Leave');
-    try {
-      await smsService.sendLeaveEncashApprovedSms({
-        mobileNumber: smsService.DEFAULT_MOBILE,
-        applicantName: await getEmployeeName(cleanEmpId),
-        days: finalDays,
-        approverName: managerName
-      });
-    } catch (smsErr) { console.error('[SMS Error Encash Approve]', smsErr.message); }
+
 
     res.json({ message: 'Encashment approved successfully', appliedDays: finalDays, status: 'APPROVED' });
   } catch (error) {
@@ -3193,12 +3140,7 @@ router.post('/leave-encashment/reject', authenticateToken, async (req, res) => {
     await createNotification(enc.personnel_number.toString().replace(/^0+/, ''), 'Leave Encashment Rejected',
       `Your leave encashment request has been rejected by ${managerName}.${remarks ? ' Remarks: ' + remarks : ''}`,
       'Leave');
-    try {
-      await smsService.sendLeaveEncashRejectedSms({
-        mobileNumber: smsService.DEFAULT_MOBILE,
-        days: parseFloat(enc.comp__quota_number || 0)
-      });
-    } catch (smsErr) { console.error('[SMS Error Encash Reject]', smsErr.message); }
+
 
     res.json({ message: 'Encashment rejected successfully', status: 'REJECTED' });
   } catch (error) {
