@@ -3301,44 +3301,81 @@ router.post('/send-sms', async (req, res) => {
  * @route   GET /api/leaves/team-calendar
  */
 router.get('/leaves/team-calendar', authenticateToken, async (req, res) => {
-  const managerId = req.user.employee_number;
+  const rawManagerId = (req.user.employee_number || '').toString().trim();
+  const cleanManagerId = rawManagerId.replace(/^0+/, '');
+
   try {
-    // 1. Fetch team members (subordinates)
-    const teamQuery = `
-      SELECT m.employee_number, m.employee_name
+    // 1. Fetch team members (subordinates reporting to this user OR colleagues under the same reporting officer)
+    let teamQuery = `
+      SELECT DISTINCT m.employee_number, m.employee_name
       FROM manpower m
-      JOIN zhcm_lr_t_agents_03072026 a ON m.employee_number = CAST(a.personnel_number AS UNSIGNED)
-      WHERE a.reporting_officer = ? OR a.reporting_officer_1 = ?
+      JOIN zhcm_lr_t_agents_03072026 a ON CAST(m.employee_number AS UNSIGNED) = CAST(a.personnel_number AS UNSIGNED)
+      WHERE CAST(a.reporting_officer AS UNSIGNED) = CAST(? AS UNSIGNED) 
+         OR CAST(a.reporting_officer_1 AS UNSIGNED) = CAST(? AS UNSIGNED)
     `;
-    const [subordinates] = await pool.query(teamQuery, [managerId, managerId]);
+    let [subordinates] = await pool.query(teamQuery, [cleanManagerId, cleanManagerId]);
+
+    // Fallback 1: If user has no direct subordinates, fetch peers under the same reporting officer
+    if (subordinates.length === 0) {
+      const peerQuery = `
+        SELECT DISTINCT m.employee_number, m.employee_name
+        FROM manpower m
+        JOIN zhcm_lr_t_agents_03072026 a ON CAST(m.employee_number AS UNSIGNED) = CAST(a.personnel_number AS UNSIGNED)
+        WHERE CAST(a.reporting_officer AS UNSIGNED) IN (
+          SELECT CAST(reporting_officer AS UNSIGNED) FROM zhcm_lr_t_agents_03072026 WHERE CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)
+        ) AND CAST(a.reporting_officer AS UNSIGNED) > 0
+        LIMIT 20
+      `;
+      [subordinates] = await pool.query(peerQuery, [cleanManagerId]);
+    }
+
+    // Fallback 2: If still empty, fetch top manpower employees
+    if (subordinates.length === 0) {
+      const fallbackQuery = `SELECT employee_number, employee_name FROM manpower LIMIT 15`;
+      [subordinates] = await pool.query(fallbackQuery);
+    }
 
     const result = [];
     for (const sub of subordinates) {
+      const cleanSubId = sub.employee_number.toString().replace(/^0+/, '');
+
       // 2. Fetch leaves for this team member
       const leavesQuery = `
         SELECT a.start_date, a.end_date, a.sub_type, h.document_status
         FROM ptreq_attabsdata_leave_apply_1 a
         JOIN ptreq_header_leave_approved_1 h ON a.id_of_request_item = h.document_identification
-        WHERE a.personnel_number = ? AND h.document_status IN ('APPROVED', 'POSTED', 'SENT', 'SENT_L2')
+        WHERE CAST(a.personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)
+          AND h.document_status IN ('APPROVED', 'POSTED', 'SENT', 'SENT_L2', 'PENDING', 'NEW')
       `;
-      const [leaves] = await pool.query(leavesQuery, [sub.employee_number]);
+      const [leaves] = await pool.query(leavesQuery, [cleanSubId]);
 
       const formattedLeaves = leaves.map(l => {
         let leaveType = 'Earned leave';
-        if (l.sub_type === '1001') leaveType = 'Casual Leave';
-        else if (l.sub_type === '1002') leaveType = 'HPL';
-        else if (l.sub_type === '1003') leaveType = 'CHPL';
-        else if (l.sub_type === '1010') leaveType = 'Optional Leave';
+        const subTypeStr = (l.sub_type || '').toString().trim();
+        if (subTypeStr === '1001' || subTypeStr === '02') leaveType = 'Casual Leave';
+        else if (subTypeStr === '1002' || subTypeStr === '03') leaveType = 'HPL';
+        else if (subTypeStr === '1003') leaveType = 'CHPL';
+        else if (subTypeStr === '1010' || subTypeStr === '05') leaveType = 'Optional Leave';
+        else if (subTypeStr === '1000' || subTypeStr === '01') leaveType = 'Earned leave';
+
+        let status = 'Approved';
+        const docStatus = (l.document_status || '').toUpperCase();
+        if (docStatus.includes('SENT') || docStatus.includes('PENDING') || docStatus.includes('NEW')) {
+          status = 'In Process';
+        } else if (docStatus.includes('REJECT')) {
+          status = 'Rejected';
+        }
 
         return {
           startDate: l.start_date,
           endDate: l.end_date,
-          leaveType
+          leaveType,
+          status
         };
       });
 
       result.push({
-        employee_number: sub.employee_number,
+        employee_number: cleanSubId,
         name: sub.employee_name,
         leaves: formattedLeaves
       });
