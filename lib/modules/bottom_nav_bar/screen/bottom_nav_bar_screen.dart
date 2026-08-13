@@ -389,8 +389,8 @@ class _BottomNavBarScreenState extends State<BottomNavBarScreen> {
 
   Widget _buildSidebar(BottomNavBarController navBarController, int selectedIndex) {
     final user = context.watch<AuthController>().user;
-    final profileController = context.watch<ProfileController>();
-    final isReportingOfficer = profileController.employees.isNotEmpty || _getIsReportingOfficer(user);
+    context.watch<ProfileController>();
+    final isReportingOfficer = _getIsReportingOfficer(user);
 
     return Container(
       width: _isSidebarCollapsed ? 70 : 250,

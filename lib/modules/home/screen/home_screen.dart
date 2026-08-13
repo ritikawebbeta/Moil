@@ -481,12 +481,26 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  bool _getIsReportingOfficer(UserModel? user) {
+    if (user == null) return false;
+    final loggedInEmpNo = user.employeeId.trim().replaceAll(RegExp('^0+'), '');
+    if (loggedInEmpNo.isEmpty) return false;
+    return ProfileController.rawEmployees.any((emp) {
+      final ro = (emp['reportingOfficer']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+      final ro1 = (emp['reportingOfficer1']?.toString() ?? '').trim().replaceAll(RegExp('^0+'), '');
+      return ro == loggedInEmpNo || ro1 == loggedInEmpNo;
+    });
+  }
+
   Widget _buildModuleGrid(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWeb = width > 800;
 
     final navBarController = context.read<BottomNavBarController>();
+    final user = context.watch<AuthController>().user;
     context.watch<ProfileController>();
+
+    final isReportingOfficer = _getIsReportingOfficer(user);
 
     final modules = [
       _ModuleItem(
@@ -553,39 +567,41 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         },
       ),
-      _ModuleItem(
-        title: 'Directory',
-        subtitle: 'Employee List',
-        icon: Icons.people_rounded,
-        color: const Color(0xFF0F766E),
-        onTap: () {
-          if (isWeb) {
-            navBarController.setSelectedIndex(4);
-          } else {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const EmployeeDirectoryScreen()),
-            );
-          }
-        },
-      ),
-      _ModuleItem(
-        title: 'Approvals',
-        subtitle: 'Pending Actions',
-        icon: Icons.approval_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () {
-          if (isWeb) {
-            navBarController.setSelectedIndex(7);
-          } else {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ApprovalScreen()),
-            );
-          }
-        },
-      ),
+      if (isReportingOfficer)
+        _ModuleItem(
+          title: 'Directory',
+          subtitle: 'Employee List',
+          icon: Icons.people_rounded,
+          color: const Color(0xFF0F766E),
+          onTap: () {
+            if (isWeb) {
+              navBarController.setSelectedIndex(4);
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const EmployeeDirectoryScreen()),
+              );
+            }
+          },
+        ),
+      if (isReportingOfficer)
+        _ModuleItem(
+          title: 'Approvals',
+          subtitle: 'Pending Actions',
+          icon: Icons.approval_rounded,
+          color: const Color(0xFF8B5CF6),
+          onTap: () {
+            if (isWeb) {
+              navBarController.setSelectedIndex(7);
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ApprovalScreen()),
+              );
+            }
+          },
+        ),
       _ModuleItem(
         title: 'Profile',
         subtitle: 'My Account',
