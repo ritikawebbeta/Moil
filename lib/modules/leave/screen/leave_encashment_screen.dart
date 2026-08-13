@@ -219,18 +219,71 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
       _isSubmitting = true;
     });
 
-    await Future.delayed(const Duration(milliseconds: 200));
-    setState(() {
-      _docNumber = 'ENC${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
-      _currentStep = 3; // Show success confirmation
-      _isSubmitting = false;
-    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJsonStr = prefs.getString('auth_user');
+      String? token;
+      if (userJsonStr != null) {
+        token = jsonDecode(userJsonStr)['token'];
+      }
 
-    // Trigger Direct MyVI SMS for Leave Encashment Application
-    SmsDirectService.sendLeaveEncashAppliedSms(
-      applicantName: _employeeName,
-      days: _daysToEncashCtrl.text,
-    );
+      final response = await ApiClient.post(
+        Uri.parse('${AppConfig.baseUrl}/api/leave-encashment'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'employee_id': _employeeCode,
+          'days': days,
+          'year': _selectedYear,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(response.body);
+        final returnedDocNum = decoded['docNumber']?.toString() ?? 'ENC${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+        
+        final newRemaining = balance - days;
+
+        setState(() {
+          _docNumber = returnedDocNum;
+          _leaveBalance = newRemaining.toStringAsFixed(2);
+          _currentStep = 3;
+          _isSubmitting = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Your leave encashed successfully!'),
+            backgroundColor: AppColors.success,
+          ));
+        }
+
+        SmsDirectService.sendLeaveEncashAppliedSms(
+          applicantName: _employeeName,
+          days: _daysToEncashCtrl.text,
+        );
+      } else {
+        final decoded = jsonDecode(response.body);
+        final errorMsg = decoded['error']?.toString() ?? decoded['message']?.toString() ?? 'Failed to process leave encashment';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(errorMsg),
+            backgroundColor: AppColors.error,
+          ));
+        }
+        setState(() => _isSubmitting = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: AppColors.error,
+        ));
+      }
+      setState(() => _isSubmitting = false);
+    }
   }
 
   void _resetForm() {
@@ -835,20 +888,53 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
           ),
           const SizedBox(height: 18),
           const Text(
-            'Leave Encashment Submitted!',
+            'Your leave encashed successfully',
+            textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 18,
+              color: AppColors.success,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            'The request for employee $_employeeName ($_employeeCode) to encash ${_daysToEncashCtrl.text} days has been successfully submitted.',
+          const Text(
+            'Leave encashment request has been processed and deducted from Earned Leave quota.',
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Encashment Details Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.backgroundSecondary,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Encashment Details',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const Divider(height: 16, color: AppColors.cardBorder),
+                _buildSummaryDetailRow('Document Number', _docNumber),
+                _buildSummaryDetailRow('Employee Code', _employeeCode),
+                _buildSummaryDetailRow('Employee Name', _employeeName),
+                _buildSummaryDetailRow('Encashed Days', '${_daysToEncashCtrl.text} Day(s)'),
+                _buildSummaryDetailRow('Remaining Earned Leave Quota', '$_leaveBalance Days'),
+                _buildSummaryDetailRow('Applied Date', _createdOn),
+                _buildSummaryDetailRow('Status', 'PROCESSED / DEDUCTED'),
+              ],
             ),
           ),
           const SizedBox(height: 24),
@@ -867,6 +953,19 @@ class _LeaveEncashmentScreenState extends State<LeaveEncashmentScreen> {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+          Text(value, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         ],
       ),
     );
