@@ -18,3 +18,12 @@ yarn-error.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Logs and temp files
+*.log
+tmp_*/
+outbound/
+outbound_archive/
+scratch/
+uploads/
+
