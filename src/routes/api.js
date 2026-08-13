@@ -936,15 +936,20 @@ router.get('/leaves', authenticateToken, async (req, res) => {
     const dateParams = [rawPernr, paddedPernr, rawPernr];
     if (showFrom) {
       dateWhere = ` AND (
-        (start_date REGEXP '^[0-9]{2}\\\\.[0-9]{2}\\\\.[0-9]{4}$' AND STR_TO_DATE(start_date, '%d.%m.%Y') >= ?) OR
-        (start_date REGEXP '^[0-9]{2}-[0-9]{2}-[0-9]{4}$' AND STR_TO_DATE(start_date, '%d-%m-%Y') >= ?) OR
-        (start_date REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND STR_TO_DATE(start_date, '%Y-%m-%d') >= ?) OR
-        (end_date REGEXP '^[0-9]{2}\\\\.[0-9]{2}\\\\.[0-9]{4}$' AND STR_TO_DATE(end_date, '%d.%m.%Y') >= ?) OR
-        (end_date REGEXP '^[0-9]{2}-[0-9]{2}-[0-9]{4}$' AND STR_TO_DATE(end_date, '%d-%m-%Y') >= ?) OR
-        (end_date REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND STR_TO_DATE(end_date, '%Y-%m-%d') >= ?) OR
-        start_date IS NULL OR start_date = ''
+        COALESCE(
+          STR_TO_DATE(start_date, '%d.%m.%Y'),
+          STR_TO_DATE(start_date, '%Y-%m-%d'),
+          STR_TO_DATE(start_date, '%d-%m-%Y')
+        ) >= ? 
+        OR
+        COALESCE(
+          STR_TO_DATE(end_date, '%d.%m.%Y'),
+          STR_TO_DATE(end_date, '%Y-%m-%d'),
+          STR_TO_DATE(end_date, '%d-%m-%Y')
+        ) >= ? 
+        OR start_date IS NULL OR start_date = ''
       ) `;
-      dateParams.push(showFrom, showFrom, showFrom, showFrom, showFrom, showFrom);
+      dateParams.push(showFrom, showFrom);
     }
 
     // 1. Fetch leave applications
@@ -953,12 +958,11 @@ router.get('/leaves', authenticateToken, async (req, res) => {
        FROM ptreq_attabsdata_leave_apply_1 
        WHERE (personnel_number = ? OR personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)) ${dateWhere}
        ORDER BY 
-         CASE 
-           WHEN start_date REGEXP '^[0-9]{2}\\\.[0-9]{2}\\\.[0-9]{4}$' THEN STR_TO_DATE(start_date, '%d.%m.%Y')
-           WHEN start_date REGEXP '^[0-9]{2}-[0-9]{2}-[0-9]{4}$' THEN STR_TO_DATE(start_date, '%d-%m-%Y')
-           WHEN start_date REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN STR_TO_DATE(start_date, '%Y-%m-%d')
-           ELSE NULL
-         END DESC,
+         COALESCE(
+           STR_TO_DATE(start_date, '%d.%m.%Y'),
+           STR_TO_DATE(start_date, '%Y-%m-%d'),
+           STR_TO_DATE(start_date, '%d-%m-%Y')
+         ) DESC,
          row_id DESC`,
       dateParams
     );
