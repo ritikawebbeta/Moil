@@ -2280,8 +2280,8 @@ router.get('/tours', authenticateToken, async (req, res) => {
       }
 
       return {
-        id: row.id.toString(),
-        employeeId: row.personnel_number.toString(),
+        id: (row.id || row.row_id || row.trip_number || Math.random()).toString(),
+        employeeId: (row.personnel_number || employeeId || '').toString(),
         destination: row.trip_destination || 'N/A',
         startDate: formatIsoDate(row.beginning_date_of_trip_segment) || row.beginning_date_of_trip_segment,
         endDate: formatIsoDate(row.end_date_of_trip_segment) || row.end_date_of_trip_segment,
