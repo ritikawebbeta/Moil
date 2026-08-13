@@ -120,7 +120,11 @@ class LeaveController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  String? _lastError;
+  String? get lastError => _lastError;
+
   Future<bool> applyLeave(LeaveApplicationRequest request) async {
+    _lastError = null;
     try {
       final token = await _getToken();
       final response = await ApiClient.post(
@@ -136,8 +140,16 @@ class LeaveController extends ChangeNotifier {
         await fetchLeaves(request.employeeId);
         return true;
       }
+
+      try {
+        final decoded = jsonDecode(response.body);
+        _lastError = decoded['error']?.toString() ?? decoded['message']?.toString() ?? 'Server Status: ${response.statusCode}';
+      } catch (_) {
+        _lastError = 'Server Status: ${response.statusCode}';
+      }
       return false;
-    } catch (_) {
+    } catch (e) {
+      _lastError = e.toString();
       return false;
     }
   }

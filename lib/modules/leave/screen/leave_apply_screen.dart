@@ -671,11 +671,12 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
       note: _noteController.text.isNotEmpty ? _noteController.text : null,
     );
 
-    final success = await context.read<LeaveController>().applyLeave(request);
+    final leaveCtrl = context.read<LeaveController>();
+    final success = await leaveCtrl.applyLeave(request);
 
     if (success) {
       final empName = context.read<ProfileController>().employee?.name ?? 'Mr. Employee';
-      final lType = _selectedLeaveType ?? 'LEAVE';
+      final lType = _selectedLeaveType;
       final sDate = DateFormat('dd.MM.yyyy').format(_startDate);
       final eDate = DateFormat('dd.MM.yyyy').format(_endDate);
       SmsDirectService.sendLeaveAppliedSms(
@@ -689,12 +690,15 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
     setState(() => _isSubmitting = false);
 
     if (mounted) {
+      final errorMsg = leaveCtrl.lastError;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             success
                 ? 'Leave request submitted successfully!'
-                : 'Failed to submit leave request. Please try again.',
+                : (errorMsg != null && errorMsg.isNotEmpty
+                    ? 'Submission Failed: $errorMsg'
+                    : 'Failed to submit leave request. Please try again.'),
           ),
           backgroundColor: success ? AppColors.success : AppColors.error,
           behavior: SnackBarBehavior.floating,
