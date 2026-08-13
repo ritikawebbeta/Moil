@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../utils/app_config.dart';
 
 /// Direct MyVI Gateway SMS Service called directly from Flutter Frontend
 class SmsDirectService {
@@ -16,7 +17,7 @@ class SmsDirectService {
   static String? _cachedToken;
   static DateTime? _tokenExpiry;
 
-  /// Obtain JWT Auth Token directly from MyVI Auth API
+  /// Obtain JWT Auth Token directly or via backend token proxy
   static Future<String?> getAuthToken() async {
     if (_cachedToken != null &&
         _tokenExpiry != null &&
@@ -24,6 +25,22 @@ class SmsDirectService {
       return _cachedToken;
     }
 
+    // 1. Try backend JWT token proxy (avoids browser port 8443 CORS block)
+    try {
+      final proxyRes = await http.get(Uri.parse('${AppConfig.baseUrl}/api/sms/token'));
+      if (proxyRes.statusCode == 200) {
+        final decoded = jsonDecode(proxyRes.body);
+        final token = decoded['token']?.toString()?.trim() ?? '';
+        if (token.isNotEmpty) {
+          _cachedToken = token;
+          _tokenExpiry = DateTime.now().add(const Duration(minutes: 50));
+          print('[SMS Auth] JWT token obtained via token service.');
+          return token;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Direct HTTPS call fallback for Mobile / Desktop
     try {
       final response = await http.post(
         Uri.parse(authUrl),
@@ -39,7 +56,7 @@ class SmsDirectService {
         if (token.isNotEmpty) {
           _cachedToken = token;
           _tokenExpiry = DateTime.now().add(const Duration(minutes: 50));
-          print('[SMS Direct Auth] JWT token obtained successfully.');
+          print('[SMS Direct Auth] JWT token obtained directly.');
           return token;
         }
       }
@@ -60,8 +77,27 @@ class SmsDirectService {
           ? mobileNumber.trim().replaceAll(RegExp(r'[^\d]'), '')
           : defaultMobile;
       final targetPhone = (phone.length >= 10) ? phone.substring(phone.length - 10) : defaultMobile;
-      final token = await getAuthToken();
 
+      // 1. Try dispatching via SMS proxy endpoint
+      try {
+        final proxyRes = await http.post(
+          Uri.parse('${AppConfig.baseUrl}/api/send-sms'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'template_id': dltTemplateId,
+            'mobile': targetPhone,
+            'script': script,
+            'applicant_name': 'Employee',
+          }),
+        );
+        if (proxyRes.statusCode == 200) {
+          print('[SMS Direct Dispatch] Success via proxy endpoint: ${proxyRes.body}');
+          return true;
+        }
+      } catch (_) {}
+
+      // 2. Direct HTTPS call fallback with JWT Token
+      final token = await getAuthToken();
       final headers = <String, String>{
         'Content-Type': 'application/json',
       };
@@ -78,9 +114,7 @@ class SmsDirectService {
         'DLTTemplateid': dltTemplateId,
       };
 
-      if (kDebugMode) {
-        debugPrint('[SMS Direct Request] URL: $sendSmsUrl | Target: $targetPhone | Template: $dltTemplateId | Script: $script');
-      }
+      print('[SMS Direct Request] Target: $targetPhone | Template: $dltTemplateId | Token: ${token != null ? "VALID" : "NULL"}');
 
       final response = await http.post(
         Uri.parse(sendSmsUrl),
@@ -88,15 +122,10 @@ class SmsDirectService {
         body: jsonEncode(payload),
       );
 
-      if (kDebugMode) {
-        debugPrint('[SMS Direct Response] Code: ${response.statusCode} | Body: ${response.body}');
-      }
-
+      print('[SMS Direct Response] Code: ${response.statusCode} | Body: ${response.body}');
       return response.statusCode == 200;
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[SMS Direct Error] $e');
-      }
+      print('[SMS Direct Exception] $e');
       return false;
     }
   }
