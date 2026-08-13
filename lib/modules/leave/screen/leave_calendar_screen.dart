@@ -14,6 +14,8 @@ import '../../profile/controller/profile_controller.dart';
 import '../../../model/user_model.dart';
 
 import '../../holiday/controller/holiday_controller.dart';
+import '../../tour/controller/tour_controller.dart';
+import '../../../model/tour_model.dart';
 
 class LeaveCalendarScreen extends StatefulWidget {
   const LeaveCalendarScreen({super.key});
@@ -66,6 +68,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
       final empId = context.read<AuthController>().user?.employeeId ?? '';
       if (empId.isNotEmpty) {
         context.read<LeaveController>().fetchLeaves(empId);
+        context.read<TourController>().fetchTours(empId);
       }
       context.read<LeaveController>().fetchTeamCalendar();
       context.read<HolidayController>().fetchHolidays();
@@ -120,8 +123,9 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
 
   // ─── Personal Calendar ────────────────────────────────────────────
   Widget _buildPersonalCalendar() {
-    return Consumer<LeaveController>(
-      builder: (context, controller, _) {
+    return Consumer2<LeaveController, TourController>(
+      builder: (context, leaveController, tourController, _) {
+        final tours = tourController.tours;
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -141,7 +145,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                       _focusedDay = focusedDay;
                     });
                   },
-                  eventLoader: (day) => _getEventsForDay(day, controller.leaves),
+                  eventLoader: (day) => _getEventsForDay(day, leaveController.leaves, tours),
                   calendarBuilders: CalendarBuilders(
                     markerBuilder: (context, date, events) {
                       if (events.isEmpty) return const SizedBox.shrink();
@@ -158,21 +162,26 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                       );
                     },
                     defaultBuilder: (context, day, focusedDay) {
-                      final events = _getEventsForDay(day, controller.leaves);
+                      final events = _getEventsForDay(day, leaveController.leaves, tours);
                       if (events.isNotEmpty) {
                         final leave = events.first;
                         final isHoliday = leave.status.toUpperCase() == 'HOLIDAY';
-                        final isApproved = leave.status.toUpperCase() == 'APPROVED';
+                        final isTour = leave.leaveType.toUpperCase().contains('TOUR') || leave.leaveType.toUpperCase().contains('TRAVEL');
+                        final isApproved = leave.status.toUpperCase() == 'APPROVED' || leave.status.toUpperCase() == 'POSTED';
                         final bg = isHoliday
                             ? AppColors.warning.withOpacity(0.3)
-                            : isApproved
-                                ? AppColors.success.withOpacity(0.2)
-                                : AppColors.primary.withOpacity(0.2);
+                            : isTour
+                                ? AppColors.officialTour.withOpacity(0.3)
+                                : isApproved
+                                    ? AppColors.success.withOpacity(0.2)
+                                    : AppColors.primary.withOpacity(0.2);
                         final fg = isHoliday
                             ? AppColors.warning
-                            : isApproved
-                                ? AppColors.success
-                                : AppColors.primary;
+                            : isTour
+                                ? AppColors.officialTour
+                                : isApproved
+                                    ? AppColors.success
+                                    : AppColors.primary;
                         return Container(
                           margin: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
@@ -234,7 +243,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
               const SizedBox(height: 16),
               _buildLegend(),
               const SizedBox(height: 16),
-              if (_selectedDay != null) _buildSelectedDayEvents(controller),
+              if (_selectedDay != null) _buildSelectedDayEvents(leaveController, tours),
             ],
           ),
         );
@@ -242,10 +251,31 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
     );
   }
 
-  List<LeaveModel> _getEventsForDay(DateTime day, List<LeaveModel> leaves) {
+  List<LeaveModel> _getEventsForDay(DateTime day, List<LeaveModel> leaves, [List<TourModel>? tours]) {
     final list = leaves.where((leave) {
       return !day.isBefore(leave.startDate) && !day.isAfter(leave.endDate);
     }).toList();
+
+    if (tours != null) {
+      for (var t in tours) {
+        if (!day.isBefore(t.startDate) && !day.isAfter(t.endDate)) {
+          list.insert(0, LeaveModel(
+            id: t.id,
+            employeeId: t.employeeId,
+            leaveType: 'Official Tour (${t.destination})',
+            startDate: t.startDate,
+            startTime: '00:00:00',
+            endDate: t.endDate,
+            endTime: '00:00:00',
+            duration: 'Tour',
+            status: t.status,
+            reason: t.travelPurpose,
+            processor: t.reportingOfficerName,
+            processor1: t.reportingOfficer1Name,
+          ));
+        }
+      }
+    }
 
     final dateKey = DateFormat('yyyy-MM-dd').format(day);
     if (_mandatoryHolidays.containsKey(dateKey)) {
@@ -288,14 +318,14 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
     );
   }
 
-  Widget _buildSelectedDayEvents(LeaveController controller) {
-    final events = _getEventsForDay(_selectedDay!, controller.leaves);
+  Widget _buildSelectedDayEvents(LeaveController controller, [List<TourModel>? tours]) {
+    final events = _getEventsForDay(_selectedDay!, controller.leaves, tours);
     if (events.isEmpty) {
       return GlassCard(
         padding: const EdgeInsets.all(20),
         child: Center(
           child: Text(
-            'No leave on ${DateFormat('dd MMM yyyy').format(_selectedDay!)}',
+            'No leave or tour on ${DateFormat('dd MMM yyyy').format(_selectedDay!)}',
             style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
         ),
