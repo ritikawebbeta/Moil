@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import '../utils/app_config.dart';
 
-/// Direct MyVI Gateway SMS Service with Web CORS fallback support
+/// Direct MyVI Gateway SMS Service executed directly from Flutter Frontend (Dart)
 class SmsDirectService {
   static const String authUrl = 'https://cts.myvi.in:8443/ManageSms/api/AuthJwt/Authenticate';
   static const String sendSmsUrl = 'https://cts.myvi.in:8443/ManageSms/api/sms/Createsms/json/apikey=ng6q1u';
@@ -17,7 +16,7 @@ class SmsDirectService {
   static String? _cachedToken;
   static DateTime? _tokenExpiry;
 
-  /// Obtain JWT Auth Token directly from MyVI Gateway Auth API
+  /// Obtain JWT Auth Token directly from MyVI Gateway Auth API in Flutter
   static Future<String?> getAuthToken() async {
     if (_cachedToken != null &&
         _tokenExpiry != null &&
@@ -25,7 +24,6 @@ class SmsDirectService {
       return _cachedToken;
     }
 
-    // 1. Direct HTTPS call (Works on Mobile/Desktop)
     try {
       final response = await http.post(
         Uri.parse(authUrl),
@@ -41,25 +39,17 @@ class SmsDirectService {
         if (token.isNotEmpty) {
           _cachedToken = token;
           _tokenExpiry = DateTime.now().add(const Duration(minutes: 50));
+          if (kDebugMode) {
+            debugPrint('[SMS Auth Success] JWT Token: $token');
+          }
           return token;
         }
       }
-    } catch (_) {}
-
-    // 2. Fallback via backend token proxy endpoint (Works on Web CORS)
-    try {
-      final proxyRes = await http.get(Uri.parse('${AppConfig.baseUrl}/api/sms/token'));
-      if (proxyRes.statusCode == 200) {
-        final decoded = jsonDecode(proxyRes.body);
-        final token = decoded['token']?.toString()?.trim() ?? '';
-        if (token.isNotEmpty) {
-          _cachedToken = token;
-          _tokenExpiry = DateTime.now().add(const Duration(minutes: 50));
-          return token;
-        }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[SMS Auth Error] $e');
       }
-    } catch (_) {}
-
+    }
     return null;
   }
 
@@ -77,7 +67,7 @@ class SmsDirectService {
     return defaultMobile;
   }
 
-  /// Direct SMS dispatch to MyVI Gateway API with Web CORS fallback
+  /// Direct SMS dispatch to MyVI Gateway API in Flutter
   static Future<bool> sendSms({
     required String script,
     required String dltTemplateId,
@@ -86,7 +76,6 @@ class SmsDirectService {
     try {
       final targetPhone = resolveMobile(mobileNumber);
 
-      // 1. Direct HTTPS call to MyVI API
       final token = await getAuthToken();
       final headers = <String, String>{
         'Content-Type': 'application/json',
@@ -104,32 +93,27 @@ class SmsDirectService {
         'DLTTemplateid': dltTemplateId,
       };
 
+      if (kDebugMode) {
+        debugPrint('[SMS Direct Request] Target: $targetPhone | DLT ID: $dltTemplateId | Token: ${token != null ? "VALID" : "NULL"}');
+      }
+
       final response = await http.post(
         Uri.parse(sendSmsUrl),
         headers: headers,
         body: jsonEncode(payload),
       );
 
-      if (response.statusCode == 200) {
-        return true;
+      if (kDebugMode) {
+        debugPrint('[SMS Direct Response] Code: ${response.statusCode} | Body: ${response.body}');
       }
-    } catch (_) {
-      // 2. Fallback via backend SMS endpoint if browser CORS blocks port 8443
-      try {
-        final targetPhone = resolveMobile(mobileNumber);
-        final proxyRes = await http.post(
-          Uri.parse('${AppConfig.baseUrl}/api/send-sms'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'mobile': targetPhone,
-            'script': script,
-            'dlt_template_id': dltTemplateId,
-          }),
-        );
-        return proxyRes.statusCode == 200;
-      } catch (_) {}
+
+      return response.statusCode == 200;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[SMS Direct Exception] $e');
+      }
+      return false;
     }
-    return false;
   }
 
   // Format Helper: Name with Salutation (e.g. Mr. Raja Talathoti)
