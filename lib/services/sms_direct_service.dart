@@ -18,11 +18,6 @@ class SmsDirectService {
 
   /// Obtain JWT Auth Token directly from MyVI Auth API
   static Future<String?> getAuthToken() async {
-    if (kIsWeb) {
-      // Web browsers block direct cross-origin requests to port 8443 (CORS policy)
-      return null;
-    }
-
     if (_cachedToken != null &&
         _tokenExpiry != null &&
         DateTime.now().isBefore(_tokenExpiry!)) {
@@ -44,10 +39,13 @@ class SmsDirectService {
         if (token.isNotEmpty) {
           _cachedToken = token;
           _tokenExpiry = DateTime.now().add(const Duration(minutes: 50));
+          print('[SMS Direct Auth] JWT token obtained successfully.');
           return token;
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      print('[SMS Direct Auth Exception] $e');
+    }
     return null;
   }
 
@@ -57,10 +55,6 @@ class SmsDirectService {
     required String dltTemplateId,
     String? mobileNumber,
   }) async {
-    if (kIsWeb) {
-      // Web browsers block direct cross-origin calls to MyVI gateway. SMS is dispatched via backend.
-      return false;
-    }
     try {
       final phone = (mobileNumber != null && mobileNumber.trim().isNotEmpty)
           ? mobileNumber.trim().replaceAll(RegExp(r'[^\d]'), '')
