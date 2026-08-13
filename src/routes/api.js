@@ -933,17 +933,25 @@ router.get('/leaves', authenticateToken, async (req, res) => {
     const paddedPernr = rawPernr.padStart(8, '0');
 
     let dateWhere = '';
-    const dateParams = [rawPernr, paddedPernr];
+    const dateParams = [rawPernr, paddedPernr, rawPernr];
     if (showFrom) {
-      dateWhere = ' AND (end_date >= ? OR start_date >= ? OR start_date IS NULL) ';
-      dateParams.push(showFrom, showFrom);
+      dateWhere = ` AND (
+        (start_date REGEXP '^[0-9]{2}\\\\.[0-9]{2}\\\\.[0-9]{4}$' AND STR_TO_DATE(start_date, '%d.%m.%Y') >= ?) OR
+        (start_date REGEXP '^[0-9]{2}-[0-9]{2}-[0-9]{4}$' AND STR_TO_DATE(start_date, '%d-%m-%Y') >= ?) OR
+        (start_date REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND STR_TO_DATE(start_date, '%Y-%m-%d') >= ?) OR
+        (end_date REGEXP '^[0-9]{2}\\\\.[0-9]{2}\\\\.[0-9]{4}$' AND STR_TO_DATE(end_date, '%d.%m.%Y') >= ?) OR
+        (end_date REGEXP '^[0-9]{2}-[0-9]{2}-[0-9]{4}$' AND STR_TO_DATE(end_date, '%d-%m-%Y') >= ?) OR
+        (end_date REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND STR_TO_DATE(end_date, '%Y-%m-%d') >= ?) OR
+        start_date IS NULL OR start_date = ''
+      ) `;
+      dateParams.push(showFrom, showFrom, showFrom, showFrom, showFrom, showFrom);
     }
 
     // 1. Fetch leave applications
     const [leaveRows] = await pool.query(
       `SELECT id_of_request_item, personnel_number, sub_type, start_date, end_date, start_time, end_time, calendar_days 
        FROM ptreq_attabsdata_leave_apply_1 
-       WHERE (personnel_number = ? OR personnel_number = ?) ${dateWhere}
+       WHERE (personnel_number = ? OR personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)) ${dateWhere}
        ORDER BY 
          CASE 
            WHEN start_date REGEXP '^[0-9]{2}\\\.[0-9]{2}\\\.[0-9]{4}$' THEN STR_TO_DATE(start_date, '%d.%m.%Y')
@@ -1446,18 +1454,21 @@ router.post(['/leaves', '/leaves/apply'], authenticateToken, async (req, res) =>
       const [maxIdRows] = await conn.query('SELECT MAX(CAST(row_id AS UNSIGNED)) AS max_id FROM ptreq_header_leave_approved_1');
       const nextId = (maxIdRows[0].max_id || 4800000) + 1;
 
+      // SAP Excel Serial Timestamp format (e.g. 44399.229791666665)
+      const serialTimestamp = ((new Date() - new Date(1899, 11, 30)) / 86400000).toString();
+
       const headerQuery = `
         INSERT INTO ptreq_header_leave_approved_1 (
           document_identification, document_version, document_category, document_status, 
           guid, guid_1, guid_2, guid_3, guid_4, guid_5, guid_6, guid_7, 
           id_of_request_item_list, last_changed_by, time_stamp, time_zone, id
-        ) VALUES (?, '2', 'ABSREQ', 'SENT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'INDIA', ?)
+        ) VALUES (?, '2', 'ABSREQ', 'SENT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INDIA', ?)
       `;
       const randomGuid = generateHexId();
       const paddedPernr = employeeId.toString().trim().padStart(8, '0');
       const changedByFormatted = `HR_app_${paddedPernr}`;
       await conn.query(headerQuery, [
-        reqItemId, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, reqItemListId, changedByFormatted, nextId
+        reqItemId, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, randomGuid, reqItemListId, changedByFormatted, serialTimestamp, nextId
       ]);
 
       // Sync into absence table
