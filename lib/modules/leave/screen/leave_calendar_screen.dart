@@ -298,6 +298,51 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
     );
   }
 
+  DateTime? _parseFlexibleDate(dynamic dateVal) {
+    if (dateVal == null) return null;
+    final str = dateVal.toString().trim();
+    if (str.isEmpty || str == 'null') return null;
+    try {
+      return DateTime.parse(str);
+    } catch (_) {}
+    try {
+      final parts = str.split(RegExp(r'[-./]'));
+      if (parts.length >= 3) {
+        if (parts[0].length == 4) {
+          return DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+        } else if (parts[2].length == 4) {
+          return DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Color _getLeaveColor(String type, String status) {
+    final upperType = type.toUpperCase();
+    final upperStatus = status.toUpperCase();
+    if (upperStatus == 'REJECTED') return AppColors.error;
+    if (upperType.contains('CASUAL') || upperType.contains('CL')) return Colors.amber.shade700;
+    if (upperType.contains('EARNED') || upperType.contains('EL')) return AppColors.primary;
+    if (upperType.contains('HPL') || upperType.contains('HALF')) return Colors.purple.shade600;
+    if (upperType.contains('OPTIONAL') || upperType.contains('OL')) return Colors.teal;
+    if (upperType.contains('TOUR') || upperType.contains('TRAVEL')) return AppColors.officialTour;
+    if (upperStatus == 'APPROVED' || upperStatus == 'POSTED') return AppColors.success;
+    return AppColors.primary.withOpacity(0.7);
+  }
+
+  String _getLeaveBadgeCode(String type) {
+    final upper = type.toUpperCase();
+    if (upper.contains('CASUAL')) return 'CL';
+    if (upper.contains('EARNED')) return 'EL';
+    if (upper.contains('CHPL')) return 'CHPL';
+    if (upper.contains('HPL')) return 'HPL';
+    if (upper.contains('OPTIONAL')) return 'OL';
+    if (upper.contains('SPECIAL')) return 'SL';
+    if (upper.contains('TOUR')) return 'TR';
+    return 'LV';
+  }
+
   // ─── Team Calendar ────────────────────────────────────────────────
   Widget _buildTeamCalendar() {
     return SingleChildScrollView(
@@ -315,6 +360,9 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
   }
 
   Widget _buildTeamCalendarControls() {
+    final currentYear = DateTime.now().year;
+    final yearOptions = List.generate(currentYear - 2022 + 1, (i) => (2022 + i).toString());
+
     return GlassCard(
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -329,8 +377,8 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
               setState(() => _tempMonth = monthIndex);
             }),
           const SizedBox(width: 4),
-          _buildControlChip(label: '', value: _tempYear.toString(),
-            options: const ['2025', '2026', '2027'],
+          _buildControlChip(label: '', value: yearOptions.contains(_tempYear.toString()) ? _tempYear.toString() : currentYear.toString(),
+            options: yearOptions,
             onSelect: (v) => setState(() => _tempYear = int.parse(v))),
           const SizedBox(width: 8),
           GestureDetector(
@@ -405,26 +453,33 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
       for (var item in dbTeamCalendar) {
         final name = item['name']?.toString() ?? 'Unknown';
         final List<dynamic> leavesList = item['leaves'] ?? [];
-        final List<int> leaveDays = [];
+        final Map<int, Map<String, String>> leaveDaysMap = {};
 
         for (var l in leavesList) {
           try {
-            final start = DateTime.parse(l['startDate']);
-            final end = DateTime.parse(l['endDate']);
-            
-            DateTime current = start;
-            while (current.isBefore(end) || current.isAtSameMomentAs(end)) {
-              if (current.year == _focusedDay.year && current.month == _focusedDay.month) {
-                leaveDays.add(current.day);
+            final start = _parseFlexibleDate(l['startDate']);
+            final end = _parseFlexibleDate(l['endDate']);
+            final type = l['leaveType']?.toString() ?? 'Earned leave';
+            final status = l['status']?.toString() ?? 'Approved';
+
+            if (start != null && end != null) {
+              DateTime current = start;
+              while (current.isBefore(end) || current.isAtSameMomentAs(end)) {
+                if (current.year == _focusedDay.year && current.month == _focusedDay.month) {
+                  leaveDaysMap[current.day] = {
+                    'type': type,
+                    'status': status,
+                  };
+                }
+                current = current.add(const Duration(days: 1));
               }
-              current = current.add(const Duration(days: 1));
             }
           } catch (_) {}
         }
 
         teamMembersWithLeaves.add({
           'name': name,
-          'leaveDays': leaveDays,
+          'leaveDaysMap': leaveDaysMap,
         });
       }
     } else {
@@ -442,7 +497,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
       for (var name in teamList) {
         teamMembersWithLeaves.add({
           'name': name,
-          'leaveDays': <int>[],
+          'leaveDaysMap': <int, Map<String, String>>{},
         });
       }
     }
@@ -465,11 +520,20 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                 _buildDateHeaderRow(daysInMonth, firstDay),
                 const Divider(height: 1, color: AppColors.cardBorder),
                 // Team member rows
-                ...teamMembersWithLeaves.asMap().entries.map((e) {
-                  final name = e.value['name']?.toString() ?? '';
-                  final leaveDays = List<int>.from(e.value['leaveDays'] ?? []);
-                  return _buildTeamMemberRow(name, leaveDays, daysInMonth, firstDay, e.key.isEven);
-                }),
+                if (teamMembersWithLeaves.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      'No team members found',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                  )
+                else
+                  ...teamMembersWithLeaves.asMap().entries.map((e) {
+                    final name = e.value['name']?.toString() ?? '';
+                    final leaveDaysMap = Map<int, Map<String, String>>.from(e.value['leaveDaysMap'] ?? {});
+                    return _buildTeamMemberRow(name, leaveDaysMap, daysInMonth, firstDay, e.key.isEven);
+                  }),
               ],
             ),
           ),
@@ -498,7 +562,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
             final date = DateTime(firstDay.year, firstDay.month, day);
             final isWeekend = date.weekday == DateTime.sunday;
             return Container(
-              width: 28,
+              width: 32,
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Column(
                 children: [
@@ -526,7 +590,7 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
     );
   }
 
-  Widget _buildTeamMemberRow(String name, List<int> leaveDays, int daysInMonth, DateTime firstDay, bool isEven) {
+  Widget _buildTeamMemberRow(String name, Map<int, Map<String, String>> leaveDaysMap, int daysInMonth, DateTime firstDay, bool isEven) {
     return Column(
       children: [
         Container(
@@ -539,9 +603,9 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                 child: Text(
                   name,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 11),
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w500),
                   maxLines: 2,
-                  overflow: TextOverflow.fade,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               // Day cells
@@ -549,17 +613,47 @@ class _LeaveCalendarScreenState extends State<LeaveCalendarScreen>
                 final day = i + 1;
                 final date = DateTime(firstDay.year, firstDay.month, day);
                 final isWeekend = date.weekday == DateTime.sunday;
-                final hasLeave = leaveDays.contains(day);
+                final leaveInfo = leaveDaysMap[day];
+
+                if (leaveInfo != null) {
+                  final type = leaveInfo['type'] ?? 'Leave';
+                  final status = leaveInfo['status'] ?? 'Approved';
+                  final color = _getLeaveColor(type, status);
+                  final badgeCode = _getLeaveBadgeCode(type);
+
+                  return Tooltip(
+                    message: '$name: $type ($status)',
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(color: AppColors.cardBorder.withOpacity(0.3), width: 0.5),
+                        ),
+                      ),
+                      child: Container(
+                        width: 24,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          badgeCode,
+                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  );
+                }
 
                 return Container(
-                  width: 28,
+                  width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: isWeekend
-                        ? AppColors.textHint.withOpacity(0.1)
-                        : hasLeave
-                            ? AppColors.accent.withOpacity(0.3)
-                            : Colors.transparent,
+                    color: isWeekend ? AppColors.textHint.withOpacity(0.12) : Colors.transparent,
                     border: Border(
                       left: BorderSide(color: AppColors.cardBorder.withOpacity(0.3), width: 0.5),
                     ),
