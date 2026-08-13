@@ -3343,9 +3343,9 @@ router.get('/leaves/team-calendar', authenticateToken, async (req, res) => {
       const leavesQuery = `
         SELECT a.start_date, a.end_date, a.sub_type, h.document_status
         FROM ptreq_attabsdata_leave_apply_1 a
-        JOIN ptreq_header_leave_approved_1 h ON a.id_of_request_item = h.document_identification
+        LEFT JOIN ptreq_header_leave_approved_1 h ON a.id_of_request_item = h.document_identification
         WHERE CAST(a.personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)
-          AND h.document_status IN ('APPROVED', 'POSTED', 'SENT', 'SENT_L2', 'PENDING', 'NEW')
+          AND (h.document_status IS NULL OR h.document_status NOT IN ('REJECTED', 'DELETED'))
       `;
       const [leaves] = await pool.query(leavesQuery, [cleanSubId]);
 
@@ -3374,10 +3374,33 @@ router.get('/leaves/team-calendar', authenticateToken, async (req, res) => {
         };
       });
 
+      // 3. Fetch tours for this team member
+      const toursQuery = `
+        SELECT beginning_date_of_trip_segment, end_date_of_trip_segment, trip_destination, reason_for_trip, planning_status
+        FROM travel
+        WHERE CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)
+          AND (planning_status IS NULL OR planning_status NOT IN ('3'))
+      `;
+      const [tours] = await pool.query(toursQuery, [cleanSubId]);
+
+      const formattedTours = tours.map(t => {
+        let status = 'Approved';
+        const rawStatus = (t.planning_status || '').toString().trim();
+        if (rawStatus === '0') status = 'Draft';
+        else if (rawStatus === '1' || rawStatus === '11') status = 'In Process';
+
+        return {
+          startDate: t.beginning_date_of_trip_segment,
+          endDate: t.end_date_of_trip_segment,
+          leaveType: `Official Tour (${t.trip_destination || 'Tour'})`,
+          status
+        };
+      });
+
       result.push({
         employee_number: cleanSubId,
         name: sub.employee_name,
-        leaves: formattedLeaves
+        leaves: [...formattedLeaves, ...formattedTours]
       });
     }
 
