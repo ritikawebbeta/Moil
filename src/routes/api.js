@@ -2999,50 +2999,62 @@ router.post('/leave-encashment', authenticateToken, async (req, res) => {
 
     // 3. Encashment rule: Cap requested days to 30
     const finalDays = Math.min(requestedDays, 30);
+    const todayStr = new Date().toISOString().split('T')[0];
     const loggedInPaddedPernr = loggedInId.toString().trim().padStart(8, '0');
-    const changedByFormatted = `HR_app_${loggedInPaddedPernr}`;
+    const changedByFormatted = `HR_APP_${loggedInPaddedPernr}`;
     const docNumber = '303' + Math.floor(100000000 + Math.random() * 900000000).toString();
+    const encashSubtype = req.body.subtype || req.body.sub_type || '1000';
 
-    // 4. Insert into time_quota_compensation_infotype table
+    // 4. Insert into time_quota_compensation_infotype table with exact specified details
     const insertQuery = `
       INSERT INTO time_quota_compensation_infotype (
-        personnel_number, sub_type, start_date, end_date, comp__quota_number, 
-        quota_type, time_quota_compensation_method, changed_by, changed_on, infotype_record_no, logical_system, document_number,
+        personnel_number, sub_type, start_date, end_date, infotype_record_no, 
+        changed_on, changed_by, comp__quota_number, quota_type, 
+        time_quota_compensation_method, absence_quota_type, deduction_rule, document_number,
         encashment_status, is_quota_deducted
-      ) VALUES (?, '1000', CURDATE(), CURDATE(), ?, '01', '1000', ?, NOW(), '0', 'PECCLNT100', ?, 'PENDING', 0)
+      ) VALUES (?, ?, ?, ?, '0', ?, ?, ?, 'A', '1000', '1', '0', ?, 'APPROVED', 1)
     `;
-    const [result] = await pool.query(insertQuery, [paddedPernr, finalDays, changedByFormatted, docNumber]);
+    const [result] = await pool.query(insertQuery, [
+      paddedPernr, encashSubtype, todayStr, todayStr, todayStr, changedByFormatted, finalDays, docNumber
+    ]);
 
-    // 6. Record outbound change (pending — will be updated on approval)
+    // 5. Subtract number of days from leave_quota table for Earned Leave immediately upon submission
+    await pool.query(
+      `UPDATE leave_quota 
+       SET quota_deduction = CAST(CAST(COALESCE(quota_deduction, '0') AS DECIMAL(10,2)) + ? AS CHAR) 
+       WHERE (personnel_number = ? OR personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = CAST(? AS UNSIGNED)) 
+         AND (absence_quota_type = '1' OR sub_type = '01' OR sub_type = '1000')`,
+      [finalDays, cleanEmpId, paddedPernr, cleanEmpId]
+    );
+
+    // 6. Record outbound change
     await recordOutboundChange(
       'time_quota_compensation_infotype',
       docNumber,
       'INSERT',
-      { personnel_number: paddedPernr, comp__quota_number: finalDays, changed_by: changedByFormatted, encashment_status: 'PENDING' },
-      { personnel_number: paddedPernr, sub_type: '1000', comp__quota_number: finalDays, quota_type: '01', time_quota_compensation_method: '1000', changed_by: changedByFormatted, document_number: docNumber, encashment_status: 'PENDING' }
+      { personnel_number: paddedPernr, comp__quota_number: finalDays, changed_by: changedByFormatted, encashment_status: 'APPROVED' },
+      { personnel_number: paddedPernr, sub_type: encashSubtype, comp__quota_number: finalDays, quota_type: 'A', time_quota_compensation_method: '1000', changed_by: changedByFormatted, document_number: docNumber, encashment_status: 'APPROVED' }
     );
 
     // 7. Notify applicant + ROs
     const applicantName = await getEmployeeName(cleanEmpId);
-    await createNotification(cleanEmpId, 'Leave Encashment Submitted',
-      `Your leave encashment request for ${finalDays} days has been submitted and is pending approval.`, 'Leave');
+    await createNotification(cleanEmpId, 'Leave Encashment Processed',
+      `Your leave encashment request for ${finalDays} days has been submitted and processed.`, 'Leave');
     if (l1 && l1 !== '0' && l1 !== 'N/A') {
-      await createNotification(l1, 'New Encashment Request',
+      await createNotification(l1, 'Leave Encashment Processed',
         `${applicantName} (${cleanEmpId}) submitted a leave encashment request for ${finalDays} days.`, 'Leave');
     }
     if (l2 && l2 !== '0' && l2 !== 'N/A' && l2 !== l1) {
-      await createNotification(l2, 'New Encashment Request',
+      await createNotification(l2, 'Leave Encashment Processed',
         `${applicantName} (${cleanEmpId}) submitted a leave encashment request for ${finalDays} days.`, 'Leave');
     }
 
-
-
     res.status(201).json({
-      message: 'Leave encashment request submitted successfully. Pending approval.',
+      message: 'Leave encashment processed successfully. Quota deducted.',
       id: result.insertId,
       docNumber,
       appliedDays: finalDays,
-      encashmentStatus: 'PENDING'
+      encashmentStatus: 'APPROVED'
     });
   } catch (error) {
     console.error('[Leave Encashment Error]', error.message);
