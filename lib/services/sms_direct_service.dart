@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../utils/app_config.dart';
 
-/// Direct MyVI Gateway SMS Service executed directly from Flutter Frontend (Dart)
+/// Direct MyVI Gateway SMS Service with automatic Web CORS fallback (Postman-style server proxy)
 class SmsDirectService {
   static const String authUrl = 'https://cts.myvi.in:8443/ManageSms/api/AuthJwt/Authenticate';
   static const String sendSmsUrl = 'https://cts.myvi.in:8443/ManageSms/api/sms/Createsms/json/apikey=ng6q1u';
@@ -16,7 +17,7 @@ class SmsDirectService {
   static String? _cachedToken;
   static DateTime? _tokenExpiry;
 
-  /// Obtain JWT Auth Token directly from MyVI Gateway Auth API in Flutter
+  /// Obtain JWT Auth Token directly from MyVI Gateway Auth API or via backend proxy on Web
   static Future<String?> getAuthToken() async {
     if (_cachedToken != null &&
         _tokenExpiry != null &&
@@ -24,6 +25,7 @@ class SmsDirectService {
       return _cachedToken;
     }
 
+    // 1. Direct HTTPS call (Works on Mobile/Desktop)
     try {
       final response = await http.post(
         Uri.parse(authUrl),
@@ -39,17 +41,25 @@ class SmsDirectService {
         if (token.isNotEmpty) {
           _cachedToken = token;
           _tokenExpiry = DateTime.now().add(const Duration(minutes: 50));
-          if (kDebugMode) {
-            debugPrint('[SMS Auth Success] JWT Token: $token');
-          }
           return token;
         }
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[SMS Auth Error] $e');
+    } catch (_) {}
+
+    // 2. Server Proxy call (Works on Web CORS)
+    try {
+      final proxyRes = await http.get(Uri.parse('${AppConfig.baseUrl}/api/sms/token'));
+      if (proxyRes.statusCode == 200) {
+        final decoded = jsonDecode(proxyRes.body);
+        final token = decoded['token']?.toString()?.trim() ?? '';
+        if (token.isNotEmpty) {
+          _cachedToken = token;
+          _tokenExpiry = DateTime.now().add(const Duration(minutes: 50));
+          return token;
+        }
       }
-    }
+    } catch (_) {}
+
     return null;
   }
 
@@ -67,15 +77,16 @@ class SmsDirectService {
     return defaultMobile;
   }
 
-  /// Direct SMS dispatch to MyVI Gateway API in Flutter
+  /// Direct SMS dispatch with Postman-style server proxy fallback for Web browsers
   static Future<bool> sendSms({
     required String script,
     required String dltTemplateId,
     String? mobileNumber,
   }) async {
-    try {
-      final targetPhone = resolveMobile(mobileNumber);
+    final targetPhone = resolveMobile(mobileNumber);
 
+    // 1. Try direct HTTPS call (For Mobile / Desktop apps)
+    try {
       final token = await getAuthToken();
       final headers = <String, String>{
         'Content-Type': 'application/json',
@@ -93,24 +104,38 @@ class SmsDirectService {
         'DLTTemplateid': dltTemplateId,
       };
 
-      if (kDebugMode) {
-        debugPrint('[SMS Direct Request] Target: $targetPhone | DLT ID: $dltTemplateId | Token: ${token != null ? "VALID" : "NULL"}');
-      }
-
       final response = await http.post(
         Uri.parse(sendSmsUrl),
         headers: headers,
         body: jsonEncode(payload),
       );
 
-      if (kDebugMode) {
-        debugPrint('[SMS Direct Response] Code: ${response.statusCode} | Body: ${response.body}');
+      if (response.statusCode == 200) {
+        if (kDebugMode) {
+          debugPrint('[SMS Direct Success] To: $targetPhone');
+        }
+        return true;
       }
+    } catch (_) {}
 
-      return response.statusCode == 200;
+    // 2. Server Proxy fallback (For Web browsers where CORS blocks port 8443)
+    try {
+      final proxyRes = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/api/send-sms'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'mobile': targetPhone,
+          'script': script,
+          'dlt_template_id': dltTemplateId,
+        }),
+      );
+      if (kDebugMode) {
+        debugPrint('[SMS Proxy Response] Code: ${proxyRes.statusCode} | Body: ${proxyRes.body}');
+      }
+      return proxyRes.statusCode == 200;
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('[SMS Direct Exception] $e');
+        debugPrint('[SMS Dispatch Exception] $e');
       }
       return false;
     }
