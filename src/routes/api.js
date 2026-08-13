@@ -7,6 +7,7 @@ const path = require('path');
 const xlsx = require('xlsx');
 const authenticateToken = require('../middleware/auth');
 const { pool } = require('../config/db');
+const smsService = require('../utils/smsService');
 
 
 // Helper to format dates consistently (DD-MM-YYYY)
@@ -3150,11 +3151,28 @@ router.post('/leave-encashment/reject', authenticateToken, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/sms/token
+ * @desc    Obtain JWT auth token from MyVI SMS Gateway for SMS dispatch
+ */
+router.get('/sms/token', async (req, res) => {
+  try {
+    const token = await smsService.getAuthToken();
+    if (token) {
+      res.json({ success: true, token });
+    } else {
+      res.status(500).json({ error: 'Failed to obtain JWT auth token from MyVI gateway' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * @route   POST /api/send-sms
  * @desc    Send SMS notification using MOIL DLT templates (Templates 1 - 9)
  *          Default fallback mobile number: 9503864429
  */
-router.post('/send-sms', authenticateToken, async (req, res) => {
+router.post('/send-sms', async (req, res) => {
   const {
     template_id, templateId,
     mobile, mobileNumber,
