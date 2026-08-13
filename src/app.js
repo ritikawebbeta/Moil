@@ -6,6 +6,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const { testConnection } = require('./config/db');
 const apiRouter = require('./routes/api');
+const smsService = require('./utils/smsService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,6 +36,29 @@ app.use((req, res, next) => {
     return res.status(200).end();
   }
   next();
+});
+
+// Top-level CORS Proxy SMS Routes
+app.get(['/api/sms/token', '/test/moil_hr_app/api/sms/token', '/api/token', '/test/moil_hr_app/api/token'], async (req, res) => {
+  try {
+    const token = await smsService.getAuthToken();
+    if (token) return res.json({ success: true, token });
+    return res.status(500).json({ error: 'Failed to obtain JWT auth token' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post(['/api/send-sms', '/test/moil_hr_app/api/send-sms', '/api/sms/send', '/test/moil_hr_app/api/sms/send'], async (req, res) => {
+  const { mobile, mobileNumber, script, dlt_template_id, dltTemplateId, template_id } = req.body;
+  const targetPhone = mobile || mobileNumber || smsService.DEFAULT_MOBILE;
+  const tId = dlt_template_id || dltTemplateId || template_id || '1107163177301329708';
+  try {
+    const result = await smsService.sendSms({ mobileNumber: targetPhone, script: script || 'MOIL LMS Notification', dltTemplateId: tId });
+    return res.json({ message: 'SMS trigger processed', targetPhone, result });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to send SMS', message: err.message });
+  }
 });
 
 // Static uploads folder
