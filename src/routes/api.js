@@ -80,6 +80,49 @@ function formatDateDdMmYyyy(dateInput) {
 }
 
 /**
+ * @route   GET /api/sms/token
+ * @desc    Obtain JWT auth token from MyVI SMS Gateway for SMS dispatch
+ */
+router.get(['/sms/token', '/token'], async (req, res) => {
+  try {
+    const token = await smsService.getAuthToken();
+    if (token) {
+      res.json({ success: true, token });
+    } else {
+      res.status(500).json({ error: 'Failed to obtain JWT auth token from MyVI gateway' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/send-sms
+ * @desc    Send SMS notification using MOIL DLT templates (CORS-free server proxy)
+ */
+router.post(['/send-sms', '/sms/send'], async (req, res) => {
+  const {
+    mobile, mobileNumber,
+    script, dlt_template_id, dltTemplateId, template_id
+  } = req.body;
+
+  const targetPhone = mobile || mobileNumber || smsService.DEFAULT_MOBILE;
+  const tId = dlt_template_id || dltTemplateId || template_id || '1107163177301329708';
+
+  try {
+    const result = await smsService.sendSms({
+      mobileNumber: targetPhone,
+      script: script || 'MOIL LMS Notification',
+      dltTemplateId: tId
+    });
+    res.json({ message: 'SMS trigger processed', targetPhone, result });
+  } catch (error) {
+    console.error('[POST /api/send-sms Error]', error.message);
+    res.status(500).json({ error: 'Failed to send SMS', message: error.message });
+  }
+});
+
+/**
  * Format any date input to YYYY-MM-DD ISO format for frontend calendar parsing
  */
 function formatIsoDate(dateInput) {
