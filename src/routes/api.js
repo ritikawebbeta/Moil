@@ -2899,6 +2899,43 @@ router.post('/notifications/read', authenticateToken, async (req, res) => {
 });
 
 /**
+ * @route   POST /api/notifications/delete
+ */
+router.post('/notifications/delete', authenticateToken, async (req, res) => {
+  const employeeId = req.user.employee_number;
+  const notifId = req.body && req.body.id;
+  try {
+    if (notifId) {
+      await pool.query(
+        'DELETE FROM notifications WHERE id = ? AND (employee_id = ? OR CAST(employee_id AS UNSIGNED) = CAST(? AS UNSIGNED))',
+        [notifId, employeeId, employeeId]
+      );
+    }
+    res.json({ message: 'Notification deleted successfully' });
+  } catch (error) {
+    console.error('[Delete Notification Error]', error.message);
+    res.status(500).json({ error: 'Failed to delete notification', message: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/notifications/delete-all
+ */
+router.post('/notifications/delete-all', authenticateToken, async (req, res) => {
+  const employeeId = req.user.employee_number;
+  try {
+    await pool.query(
+      'DELETE FROM notifications WHERE employee_id = ? OR CAST(employee_id AS UNSIGNED) = CAST(? AS UNSIGNED)',
+      [employeeId, employeeId]
+    );
+    res.json({ message: 'All notifications deleted successfully' });
+  } catch (error) {
+    console.error('[Delete All Notifications Error]', error.message);
+    res.status(500).json({ error: 'Failed to delete all notifications', message: error.message });
+  }
+});
+
+/**
  * @route   GET /api/employees
  */
 router.get('/employees', authenticateToken, async (req, res) => {
