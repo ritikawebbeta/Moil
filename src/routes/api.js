@@ -944,8 +944,8 @@ router.post('/tours/delete', authenticateToken, async (req, res) => {
   const employeeId = req.user.employee_number;
   try {
     await pool.query(
-      'DELETE FROM travel WHERE id = ? AND (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?)',
-      [tour_id, employeeId, employeeId]
+      'DELETE FROM travel WHERE (row_id = ? OR trip_number = ?) AND (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?)',
+      [tour_id, tour_id, employeeId, employeeId]
     );
     res.json({ message: 'Tour deleted successfully' });
   } catch (error) {
@@ -2346,22 +2346,22 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
 
     if (targetTourId) {
       const [checkRows] = await pool.query(
-        'SELECT id FROM travel WHERE id = ? AND (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?) LIMIT 1',
-        [targetTourId, employeeId, employeeId]
+        'SELECT row_id FROM travel WHERE (row_id = ? OR trip_number = ?) AND (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?) LIMIT 1',
+        [targetTourId, targetTourId, employeeId, employeeId]
       );
       if (checkRows.length > 0) {
-        existingId = checkRows[0].id;
+        existingId = checkRows[0].row_id;
       }
     }
 
     // If no explicit ID match, check if there is an existing Draft record for this employee
     if (!existingId) {
       const [draftRows] = await pool.query(
-        'SELECT id FROM travel WHERE (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?) AND planning_status = "0" ORDER BY id DESC LIMIT 1',
+        'SELECT row_id FROM travel WHERE (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?) AND planning_status = "0" ORDER BY row_id DESC LIMIT 1',
         [employeeId, employeeId]
       );
       if (draftRows.length > 0) {
-        existingId = draftRows[0].id;
+        existingId = draftRows[0].row_id;
       }
     }
 
@@ -2375,12 +2375,12 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
           beginning_date_of_trip_segment = ?, 
           end_date_of_trip_segment = ?, 
           reason_for_trip = ?, 
-          depart_res_workplace = ?, 
+          depart_res__workplace = ?, 
           trip_activity_type = ?, 
           planning_status = ?, 
           changed_on = NOW(), 
           changed_by = ?
-        WHERE id = ?
+        WHERE row_id = ?
       `;
       await pool.query(updateQuery, [destination, formattedStartDate, formattedEndDate, purpose, transport_mode, tour_type, newPlanningStatus, empChangedBy, existingId]);
       recordId = existingId;
@@ -2395,7 +2395,7 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
     } else {
       // INSERT NEW RECORD ONLY IF NO PREVIOUS DRAFT / MATCHING TRIP RECORD EXISTS
       const insertQuery = `
-        INSERT INTO travel (personnel_number, trip_destination, beginning_date_of_trip_segment, end_date_of_trip_segment, reason_for_trip, depart_res_workplace, trip_activity_type, planning_status, changed_on, changed_by)
+        INSERT INTO travel (personnel_number, trip_destination, beginning_date_of_trip_segment, end_date_of_trip_segment, reason_for_trip, depart_res__workplace, trip_activity_type, planning_status, changed_on, changed_by)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
       `;
       const [result] = await pool.query(insertQuery, [employeeId, destination, formattedStartDate, formattedEndDate, purpose, transport_mode, tour_type, newPlanningStatus, empChangedBy]);
@@ -2523,10 +2523,10 @@ router.post('/tours/approve', authenticateToken, async (req, res) => {
     const selectQuery = `
       SELECT tr.*, ag.reporting_officer, ag.reporting_officer_1
       FROM travel tr
-      JOIN zhcm_lr_t_agents_03072026 ag ON tr.personnel_number = ag.personnel_number
-      WHERE tr.id = ? LIMIT 1
+      JOIN zhcm_lr_t_agents_03072026 ag ON CAST(tr.personnel_number AS UNSIGNED) = CAST(ag.personnel_number AS UNSIGNED)
+      WHERE (tr.row_id = ? OR tr.trip_number = ?) LIMIT 1
     `;
-    const [rows] = await pool.query(selectQuery, [tour_id]);
+    const [rows] = await pool.query(selectQuery, [tour_id, tour_id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Tour request not found' });
     }
@@ -2555,9 +2555,9 @@ router.post('/tours/approve', authenticateToken, async (req, res) => {
     const managerPaddedPernr = managerId.toString().trim().padStart(8, '0');
     const mgrChangedBy = `HR_app_${managerPaddedPernr}`;
     const updateQuery = `
-      UPDATE travel SET planning_status = ?, changed_on = NOW(), changed_by = ? WHERE id = ?
+      UPDATE travel SET planning_status = ?, changed_on = NOW(), changed_by = ? WHERE row_id = ? OR trip_number = ?
     `;
-    await pool.query(updateQuery, [nextStatus, mgrChangedBy, tour_id]);
+    await pool.query(updateQuery, [nextStatus, mgrChangedBy, tour_id, tour_id]);
     await logApproval(managerId, 'Tour', tour_id, tour.personnel_number, 'Approved', remarks);
 
     await recordOutboundChange(
@@ -2621,10 +2621,10 @@ router.post('/tours/reject', authenticateToken, async (req, res) => {
     const selectQuery = `
       SELECT tr.*, ag.reporting_officer, ag.reporting_officer_1
       FROM travel tr
-      JOIN zhcm_lr_t_agents_03072026 ag ON tr.personnel_number = ag.personnel_number
-      WHERE tr.id = ? LIMIT 1
+      JOIN zhcm_lr_t_agents_03072026 ag ON CAST(tr.personnel_number AS UNSIGNED) = CAST(ag.personnel_number AS UNSIGNED)
+      WHERE (tr.row_id = ? OR tr.trip_number = ?) LIMIT 1
     `;
-    const [rows] = await pool.query(selectQuery, [tour_id]);
+    const [rows] = await pool.query(selectQuery, [tour_id, tour_id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Tour request not found' });
     }
@@ -2632,9 +2632,9 @@ router.post('/tours/reject', authenticateToken, async (req, res) => {
     const tour = rows[0];
     if (tour.reporting_officer == managerId || tour.reporting_officer_1 == managerId) {
       const updateQuery = `
-        UPDATE travel SET planning_status = '3', changed_on = NOW(), changed_by = 'HR_app' WHERE id = ?
+        UPDATE travel SET planning_status = '3', changed_on = NOW(), changed_by = 'HR_app' WHERE row_id = ? OR trip_number = ?
       `;
-      await pool.query(updateQuery, [tour_id]);
+      await pool.query(updateQuery, [tour_id, tour_id]);
       await logApproval(managerId, 'Tour', tour_id, tour.personnel_number, 'Rejected', remarks);
 
       await recordOutboundChange(
