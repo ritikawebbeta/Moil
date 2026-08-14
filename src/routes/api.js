@@ -263,26 +263,28 @@ async function getEmployeeName(employeeId) {
 function getSubareaCodes(subareaText) {
   const clean = (subareaText || '').toString().trim().toLowerCase();
   
-  if (clean.includes('head office') || clean.includes('nagpur')) {
+  if (clean.includes('head office') || clean.includes('nagpur') || clean.includes('delhi') || clean.includes('hong')) {
     return { area: 'MOMH', subarea: 'HONG' };
-  } else if (clean.includes('balaghat')) {
+  } else if (clean.includes('beldongri') || clean.includes('mhbl')) {
     return { area: 'MOMH', subarea: 'MHBL' };
-  } else if (clean.includes('chikla')) {
+  } else if (clean.includes('chikla') || clean.includes('mhch')) {
     return { area: 'MOMH', subarea: 'MHCH' };
-  } else if (clean.includes('dongri')) {
+  } else if (clean.includes('dongri') || clean.includes('mhdb')) {
     return { area: 'MOMH', subarea: 'MHDB' };
-  } else if (clean.includes('gumgaon')) {
+  } else if (clean.includes('gumgaon') || clean.includes('mhgm')) {
     return { area: 'MOMH', subarea: 'MHGM' };
-  } else if (clean.includes('kandri')) {
+  } else if (clean.includes('kandri') || clean.includes('mhkd')) {
     return { area: 'MOMH', subarea: 'MHKD' };
-  } else if (clean.includes('munsar')) {
+  } else if (clean.includes('munsar') || clean.includes('mansi') || clean.includes('mhms')) {
     return { area: 'MOMH', subarea: 'MHMS' };
-  } else if (clean.includes('beldongri')) {
-    return { area: 'MOMH', subarea: 'MHMS' };
-  } else if (clean.includes('ukwa')) {
+  } else if (clean.includes('balaghat') || clean.includes('mpbg')) {
+    return { area: 'MOMP', subarea: 'MPBG' };
+  } else if (clean.includes('sitapatore') || clean.includes('mpsp')) {
     return { area: 'MOMP', subarea: 'MPSP' };
-  } else if (clean.includes('tirodi')) {
+  } else if (clean.includes('tirodi') || clean.includes('mptd')) {
     return { area: 'MOMP', subarea: 'MPTD' };
+  } else if (clean.includes('ukwa') || clean.includes('mpuk')) {
+    return { area: 'MOMP', subarea: 'MPUK' };
   }
   
   return { area: 'MOMH', subarea: 'HONG' };
@@ -2717,14 +2719,12 @@ router.get('/holidays', authenticateToken, async (req, res) => {
   const employeeId = req.user.employee_number;
   try {
     // 1. Get employee subarea text from manpower
-    const empQuery = 'SELECT personnel_subarea_text FROM manpower WHERE employee_number = ? LIMIT 1';
-    const [empRows] = await pool.query(empQuery, [employeeId]);
-    if (empRows.length === 0) {
-      return res.status(404).json({ error: 'Employee not found' });
-    }
+    const empQuery = 'SELECT personnel_subarea_text FROM manpower WHERE employee_number = ? OR CAST(employee_number AS UNSIGNED) = CAST(? AS UNSIGNED) LIMIT 1';
+    const [empRows] = await pool.query(empQuery, [employeeId, employeeId]);
+    const subareaText = empRows.length > 0 ? (empRows[0].personnel_subarea_text || '') : '';
 
     // 2. Resolve subarea and area code mapping
-    const codes = getSubareaCodes(empRows[0].personnel_subarea_text);
+    const codes = getSubareaCodes(subareaText);
 
     // 3. Query zhcm_opt_holiday filtered by area and subarea
     const [holidayRows] = await pool.query(
@@ -2754,12 +2754,26 @@ router.get('/holidays', authenticateToken, async (req, res) => {
       { id: 'pub2026_8', name: 'Diwali', date: '2026-11-09 00:00:00', type: 'Mandatory' }
     ];
 
-    const optionalHolidays = holidayRows.map(row => ({
-      id: (row.row_id || row.id || '').toString(),
-      name: row.description || 'Optional Holiday',
-      date: row.optional_holiday_date,
-      type: 'Optional'
-    }));
+    const optionalHolidays = holidayRows.map(row => {
+      let parsedDateStr = row.optional_holiday_date;
+      if (parsedDateStr && !parsedDateStr.includes('-') && !parsedDateStr.includes('/')) {
+        const num = parseFloat(parsedDateStr);
+        if (!isNaN(num) && num > 30000) {
+          const jsDate = new Date((num - 25569) * 86400 * 1000);
+          parsedDateStr = jsDate.toISOString().split('T')[0] + ' 00:00:00';
+        }
+      } else if (parsedDateStr && !parsedDateStr.includes(':')) {
+        parsedDateStr = `${parsedDateStr} 00:00:00`;
+      }
+
+      return {
+        id: (row.row_id || row.id || Math.random()).toString(),
+        name: row.description || 'Optional Holiday',
+        date: parsedDateStr,
+        type: 'Optional',
+        subarea: subareaText || codes.subarea
+      };
+    }).filter(h => h.name && h.name.trim().length > 0 && h.date);
 
     res.json([...publicHolidays, ...optionalHolidays]);
   } catch (error) {
