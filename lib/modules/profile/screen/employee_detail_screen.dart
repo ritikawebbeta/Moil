@@ -37,16 +37,81 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
   List<Map<String, dynamic>> _payslipsFromApi = [];
   bool _isLoadingPayslips = false;
 
+  List<LeaveModel> _targetLeaves = [];
+  bool _isLoadingLeaves = false;
+  List<TourModel> _targetTours = [];
+  bool _isLoadingTours = false;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this, initialIndex: widget.initialTabIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProfileController>().fetchEmployeeProfile(widget.employee.employeeId);
-      context.read<LeaveController>().fetchLeaves(widget.employee.employeeId);
-      context.read<TourController>().fetchTours(widget.employee.employeeId);
+      _fetchTargetLeaves();
+      _fetchTargetTours();
       _fetchPayslipsFromApi();
     });
+  }
+
+  Future<String?> _getToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJsonStr = prefs.getString('auth_user');
+      if (userJsonStr != null) {
+        final userMap = jsonDecode(userJsonStr);
+        return userMap['token'];
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> _fetchTargetLeaves() async {
+    setState(() => _isLoadingLeaves = true);
+    try {
+      final token = await _getToken();
+      final cleanId = widget.employee.employeeId.trim().replaceAll(RegExp('^0+'), '');
+      final response = await ApiClient.get(
+        Uri.parse('${AppConfig.baseUrl}/api/leaves?employee_id=$cleanId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          setState(() {
+            _targetLeaves = decoded.whereType<Map<String, dynamic>>().map((item) => LeaveModel.fromJson(item)).toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching target leaves: $e');
+    } finally {
+      setState(() => _isLoadingLeaves = false);
+    }
+  }
+
+  Future<void> _fetchTargetTours() async {
+    setState(() => _isLoadingTours = true);
+    try {
+      final token = await _getToken();
+      final cleanId = widget.employee.employeeId.trim().replaceAll(RegExp('^0+'), '');
+      final response = await ApiClient.get(
+        Uri.parse('${AppConfig.baseUrl}/api/tours?employee_id=$cleanId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          _targetTours = data.map((item) => TourModel.fromJson(item)).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching target tours: $e');
+    } finally {
+      setState(() => _isLoadingTours = false);
+    }
   }
 
   Future<void> _fetchPayslipsFromApi() async {
@@ -1091,194 +1156,174 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
   }
 
   Widget _buildLeavesTab() {
-    return Consumer<LeaveController>(
-      builder: (context, controller, _) {
-        if (controller.status == LeaveStatus.loading) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-        }
+    if (_isLoadingLeaves) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    }
 
-        final leaves = controller.leaves;
-        if (leaves.isEmpty) {
-          return const EmptyState(
-            icon: Icons.event_note_outlined,
-            title: 'No Leave Records',
-            subtitle: 'This employee has no leave records.',
-          );
-        }
+    if (_targetLeaves.isEmpty) {
+      return const EmptyState(
+        icon: Icons.event_note_outlined,
+        title: 'No Leave Records',
+        subtitle: 'This employee has no leave records.',
+      );
+    }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: leaves.length,
-          itemBuilder: (context, index) {
-            final leave = leaves[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: GlassCard(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _targetLeaves.length,
+      itemBuilder: (context, index) {
+        final leave = _targetLeaves[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: GlassCard(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        LeaveTypeBadge(type: leave.leaveType),
-                        StatusBadge(status: leave.status),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        const Icon(Icons.date_range_outlined, size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${DateFormat('dd-MM-yyyy').format(leave.startDate)} – ${DateFormat('dd-MM-yyyy').format(leave.endDate)}',
-                          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.access_time_rounded, size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${leave.startTime} – ${leave.endTime} (${leave.duration})',
-                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                    if (leave.absenceHours != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Absence Hours: ${(leave.absenceHours ?? 0).toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-                      ),
-                    ],
+                    LeaveTypeBadge(type: leave.leaveType),
+                    StatusBadge(status: leave.status),
                   ],
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.date_range_outlined, size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${DateFormat('dd-MM-yyyy').format(leave.startDate)} – ${DateFormat('dd-MM-yyyy').format(leave.endDate)}',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time_rounded, size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${leave.startTime} – ${leave.endTime} (${leave.duration})',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+                if (leave.absenceHours != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Absence Hours: ${(leave.absenceHours ?? 0).toStringAsFixed(2)}',
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
   Widget _buildToursTab() {
-    return Consumer<TourController>(
-      builder: (context, controller, _) {
-        if (controller.status == TourStatus.loading) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-        }
+    if (_isLoadingTours) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    }
 
-        final tours = controller.tours;
-        if (tours.isEmpty) {
-          return const EmptyState(
-            icon: Icons.flight_takeoff_rounded,
-            title: 'No Tour Records',
-            subtitle: 'This employee has no tour records.',
-          );
-        }
+    if (_targetTours.isEmpty) {
+      return const EmptyState(
+        icon: Icons.flight_takeoff_rounded,
+        title: 'No Tour Records',
+        subtitle: 'This employee has no tour records.',
+      );
+    }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: tours.length,
-          itemBuilder: (context, index) {
-            final tour = tours[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: GlassCard(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _targetTours.length,
+      itemBuilder: (context, index) {
+        final tour = _targetTours[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: GlassCard(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          tour.tourType,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
-                        ),
-                        StatusBadge(status: tour.status),
-                      ],
+                    Text(
+                      tour.tourType,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          tour.destination,
-                          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_today_outlined, size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${DateFormat('dd-MM-yyyy').format(tour.startDate)} – ${DateFormat('dd-MM-yyyy').format(tour.endDate)}',
-                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                    if (tour.travelPurpose.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        tour.travelPurpose,
-                        style: const TextStyle(fontSize: 11, color: AppColors.textHint),
-                      ),
-                    ],
+                    StatusBadge(status: tour.status),
                   ],
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      tour.destination,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined, size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${DateFormat('dd-MM-yyyy').format(tour.startDate)} – ${DateFormat('dd-MM-yyyy').format(tour.endDate)}',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+                if (tour.travelPurpose.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    tour.travelPurpose,
+                    style: const TextStyle(fontSize: 11, color: AppColors.textHint),
+                  ),
+                ],
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
   Widget _buildPayslipsTab() {
-    final double basic = double.tryParse(widget.employee.basicSalary.replaceAll(',', '')) ?? 100000.00;
-    
-    final List<Map<String, dynamic>> payslips = [
-      {'month': 'May 2026', 'gross': basic * 1.85, 'deductions': basic * 0.46, 'status': 'Available'},
-      {'month': 'April 2026', 'gross': basic * 1.85, 'deductions': basic * 0.46, 'status': 'Available'},
-      {'month': 'March 2026', 'gross': basic * 1.85, 'deductions': basic * 0.45, 'status': 'Available'},
-      {'month': 'February 2026', 'gross': basic * 1.85, 'deductions': basic * 0.46, 'status': 'Available'},
-      {'month': 'January 2026', 'gross': basic * 1.85, 'deductions': basic * 0.46, 'status': 'Available'},
-      {'month': 'December 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'November 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'October 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'September 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'August 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'July 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'June 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'May 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'April 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'March 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'February 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'January 2025', 'gross': basic * 1.80, 'deductions': basic * 0.44, 'status': 'Available'},
-      {'month': 'December 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-      {'month': 'November 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-      {'month': 'October 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-      {'month': 'September 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-      {'month': 'August 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-      {'month': 'July 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-      {'month': 'June 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-      {'month': 'May 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-      {'month': 'April 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-      {'month': 'March 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-      {'month': 'February 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-      {'month': 'January 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
-    ];
+    if (_isLoadingPayslips) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40.0),
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
 
-    final List<Map<String, dynamic>> payslipsToUse = (_payslipsFromApi.isNotEmpty
-        ? _payslipsFromApi
-        : payslips).take(3).toList();
+    if (_payslipsFromApi.isEmpty) {
+      return const SingleChildScrollView(
+        physics: AlwaysScrollableScrollPhysics(),
+        child: Column(
+          children: [
+            SizedBox(height: 80),
+            EmptyState(
+              icon: Icons.receipt_long_outlined,
+              title: 'No Payslips Available',
+              subtitle: 'No payslip records found for this employee.',
+            ),
+          ],
+        ),
+      );
+    }
+
+    final double basic = double.tryParse(widget.employee.basicSalary.replaceAll(',', '')) ?? 100000.00;
+    final List<Map<String, dynamic>> payslipsToUse = _payslipsFromApi.take(3).toList();
 
     if (_selectedMonth == null || !payslipsToUse.any((p) => p['month'] == _selectedMonth)) {
       _selectedMonth = payslipsToUse.first['month'];
