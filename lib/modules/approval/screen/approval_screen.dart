@@ -160,8 +160,8 @@ class _LeaveApprovalListState extends State<_LeaveApprovalList> {
 
 class _LeaveApprovalCard extends StatefulWidget {
   final LeaveModel leave;
-  final Function(String, String) onApprove;
-  final Function(String, String) onReject;
+  final Future<void> Function(String, String) onApprove;
+  final Future<void> Function(String, String) onReject;
 
   const _LeaveApprovalCard({
     required this.leave,
@@ -175,6 +175,8 @@ class _LeaveApprovalCard extends StatefulWidget {
 
 class _LeaveApprovalCardState extends State<_LeaveApprovalCard> {
   late TextEditingController _remarksController;
+  bool _isApproving = false;
+  bool _isRejecting = false;
 
   @override
   void initState() {
@@ -190,6 +192,8 @@ class _LeaveApprovalCardState extends State<_LeaveApprovalCard> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDisabled = _isApproving || _isRejecting;
+
     return GlassCard(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -216,6 +220,7 @@ class _LeaveApprovalCardState extends State<_LeaveApprovalCard> {
           const SizedBox(height: 10),
           TextField(
             controller: _remarksController,
+            enabled: !isDisabled,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
             decoration: const InputDecoration(
               hintText: 'Add remarks (optional)...',
@@ -232,7 +237,12 @@ class _LeaveApprovalCardState extends State<_LeaveApprovalCard> {
                   label: 'Approve',
                   color: AppColors.success,
                   icon: Icons.check_circle_outline,
-                  onTap: () => widget.onApprove(widget.leave.id, _remarksController.text),
+                  isLoading: _isApproving,
+                  onTap: isDisabled ? null : () async {
+                    setState(() => _isApproving = true);
+                    await widget.onApprove(widget.leave.id, _remarksController.text);
+                    if (mounted) setState(() => _isApproving = false);
+                  },
                 ),
               ),
               const SizedBox(width: 12),
@@ -241,7 +251,12 @@ class _LeaveApprovalCardState extends State<_LeaveApprovalCard> {
                   label: 'Reject',
                   color: AppColors.error,
                   icon: Icons.cancel_outlined,
-                  onTap: () => widget.onReject(widget.leave.id, _remarksController.text),
+                  isLoading: _isRejecting,
+                  onTap: isDisabled ? null : () async {
+                    setState(() => _isRejecting = true);
+                    await widget.onReject(widget.leave.id, _remarksController.text);
+                    if (mounted) setState(() => _isRejecting = false);
+                  },
                 ),
               ),
             ],
@@ -266,7 +281,7 @@ class _TourApprovalListState extends State<_TourApprovalList> {
     });
   }
 
-  void _handleAction(String id, String action, String remarks) async {
+  Future<void> _handleAction(String id, String action, String remarks) async {
     final controller = context.read<TourController>();
     bool success = false;
     if (action == 'approved') {
@@ -320,8 +335,8 @@ class _TourApprovalListState extends State<_TourApprovalList> {
 
 class _TourApprovalCard extends StatefulWidget {
   final TourModel tour;
-  final Function(String, String) onApprove;
-  final Function(String, String) onReject;
+  final Future<void> Function(String, String) onApprove;
+  final Future<void> Function(String, String) onReject;
 
   const _TourApprovalCard({
     required this.tour,
@@ -335,6 +350,8 @@ class _TourApprovalCard extends StatefulWidget {
 
 class _TourApprovalCardState extends State<_TourApprovalCard> {
   late TextEditingController _remarksController;
+  bool _isApproving = false;
+  bool _isRejecting = false;
 
   @override
   void initState() {
@@ -350,6 +367,8 @@ class _TourApprovalCardState extends State<_TourApprovalCard> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDisabled = _isApproving || _isRejecting;
+
     return GlassCard(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -385,6 +404,7 @@ class _TourApprovalCardState extends State<_TourApprovalCard> {
           const SizedBox(height: 10),
           TextField(
             controller: _remarksController,
+            enabled: !isDisabled,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
             decoration: const InputDecoration(
               hintText: 'Add remarks (optional)...',
@@ -396,15 +416,33 @@ class _TourApprovalCardState extends State<_TourApprovalCard> {
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _ApproveBtn(
-                label: 'Approve', color: AppColors.success, icon: Icons.check_circle_outline,
-                onTap: () => widget.onApprove(widget.tour.id, _remarksController.text),
-              )),
+              Expanded(
+                child: _ApproveBtn(
+                  label: 'Approve',
+                  color: AppColors.success,
+                  icon: Icons.check_circle_outline,
+                  isLoading: _isApproving,
+                  onTap: isDisabled ? null : () async {
+                    setState(() => _isApproving = true);
+                    await widget.onApprove(widget.tour.id, _remarksController.text);
+                    if (mounted) setState(() => _isApproving = false);
+                  },
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _ApproveBtn(
-                label: 'Reject', color: AppColors.error, icon: Icons.cancel_outlined,
-                onTap: () => widget.onReject(widget.tour.id, _remarksController.text),
-              )),
+              Expanded(
+                child: _ApproveBtn(
+                  label: 'Reject',
+                  color: AppColors.error,
+                  icon: Icons.cancel_outlined,
+                  isLoading: _isRejecting,
+                  onTap: isDisabled ? null : () async {
+                    setState(() => _isRejecting = true);
+                    await widget.onReject(widget.tour.id, _remarksController.text);
+                    if (mounted) setState(() => _isRejecting = false);
+                  },
+                ),
+              ),
             ],
           ),
         ],
@@ -417,29 +455,48 @@ class _ApproveBtn extends StatelessWidget {
   final String label;
   final Color color;
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool isLoading;
 
-  const _ApproveBtn({required this.label, required this.color, required this.icon, required this.onTap});
+  const _ApproveBtn({
+    required this.label, 
+    required this.color, 
+    required this.icon, 
+    this.onTap,
+    this.isLoading = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
+      onTap: isLoading ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: isLoading ? color.withOpacity(0.15) : color.withOpacity(0.08),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
-          ],
-        ),
+        child: isLoading
+            ? Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                  ),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: color, size: 18),
+                  const SizedBox(width: 6),
+                  Text(label, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
+                ],
+              ),
       ),
     );
   }
