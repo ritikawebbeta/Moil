@@ -2534,14 +2534,14 @@ router.get('/tours/pending-approvals', authenticateToken, async (req, res) => {
       LEFT JOIN manpower ro ON CAST(ag.reporting_officer AS UNSIGNED) = CAST(ro.employee_number AS UNSIGNED)
       LEFT JOIN manpower ro1 ON CAST(ag.reporting_officer_1 AS UNSIGNED) = CAST(ro1.employee_number AS UNSIGNED)
       WHERE 
-        (tr.planning_status = '1' AND CAST(ag.reporting_officer AS UNSIGNED) = CAST(? AS UNSIGNED))
+        ((tr.planning_status IN ('1', 'Pending L1', 'Pending') OR tr.planning_status LIKE '1%') AND CAST(ag.reporting_officer AS UNSIGNED) = CAST(? AS UNSIGNED))
         OR
-        (tr.planning_status = '11' AND CAST(ag.reporting_officer_1 AS UNSIGNED) = CAST(? AS UNSIGNED))
+        ((tr.planning_status IN ('11', 'Pending L2') OR tr.planning_status LIKE '11%') AND CAST(ag.reporting_officer_1 AS UNSIGNED) = CAST(? AS UNSIGNED))
       ORDER BY tr.beginning_date_of_trip_segment DESC
     `;
     const [rows] = await pool.query(query, [managerId, managerId]);
     const approvals = rows.map(row => {
-      let status = row.planning_status === '1' ? 'Pending L1' : 'Pending L2';
+      let status = (row.planning_status === '1' || row.planning_status === 'Pending') ? 'Pending L1' : 'Pending L2';
       let activityType = 'Official Tour';
       const rawAct = (row.trip_activity_type || '').toString().trim().toUpperCase();
       if (rawAct === 'B') {
@@ -2551,14 +2551,14 @@ router.get('/tours/pending-approvals', authenticateToken, async (req, res) => {
       }
 
       return {
-        id: row.id.toString(),
+        id: (row.row_id || row.id || row.trip_number || Math.random()).toString(),
         employeeId: `${row.personnel_number} (${row.applicant_name})`,
         tourType: activityType,
         destination: row.trip_destination || 'N/A',
         startDate: formatIsoDate(row.beginning_date_of_trip_segment) || row.beginning_date_of_trip_segment,
         endDate: formatIsoDate(row.end_date_of_trip_segment) || row.end_date_of_trip_segment,
         travelPurpose: row.reason_for_trip || 'Official Visit',
-        transportMode: row.depart_res_workplace || 'Train',
+        transportMode: row.depart_res__workplace || row.depart_res_workplace || 'Train',
         processor: 'Manager',
         status,
         remarks: row.reason_for_trip,
