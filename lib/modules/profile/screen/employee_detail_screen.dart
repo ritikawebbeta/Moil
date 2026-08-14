@@ -1,4 +1,8 @@
-// lib/modules/profile/screen/employee_detail_screen.dart
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:http/http.dart' as http;
+import '../../../utils/app_config.dart';
+import '../../../utils/api_client.dart';
 import 'package:employee_management/modules/profile/controller/profile_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -30,6 +34,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
   late TabController _tabController;
   String? _selectedMonth;
   String _historyFilterYear = 'All';
+  List<Map<String, dynamic>> _payslipsFromApi = [];
+  bool _isLoadingPayslips = false;
 
   @override
   void initState() {
@@ -39,7 +45,113 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       context.read<ProfileController>().fetchEmployeeProfile(widget.employee.employeeId);
       context.read<LeaveController>().fetchLeaves(widget.employee.employeeId);
       context.read<TourController>().fetchTours(widget.employee.employeeId);
+      _fetchPayslipsFromApi();
     });
+  }
+
+  Future<void> _fetchPayslipsFromApi() async {
+    setState(() => _isLoadingPayslips = true);
+    try {
+      final cleanId = widget.employee.employeeId.trim().replaceAll(RegExp('^0+'), '');
+
+      final response = await ApiClient.get(
+        Uri.parse('${AppConfig.baseUrl}/api/payslips?employee_id=$cleanId'),
+      );
+
+      if (response.statusCode == 200) {
+        final List decoded = jsonDecode(response.body);
+        if (decoded.isNotEmpty) {
+          final List<Map<String, dynamic>> fetchedList = [];
+          for (final item in decoded) {
+            fetchedList.add({
+              'month': item['formattedPeriod'] ?? item['monthName'] ?? 'Payslip',
+              'fileName': item['fileName'],
+              'downloadUrl': item['downloadUrl'],
+              'gross': (item['grossSalary'] as num?)?.toDouble() ?? 85000.0,
+              'deductions': (item['totalDeductions'] as num?)?.toDouble() ?? 12500.0,
+            });
+          }
+          setState(() {
+            _payslipsFromApi = fetchedList;
+            if (_selectedMonth == null || !_payslipsFromApi.any((p) => p['month'] == _selectedMonth)) {
+              _selectedMonth = _payslipsFromApi.first['month'];
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching payslips for employee ${widget.employee.employeeId}: $e');
+    } finally {
+      setState(() => _isLoadingPayslips = false);
+    }
+  }
+
+  /// Fetch PDF bytes — tries the static public URL first (fastest, served by Nginx)
+  /// then falls back to the API download route.
+  Future<Uint8List> _getPdfBytes(Map<String, dynamic> payslip) async {
+    final String? downloadUrl = payslip['downloadUrl'];
+    final String? fileName = payslip['fileName'];
+
+    // Attempt 1: static public URL
+    if (downloadUrl != null && downloadUrl.isNotEmpty) {
+      try {
+        final res = await http.get(
+          Uri.parse(downloadUrl),
+          headers: {'Accept': 'application/pdf, */*'},
+        ).timeout(const Duration(seconds: 15));
+
+        if (res.statusCode == 200 && res.bodyBytes.length > 100) {
+          final header = String.fromCharCodes(res.bodyBytes.take(4));
+          if (header == '%PDF') {
+            return res.bodyBytes;
+          }
+        }
+      } catch (e) {
+        debugPrint('Static URL fetch error: $e');
+      }
+    }
+
+    // Attempt 2: Backend API download route
+    if (fileName != null && fileName.isNotEmpty) {
+      final String apiUrl = '${AppConfig.baseUrl}/api/payslips/download/$fileName';
+      try {
+        final res = await http.get(
+          Uri.parse(apiUrl),
+          headers: {'Accept': 'application/pdf, */*'},
+        ).timeout(const Duration(seconds: 15));
+
+        if (res.statusCode == 200 && res.bodyBytes.length > 100) {
+          final header = String.fromCharCodes(res.bodyBytes.take(4));
+          if (header == '%PDF') {
+            return res.bodyBytes;
+          }
+        }
+      } catch (e) {
+        debugPrint('API route fetch error: $e');
+      }
+    }
+
+    // Fallback: Generate template bytes
+    return await PayslipPdfHelper.generatePayslipPdfBytes(
+      payslip['month'] ?? 'Payslip',
+      employeeId: widget.employee.employeeId,
+      gross: (payslip['gross'] as num?)?.toDouble() ?? 85000.0,
+      deductions: (payslip['deductions'] as num?)?.toDouble() ?? 12500.0,
+    );
+  }
+
+  Future<void> _downloadPayslip(Map<String, dynamic> payslip) async {
+    try {
+      final pdfBytes = await _getPdfBytes(payslip);
+      final String filename = payslip['fileName'] ?? '${payslip['month'].toString().replaceAll(' ', '_')}.pdf';
+      await Printing.sharePdf(bytes: pdfBytes, filename: filename);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   @override
@@ -1158,13 +1270,21 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       {'month': 'January 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
     ];
 
-    if (_selectedMonth == null || !payslips.any((p) => p['month'] == _selectedMonth)) {
-      _selectedMonth = payslips.first['month'];
+    final List<Map<String, dynamic>> payslipsToUse = _payslipsFromApi.isNotEmpty
+        ? _payslipsFromApi
+        : payslips;
+
+    if (_selectedMonth == null || !payslipsToUse.any((p) => p['month'] == _selectedMonth)) {
+      _selectedMonth = payslipsToUse.first['month'];
     }
 
-    final currentPayslip = payslips.firstWhere((p) => p['month'] == _selectedMonth);
-    final double grossVal = currentPayslip['gross'];
-    final double deductionsVal = currentPayslip['deductions'];
+    final currentPayslip = payslipsToUse.firstWhere(
+      (p) => p['month'] == _selectedMonth,
+      orElse: () => payslipsToUse.first,
+    );
+
+    final double grossVal = (currentPayslip['gross'] as num?)?.toDouble() ?? 85000.0;
+    final double deductionsVal = (currentPayslip['deductions'] as num?)?.toDouble() ?? 12500.0;
     final double netVal = grossVal - deductionsVal;
 
     // Breakdown
@@ -1230,9 +1350,9 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
     final double width = MediaQuery.of(context).size.width;
     final bool isMobileLayout = width < 600;
 
-    final filteredHistory = payslips.where((p) {
+    final filteredHistory = payslipsToUse.where((p) {
       if (_historyFilterYear == 'All') return true;
-      return p['month'].contains(_historyFilterYear);
+      return p['month'].toString().contains(_historyFilterYear);
     }).toList();
 
     return SingleChildScrollView(
@@ -1240,6 +1360,11 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_isLoadingPayslips)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: LinearProgressIndicator(color: AppColors.primary, backgroundColor: AppColors.cardBorder),
+            ),
           // Salary Summary Card
           GlassCard(
             padding: const EdgeInsets.all(20),
@@ -1265,7 +1390,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                           value: _selectedMonth,
                           dropdownColor: AppColors.cardBg,
                           style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
-                          items: payslips.map((p) {
+                          items: payslipsToUse.map((p) {
                             return DropdownMenuItem<String>(
                               value: p['month'],
                               child: Text(p['month']),
@@ -1376,8 +1501,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                   ...filteredHistory.asMap().entries.map((entry) {
                     final p = entry.value;
                     final isEven = entry.key.isEven;
-                    final double g = p['gross'];
-                    final double d = p['deductions'];
+                    final double g = (p['gross'] as num?)?.toDouble() ?? 85000.0;
+                    final double d = (p['deductions'] as num?)?.toDouble() ?? 12500.0;
                     final double n = g - d;
                     return Column(
                       children: [
@@ -1425,19 +1550,14 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                                   IconButton(
                                     icon: const Icon(Icons.visibility_outlined, color: AppColors.primary, size: 20),
                                     onPressed: () {
-                                      _viewEmployeePayslip(p['month'], g, d, n);
+                                      _viewEmployeePayslip(p);
                                     },
                                     tooltip: 'View Payslip',
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.download_outlined, color: AppColors.textSecondary, size: 20),
                                     onPressed: () {
-                                      PayslipPdfHelper.printPayslipPdf(
-                                        p['month'],
-                                        employeeId: widget.employee.employeeId,
-                                        gross: g,
-                                        deductions: d,
-                                      );
+                                      _downloadPayslip(p);
                                     },
                                     tooltip: 'Download PDF',
                                   ),
@@ -1458,7 +1578,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
     );
   }
 
-  void _viewEmployeePayslip(String month, double gross, double deductions, double net) {
+  void _viewEmployeePayslip(Map<String, dynamic> payslip) {
     showDialog(
       context: context,
       builder: (context) {
@@ -1474,7 +1594,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('View Payslip - $month', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary)),
+                    Text('View Payslip - ${payslip['month']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary)),
                     IconButton(
                       icon: const Icon(Icons.close, color: AppColors.textSecondary),
                       onPressed: () => Navigator.pop(context),
@@ -1484,12 +1604,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
                 const SizedBox(height: 12),
                 Expanded(
                   child: PdfPreview(
-                    build: (format) => PayslipPdfHelper.generatePayslipPdfBytes(
-                      month,
-                      employeeId: widget.employee.employeeId,
-                      gross: gross,
-                      deductions: deductions,
-                    ),
+                    build: (format) => _getPdfBytes(payslip),
                     allowPrinting: true,
                     allowSharing: true,
                     canChangePageFormat: false,
