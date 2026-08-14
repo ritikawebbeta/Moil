@@ -64,6 +64,45 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  Future<bool> _confirmDeleteSingle(BuildContext context, NotificationController controller, NotificationModel notif) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Delete Notification', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Text('Are you sure you want to delete "${notif.title}"?', style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (result == true) {
+      controller.deleteNotification(notif.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Notification "${notif.title}" deleted.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,6 +159,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         return Dismissible(
                           key: Key(notif.id),
                           direction: DismissDirection.endToStart,
+                          confirmDismiss: (_) => _confirmDeleteSingle(context, controller, notif),
                           background: Container(
                             alignment: Alignment.centerRight,
                             padding: const EdgeInsets.only(right: 20),
@@ -130,27 +170,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ),
                             child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 24),
                           ),
-                          onDismissed: (_) {
-                            controller.deleteNotification(notif.id);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Notification "${notif.title}" deleted.'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
                           child: _NotifCard(
                             notif: notif,
                             onTap: () => controller.markAsRead(notif.id),
-                            onDelete: () {
-                              controller.deleteNotification(notif.id);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Notification deleted.'),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            },
+                            onDelete: () => _confirmDeleteSingle(context, controller, notif),
                           ),
                         );
                       }
