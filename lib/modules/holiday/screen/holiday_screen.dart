@@ -206,8 +206,8 @@ class _HolidayScreenState extends State<HolidayScreen> {
       child: Column(
         children: [
           SectionHeader(
-            title: 'Holiday List ${controller.selectedYear}',
-            icon: Icons.celebration_rounded,
+            title: optionalOnly ? 'Optional Leaves (${controller.selectedYear})' : 'Holiday List ${controller.selectedYear}',
+            icon: optionalOnly ? Icons.event_available_rounded : Icons.celebration_rounded,
           ),
           ...holidays.asMap().entries.map((e) {
             final h = e.value;
