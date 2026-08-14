@@ -21,9 +21,47 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<NotificationController>().fetchNotifications();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final ctrl = context.read<NotificationController>();
+      await ctrl.fetchNotifications();
+      // Auto-mark all notifications as read as soon as list opens
+      ctrl.markAllAsRead();
     });
+  }
+
+  void _confirmDeleteAll(BuildContext context, NotificationController controller) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Delete All Notifications', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to delete all notifications? This action cannot be undone.', style: TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              controller.deleteAllNotifications();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('All notifications deleted.'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Delete All'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -35,10 +73,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         actions: [
           Consumer<NotificationController>(
             builder: (context, controller, _) {
-              if (controller.unreadCount == 0) return const SizedBox.shrink();
-              return TextButton(
-                onPressed: controller.markAllAsRead,
-                child: const Text('Mark all read', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+              if (controller.notifications.isEmpty) return const SizedBox.shrink();
+              return IconButton(
+                icon: const Icon(Icons.delete_sweep_rounded, color: Colors.white),
+                tooltip: 'Delete All Notifications',
+                onPressed: () => _confirmDeleteAll(context, controller),
               );
             },
           ),
@@ -56,6 +95,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 _displayedCount = 10;
               });
               await controller.fetchNotifications();
+              controller.markAllAsRead();
             },
             color: AppColors.primary,
             child: controller.notifications.isEmpty
@@ -77,7 +117,42 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     itemBuilder: (context, index) {
                       if (index < visibleList.length) {
                         final notif = visibleList[index];
-                        return _NotifCard(notif: notif, onTap: () => controller.markAsRead(notif.id));
+                        return Dismissible(
+                          key: Key(notif.id),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20),
+                            margin: const EdgeInsets.only(bottom: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.error,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 24),
+                          ),
+                          onDismissed: (_) {
+                            controller.deleteNotification(notif.id);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Notification "${notif.title}" deleted.'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          child: _NotifCard(
+                            notif: notif,
+                            onTap: () => controller.markAsRead(notif.id),
+                            onDelete: () {
+                              controller.deleteNotification(notif.id);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Notification deleted.'),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            },
+                          ),
+                        );
                       }
                       final remaining = totalCount - _displayedCount;
                       return Padding(
@@ -114,8 +189,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 class _NotifCard extends StatelessWidget {
   final NotificationModel notif;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
-  const _NotifCard({required this.notif, required this.onTap});
+  const _NotifCard({
+    required this.notif, 
+    required this.onTap,
+    required this.onDelete,
+  });
 
   Color get _iconColor {
     final t = notif.type.toLowerCase();
@@ -194,12 +274,22 @@ class _NotifCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (!notif.isRead)
+                      if (!notif.isRead) ...[
                         Container(
                           width: 8,
                           height: 8,
                           decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
                         ),
+                        const SizedBox(width: 6),
+                      ],
+                      InkWell(
+                        onTap: onDelete,
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(Icons.delete_outline_rounded, color: AppColors.textHint, size: 18),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),

@@ -133,8 +133,45 @@ class NotificationController extends ChangeNotifier {
 
     _getToken().then((token) {
       if (token != null) {
-        http.post(
+        ApiClient.post(
           Uri.parse('${AppConfig.baseUrl}/api/notifications/read'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        );
+      }
+    });
+  }
+
+  void deleteNotification(String id) {
+    _notifications.removeWhere((n) => n.id == id);
+    _unreadCount = _notifications.where((n) => !n.isRead).length;
+    notifyListeners();
+
+    _getToken().then((token) {
+      if (token != null) {
+        ApiClient.post(
+          Uri.parse('${AppConfig.baseUrl}/api/notifications/delete'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'id': id}),
+        );
+      }
+    });
+  }
+
+  void deleteAllNotifications() {
+    _notifications.clear();
+    _unreadCount = 0;
+    notifyListeners();
+
+    _getToken().then((token) {
+      if (token != null) {
+        ApiClient.post(
+          Uri.parse('${AppConfig.baseUrl}/api/notifications/delete-all'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $token',
