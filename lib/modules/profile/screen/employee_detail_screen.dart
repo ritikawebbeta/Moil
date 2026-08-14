@@ -72,7 +72,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
             });
           }
           setState(() {
-            _payslipsFromApi = fetchedList;
+            // Show last 3 months payslips only from DB
+            _payslipsFromApi = fetchedList.take(3).toList();
             if (_selectedMonth == null || !_payslipsFromApi.any((p) => p['month'] == _selectedMonth)) {
               _selectedMonth = _payslipsFromApi.first['month'];
             }
@@ -1275,9 +1276,9 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       {'month': 'January 2024', 'gross': basic * 1.75, 'deductions': basic * 0.42, 'status': 'Available'},
     ];
 
-    final List<Map<String, dynamic>> payslipsToUse = _payslipsFromApi.isNotEmpty
+    final List<Map<String, dynamic>> payslipsToUse = (_payslipsFromApi.isNotEmpty
         ? _payslipsFromApi
-        : payslips;
+        : payslips).take(3).toList();
 
     if (_selectedMonth == null || !payslipsToUse.any((p) => p['month'] == _selectedMonth)) {
       _selectedMonth = payslipsToUse.first['month'];
