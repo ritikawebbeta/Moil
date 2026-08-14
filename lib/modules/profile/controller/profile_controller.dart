@@ -10,12 +10,14 @@ import '../../../utils/api_client.dart';
 class ProfileController extends ChangeNotifier {
   bool _isLoading = false;
   EmployeeModel? _employee;
+  EmployeeModel? _selectedEmployee;
   List<EmployeeModel> _employees = [];
 
   static List<Map<String, dynamic>> rawEmployees = [];
 
   bool get isLoading => _isLoading;
   EmployeeModel? get employee => _employee;
+  EmployeeModel? get selectedEmployee => _selectedEmployee;
   List<EmployeeModel> get employees => _employees;
 
   Future<String?> _getToken() async {
@@ -25,6 +27,18 @@ class ProfileController extends ChangeNotifier {
       if (userJsonStr != null) {
         final userMap = jsonDecode(userJsonStr);
         return userMap['token'];
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<String?> _getMyEmployeeId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJsonStr = prefs.getString('auth_user');
+      if (userJsonStr != null) {
+        final userMap = jsonDecode(userJsonStr);
+        return userMap['employeeId']?.toString() ?? userMap['employee_number']?.toString();
       }
     } catch (_) {}
     return null;
@@ -44,7 +58,16 @@ class ProfileController extends ChangeNotifier {
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic>) {
-          _employee = EmployeeModel.fromJson(decoded);
+          final model = EmployeeModel.fromJson(decoded);
+          _selectedEmployee = model;
+
+          final myId = await _getMyEmployeeId();
+          final cleanMyId = myId != null ? myId.trim().replaceAll(RegExp('^0+'), '') : '';
+          final cleanParamId = employeeId.trim().replaceAll(RegExp('^0+'), '');
+
+          if (cleanMyId.isEmpty || cleanMyId == cleanParamId) {
+            _employee = model;
+          }
         }
       }
     } catch (e) {

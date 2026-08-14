@@ -161,11 +161,13 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
       final leaveController = context.read<LeaveController>();
       final tourController = context.read<TourController>();
       final authController = context.read<AuthController>();
+      final profileController = context.read<ProfileController>();
       
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final user = authController.user;
         if (user != null) {
           final empId = user.employeeId;
+          profileController.fetchEmployeeProfile(empId);
           leaveController.fetchLeaves(empId);
           leaveController.fetchBalances(empId);
           tourController.fetchTours(empId);
@@ -255,10 +257,13 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen>
 
   Widget _buildProfileTab() {
     final profileController = context.watch<ProfileController>();
-    final detailedEmp = profileController.employee;
-    final emp = (detailedEmp != null && detailedEmp.employeeId == widget.employee.employeeId)
-        ? detailedEmp
-        : widget.employee;
+    final selectedEmp = profileController.selectedEmployee;
+    final detailedEmp = (selectedEmp != null && selectedEmp.employeeId == widget.employee.employeeId)
+        ? selectedEmp
+        : (profileController.employee != null && profileController.employee!.employeeId == widget.employee.employeeId
+            ? profileController.employee
+            : null);
+    final emp = detailedEmp ?? widget.employee;
 
     final rawList = ProfileController.rawEmployees;
     final Map<String, dynamic> raw = rawList.firstWhere(
