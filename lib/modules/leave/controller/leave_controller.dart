@@ -197,8 +197,9 @@ class LeaveController extends ChangeNotifier {
         }),
       );
       if (response.statusCode == 200) {
-        _pendingApprovals.removeWhere((l) => l.id == leaveId);
+        _pendingApprovals.removeWhere((l) => l.id == leaveId || l.id.toString() == leaveId.toString());
         notifyListeners();
+        fetchPendingApprovals();
         return true;
       }
       return false;
@@ -222,8 +223,9 @@ class LeaveController extends ChangeNotifier {
         }),
       );
       if (response.statusCode == 200) {
-        _pendingApprovals.removeWhere((l) => l.id == leaveId);
+        _pendingApprovals.removeWhere((l) => l.id == leaveId || l.id.toString() == leaveId.toString());
         notifyListeners();
+        fetchPendingApprovals();
         return true;
       }
       return false;

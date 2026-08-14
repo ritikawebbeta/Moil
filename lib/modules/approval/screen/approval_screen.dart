@@ -124,6 +124,9 @@ class _LeaveApprovalListState extends State<_LeaveApprovalList> {
         backgroundColor: success && action == 'approved' ? AppColors.success : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ));
+      if (success) {
+        controller.fetchPendingApprovals();
+      }
     }
   }
 
