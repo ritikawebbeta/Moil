@@ -109,7 +109,7 @@ class _LeaveApprovalListState extends State<_LeaveApprovalList> {
     });
   }
 
-  void _handleAction(String id, String action, String remarks) async {
+  Future<void> _handleAction(String id, String action, String remarks) async {
     final controller = context.read<LeaveController>();
     bool success = false;
     if (action == 'approved') {
