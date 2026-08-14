@@ -2339,6 +2339,7 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
     const isDraft = status === 'Draft';
     const newPlanningStatus = isDraft ? '0' : '1'; // '0' = Draft, '1' = Pending L1
     const empPaddedPernr = employeeId.toString().trim().padStart(8, '0');
+    const cleanEmpId = employeeId.toString().trim().replace(/^0+/, '');
     const empChangedBy = `HR_app_${empPaddedPernr}`;
 
     const targetTourId = tour_id || id;
@@ -2347,7 +2348,7 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
     if (targetTourId) {
       const [checkRows] = await pool.query(
         'SELECT row_id FROM travel WHERE (row_id = ? OR trip_number = ?) AND (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?) LIMIT 1',
-        [targetTourId, targetTourId, employeeId, employeeId]
+        [targetTourId, targetTourId, cleanEmpId, cleanEmpId]
       );
       if (checkRows.length > 0) {
         existingId = checkRows[0].row_id;
@@ -2358,12 +2359,14 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
     if (!existingId) {
       const [draftRows] = await pool.query(
         'SELECT row_id FROM travel WHERE (personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ?) AND planning_status = "0" ORDER BY row_id DESC LIMIT 1',
-        [employeeId, employeeId]
+        [cleanEmpId, cleanEmpId]
       );
       if (draftRows.length > 0) {
         existingId = draftRows[0].row_id;
       }
     }
+
+    const activityCode = (tour_type && tour_type !== 'Official Tour') ? tour_type : 'B';
 
     let recordId;
     if (existingId) {
@@ -2376,37 +2379,98 @@ router.post('/tours/apply', authenticateToken, async (req, res) => {
           end_date_of_trip_segment = ?, 
           reason_for_trip = ?, 
           depart_res__workplace = ?, 
-          trip_activity_type = ?, 
+          trip_activity_type = ?,
+          trip_activity_type_1 = ?, 
           planning_status = ?, 
-          changed_on = NOW(), 
-          changed_by = ?
+          changed_on = DATE_FORMAT(NOW(), '%Y-%m-%d'),
+          changed_at = '0.5', 
+          changed_by = ?,
+          created_by = ?,
+          approved_by = ?
         WHERE row_id = ?
       `;
-      await pool.query(updateQuery, [destination, formattedStartDate, formattedEndDate, purpose, transport_mode, tour_type, newPlanningStatus, empChangedBy, existingId]);
+      await pool.query(updateQuery, [destination, formattedStartDate, formattedEndDate, purpose, transport_mode, activityCode, activityCode, newPlanningStatus, empChangedBy, empChangedBy, empChangedBy, existingId]);
       recordId = existingId;
 
       await recordOutboundChange(
         'travel',
         recordId,
         'UPDATE',
-        { personnel_number: employeeId, trip_destination: destination, beginning_date_of_trip_segment: formattedStartDate, end_date_of_trip_segment: formattedEndDate, reason_for_trip: purpose, planning_status: newPlanningStatus },
-        { id: recordId, personnel_number: employeeId, trip_destination: destination }
+        { personnel_number: cleanEmpId, trip_destination: destination, beginning_date_of_trip_segment: formattedStartDate, end_date_of_trip_segment: formattedEndDate, reason_for_trip: purpose, planning_status: newPlanningStatus },
+        { id: recordId, personnel_number: cleanEmpId, trip_destination: destination }
       );
     } else {
-      // INSERT NEW RECORD ONLY IF NO PREVIOUS DRAFT / MATCHING TRIP RECORD EXISTS
+      // Generate next sequential SAP trip_number (Format: 26 + 5-digit empNo + 3-digit counter)
+      const [latestTripRows] = await pool.query(
+        'SELECT trip_number FROM travel WHERE personnel_number = ? OR CAST(personnel_number AS UNSIGNED) = ? ORDER BY row_id DESC LIMIT 1',
+        [cleanEmpId, cleanEmpId]
+      );
+      let nextSeq = 1;
+      if (latestTripRows.length > 0 && latestTripRows[0].trip_number) {
+        const lastNumStr = latestTripRows[0].trip_number.toString();
+        const last3 = parseInt(lastNumStr.slice(-3), 10);
+        if (!isNaN(last3)) nextSeq = last3 + 1;
+      }
+      const generatedTripNumber = `26${cleanEmpId.padStart(5, '0')}${nextSeq.toString().padStart(3, '0')}`;
+
+      // INSERT NEW RECORD WITH FULL SAP / HR SCHEMA PATTERN
       const insertQuery = `
-        INSERT INTO travel (personnel_number, trip_destination, beginning_date_of_trip_segment, end_date_of_trip_segment, reason_for_trip, depart_res__workplace, trip_activity_type, planning_status, changed_on, changed_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+        INSERT INTO travel (
+          personnel_number,
+          trip_number,
+          version_number_of_travel_request,
+          plan_request_indicator,
+          trip_destination,
+          country_key,
+          reason_for_trip,
+          beginning_date_of_trip_segment,
+          start_time_of_trip_segment,
+          end_date_of_trip_segment,
+          end_time_of_trip_segment,
+          trip_activity_type,
+          total_cost,
+          currency,
+          planning_status,
+          changed_on,
+          changed_at,
+          changed_by,
+          depart_res__workplace,
+          created_by,
+          approved_by,
+          trip_activity_type_1,
+          trip_type__statutory,
+          triptype_enterprise,
+          recipient_of_delivery,
+          number_of_passengers,
+          time_work_commences,
+          time_work_ends
+        ) VALUES (
+          ?, ?, '99', 'R', ?, 'IN', ?, ?, '0.33333333333333', ?, '0.75', ?, '0', 'INR', ?, DATE_FORMAT(NOW(), '%Y-%m-%d'), '0.5', ?, ?, ?, ?, ?, 'B', 'B', '0', '0', '0', '0'
+        )
       `;
-      const [result] = await pool.query(insertQuery, [employeeId, destination, formattedStartDate, formattedEndDate, purpose, transport_mode, tour_type, newPlanningStatus, empChangedBy]);
+      const [result] = await pool.query(insertQuery, [
+        cleanEmpId,
+        generatedTripNumber,
+        destination,
+        purpose,
+        formattedStartDate,
+        formattedEndDate,
+        activityCode,
+        newPlanningStatus,
+        empChangedBy,
+        transport_mode,
+        empChangedBy,
+        empChangedBy,
+        activityCode
+      ]);
       recordId = result.insertId;
 
       await recordOutboundChange(
         'travel',
         recordId,
         'INSERT',
-        { personnel_number: employeeId, trip_destination: destination, beginning_date_of_trip_segment: formattedStartDate, end_date_of_trip_segment: formattedEndDate, reason_for_trip: purpose, planning_status: newPlanningStatus },
-        { id: recordId, personnel_number: employeeId, trip_destination: destination }
+        { personnel_number: cleanEmpId, trip_number: generatedTripNumber, trip_destination: destination, beginning_date_of_trip_segment: formattedStartDate, end_date_of_trip_segment: formattedEndDate, reason_for_trip: purpose, planning_status: newPlanningStatus },
+        { id: recordId, personnel_number: cleanEmpId, trip_destination: destination }
       );
     }
 
@@ -2555,9 +2619,9 @@ router.post('/tours/approve', authenticateToken, async (req, res) => {
     const managerPaddedPernr = managerId.toString().trim().padStart(8, '0');
     const mgrChangedBy = `HR_app_${managerPaddedPernr}`;
     const updateQuery = `
-      UPDATE travel SET planning_status = ?, changed_on = NOW(), changed_by = ? WHERE row_id = ? OR trip_number = ?
+      UPDATE travel SET planning_status = ?, approved_by = ?, changed_on = DATE_FORMAT(NOW(), '%Y-%m-%d'), changed_at = '0.5', changed_by = ? WHERE row_id = ? OR trip_number = ?
     `;
-    await pool.query(updateQuery, [nextStatus, mgrChangedBy, tour_id, tour_id]);
+    await pool.query(updateQuery, [nextStatus, mgrChangedBy, mgrChangedBy, tour_id, tour_id]);
     await logApproval(managerId, 'Tour', tour_id, tour.personnel_number, 'Approved', remarks);
 
     await recordOutboundChange(
@@ -2631,10 +2695,12 @@ router.post('/tours/reject', authenticateToken, async (req, res) => {
 
     const tour = rows[0];
     if (tour.reporting_officer == managerId || tour.reporting_officer_1 == managerId) {
+      const managerPaddedPernr = managerId.toString().trim().padStart(8, '0');
+      const mgrChangedBy = `HR_app_${managerPaddedPernr}`;
       const updateQuery = `
-        UPDATE travel SET planning_status = '3', changed_on = NOW(), changed_by = 'HR_app' WHERE row_id = ? OR trip_number = ?
+        UPDATE travel SET planning_status = '3', approved_by = ?, changed_on = DATE_FORMAT(NOW(), '%Y-%m-%d'), changed_at = '0.5', changed_by = ? WHERE row_id = ? OR trip_number = ?
       `;
-      await pool.query(updateQuery, [tour_id, tour_id]);
+      await pool.query(updateQuery, [mgrChangedBy, mgrChangedBy, tour_id, tour_id]);
       await logApproval(managerId, 'Tour', tour_id, tour.personnel_number, 'Rejected', remarks);
 
       await recordOutboundChange(
