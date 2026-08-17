@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../utils/app_config.dart';
 
 /// Direct MyVI Gateway SMS Service with automatic Web CORS fallback (Postman-style server proxy)
 class SmsDirectService {
@@ -16,12 +17,32 @@ class SmsDirectService {
   static String? _cachedToken;
   static DateTime? _tokenExpiry;
 
-  /// Obtain JWT Auth Token directly from MyVI Gateway Auth API
+  /// Obtain JWT Auth Token directly from MyVI Gateway Auth API, or via proxy on Web
   static Future<String?> getAuthToken() async {
     if (_cachedToken != null &&
         _tokenExpiry != null &&
         DateTime.now().isBefore(_tokenExpiry!)) {
       return _cachedToken;
+    }
+
+    if (kIsWeb) {
+      try {
+        final proxyRes = await http.get(Uri.parse('${AppConfig.baseUrl}/api/sms/token'));
+        if (proxyRes.statusCode == 200) {
+          final decoded = jsonDecode(proxyRes.body);
+          final token = decoded['token']?.toString().trim() ?? '';
+          if (token.isNotEmpty) {
+            _cachedToken = token;
+            _tokenExpiry = DateTime.now().add(const Duration(minutes: 50));
+            return token;
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[SMS Auth Proxy Exception] $e');
+        }
+      }
+      return null;
     }
 
     try {
@@ -56,13 +77,36 @@ class SmsDirectService {
     return defaultMobile;
   }
 
-  /// Direct SMS dispatch directly to MyVI API (without server proxy)
+  /// Direct SMS dispatch directly to MyVI API, or via proxy on Web
   static Future<bool> sendSms({
     required String script,
     required String dltTemplateId,
     String? mobileNumber,
   }) async {
     final targetPhone = resolveMobile(mobileNumber);
+
+    if (kIsWeb) {
+      try {
+        final proxyRes = await http.post(
+          Uri.parse('${AppConfig.baseUrl}/api/send-sms'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'mobile': targetPhone,
+            'script': script,
+            'dlt_template_id': dltTemplateId,
+          }),
+        );
+        if (kDebugMode) {
+          debugPrint('[SMS Proxy Response] Code: ${proxyRes.statusCode} | Body: ${proxyRes.body}');
+        }
+        return proxyRes.statusCode == 200;
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[SMS Proxy Dispatch Exception] $e');
+        }
+        return false;
+      }
+    }
 
     try {
       final token = await getAuthToken();
