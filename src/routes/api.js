@@ -1738,10 +1738,10 @@ router.get('/leaves/pending-approvals', authenticateToken, async (req, res) => {
 const fileWriteQueues = new Map();
 
 /**
- * Helper to write/append rows to individual SAP table Excel files (.xlsx) in outbound dirs.
+ * Helper to write/append rows to individual SAP table CSV files (.csv) in outbound dirs.
  * Uses per-file serialized promise queues to prevent file lock & concurrency issues.
  */
-async function writeTableOutboundExcel(fileName, sheetName, rowData) {
+async function writeTableOutboundCsv(fileName, sheetName, rowData) {
   if (!rowData) return;
 
   if (!fileWriteQueues.has(fileName)) {
@@ -1780,9 +1780,9 @@ async function writeTableOutboundExcel(fileName, sheetName, rowData) {
           xlsx.utils.book_append_sheet(wb, ws, targetSheetName);
         }
         xlsx.writeFile(wb, filePath);
-        console.log(`[Outbound Table Excel] Saved ${fileName} at ${filePath}`);
+        console.log(`[Outbound Table CSV] Saved ${fileName} at ${filePath}`);
       } catch (e) {
-        console.error(`[Outbound Table Excel Error for ${dir}]`, e.message);
+        console.error(`[Outbound Table CSV Error for ${dir}]`, e.message);
       }
     }
   })();
@@ -1792,7 +1792,7 @@ async function writeTableOutboundExcel(fileName, sheetName, rowData) {
 }
 
 /**
- * Write/append leave data into separate SAP table Excel files matching inbound structure
+ * Write/append leave data into separate SAP table CSV files matching inbound structure
  */
 async function writeLeaveOutboundFiles({ leaveRow, headerRow, itemRow, quotaRow }) {
   function toSerial(d) {
@@ -1802,7 +1802,7 @@ async function writeLeaveOutboundFiles({ leaveRow, headerRow, itemRow, quotaRow 
     return Math.floor((dt - new Date(1899, 11, 30)) / 86400000);
   }
 
-  // 1. PTREQ_ATTABSDATA_Leave_Apply.xlsx
+  // 1. PTREQ_ATTABSDATA_Leave_Apply.csv
   if (leaveRow) {
     const applyRow = {
       'ID of Request Item':       leaveRow.id_of_request_item || '',
@@ -1831,10 +1831,10 @@ async function writeLeaveOutboundFiles({ leaveRow, headerRow, itemRow, quotaRow 
       'Days credited':            0,
       'Subs.sickness ind.':       0, 'Ind. for repeated illness': 0
     };
-    await writeTableOutboundExcel('PTREQ_ATTABSDATA_Leave_Apply.xlsx', 'Sheet1', applyRow);
+    await writeTableOutboundCsv('PTREQ_ATTABSDATA_Leave_Apply.csv', 'Sheet1', applyRow);
   }
 
-  // 2. PTREQ_HEADER_Leave_Approved.xlsx
+  // 2. PTREQ_HEADER_Leave_Approved.csv
   if (headerRow) {
     const headRow = {
       'Document Identification':  headerRow.document_identification || '',
@@ -1855,10 +1855,10 @@ async function writeLeaveOutboundFiles({ leaveRow, headerRow, itemRow, quotaRow 
       'Time Zone':                'INDIA',
       'ID':                       (headerRow.personnel_number || headerRow.id || '').toString().replace(/^0+/, '')
     };
-    await writeTableOutboundExcel('PTREQ_HEADER_Leave_Approved.xlsx', 'Sheet1', headRow);
+    await writeTableOutboundCsv('PTREQ_HEADER_Leave_Approved.csv', 'Sheet1', headRow);
   }
 
-  // 3. PTREQ_ITEMS-Request Items.xlsx
+  // 3. PTREQ_ITEMS-Request Items.csv
   if (itemRow) {
     const itmRow = {
       'ID of Request Item List':  itemRow.id_of_request_item_list || '',
@@ -1867,10 +1867,10 @@ async function writeLeaveOutboundFiles({ leaveRow, headerRow, itemRow, quotaRow 
       'GUID_1':                   itemRow.guid_1 || itemRow.guid || '',
       'Request Item Type':        itemRow.request_item_type || 'ATTABS'
     };
-    await writeTableOutboundExcel('PTREQ_ITEMS-Request Items.xlsx', 'Sheet1', itmRow);
+    await writeTableOutboundCsv('PTREQ_ITEMS-Request Items.csv', 'Sheet1', itmRow);
   }
 
-  // 4. IT2006_Leave_quota.xlsx
+  // 4. IT2006_Leave_quota.csv
   if (quotaRow) {
     const qtaRow = {
       'Personnel number':         (quotaRow.personnel_number || '').toString().replace(/^0+/, ''),
@@ -1893,7 +1893,7 @@ async function writeLeaveOutboundFiles({ leaveRow, headerRow, itemRow, quotaRow 
       'Deduction to':             toSerial(quotaRow.deduction_to || '2026-12-31'),
       'Logical system':           'PECCLNT100', 'Definition set': '', 'Definition subset': '', 'Time data ID type': ''
     };
-    await writeTableOutboundExcel('IT2006_Leave_quota.xlsx', 'Sheet1', qtaRow);
+    await writeTableOutboundCsv('IT2006_Leave_quota.csv', 'Sheet1', qtaRow);
   }
 }
 
@@ -3261,12 +3261,12 @@ router.post('/leave-encashment/approve', authenticateToken, async (req, res) => 
       conn.release();
     }
 
-    // 5. Write Excel outbound for IT0416 (encashment)
+    // 5. Write CSV outbound for IT0416 (encashment)
     function toSerialDate(d) {
       const dt = new Date(d);
       return Math.floor((dt - new Date(1899, 11, 30)) / 86400000);
     }
-    await writeTableOutboundExcel('IT0416_Time_Compensation.xlsx', 'time_quota_compensation_infotype', {
+    await writeTableOutboundCsv('IT0416_Time_Compensation.csv', 'time_quota_compensation_infotype', {
       'Personnel number': enc.personnel_number,
       'Sub Type': '1000',
       'Start Date': toSerialDate(new Date(enc.start_date || new Date())),
@@ -3630,7 +3630,7 @@ async function recordOutboundChange(tableName, recordId, actionType, changedColu
     console.error('[Outbound Record DB Error]', dbErr.message);
   }
 
-  // 2. Write JSON & Excel (.xlsx) export files for FTP Outbound Sync
+  // 2. Write JSON & CSV (.csv) export files for FTP Outbound Sync
   try {
     const outboundDirs = [
       process.env.FTP_OUTBOUND_DIR_LOCAL,
@@ -3678,12 +3678,12 @@ async function recordOutboundChange(tableName, recordId, actionType, changedColu
     const cc = typeof changedColumns === 'string' ? JSON.parse(changedColumns || '{}') : (changedColumns || {});
     const rd = typeof rowData === 'string' ? JSON.parse(rowData || '{}') : (rowData || {});
 
-    let fileName = `${tableName}.xlsx`;
+    let fileName = `${tableName}.csv`;
     let sheetName = tableName;
     let rowObj = null;
 
     if (tableName === 'PTREQ_ATTABSDATA_Leave_Apply' || tableName === 'ptreq_attabsdata_leave_apply_1') {
-      fileName = 'PTREQ_ATTABSDATA_Leave_Apply.xlsx';
+      fileName = 'PTREQ_ATTABSDATA_Leave_Apply.csv';
       sheetName = 'PTREQ_ATTABSDATA_Leave_Apply';
       const startDate = cc.start_date || rd.start_date || '';
       const endDate   = cc.end_date   || rd.end_date   || '';
@@ -3718,7 +3718,7 @@ async function recordOutboundChange(tableName, recordId, actionType, changedColu
         'Subs.sickness ind.':       0, 'Ind. for repeated illness': 0,
       };
     } else if (tableName === 'PTREQ_HEADER_Leave_Approved' || tableName === 'ptreq_header_leave_approved_1') {
-      fileName = 'PTREQ_HEADER_Leave_Approved.xlsx';
+      fileName = 'PTREQ_HEADER_Leave_Approved.csv';
       sheetName = 'PTREQ_HEADER_Leave_Approved';
       const now = new Date();
       const excelTs = (now - new Date(1899, 11, 30)) / 86400000;
@@ -3744,7 +3744,7 @@ async function recordOutboundChange(tableName, recordId, actionType, changedColu
         'ID':                         cc.personnel_number || rd.personnel_number || cc.last_changed_by || '',
       };
     } else if (tableName === 'time_quota_compensation_infotype') {
-      fileName = 'IT0416_Time_Compensation.xlsx';
+      fileName = 'IT0416_Time_Compensation.csv';
       sheetName = 'Sheet1';
       const pernr = (cc.personnel_number || rd.personnel_number || '').toString().replace(/^0+/, '');
       rowObj = {
@@ -3773,7 +3773,7 @@ async function recordOutboundChange(tableName, recordId, actionType, changedColu
         'Is not accounted':           ''
       };
     } else if (tableName === 'travel') {
-      fileName = 'FTPT_REQ_HEAD-Travel request.xlsx';
+      fileName = 'FTPT_REQ_HEAD-Travel request.csv';
       sheetName = 'Sheet1';
       const pernr = cc.personnel_number || rd.personnel_number || '';
       const tripNo = cc.trip_number || rd.trip_number || recordId || '';
@@ -3829,7 +3829,7 @@ async function recordOutboundChange(tableName, recordId, actionType, changedColu
     }
 
     if (rowObj) {
-      await writeTableOutboundExcel(fileName, sheetName, rowObj);
+      await writeTableOutboundCsv(fileName, sheetName, rowObj);
     }
   } catch (fileErr) {
     console.error('[Outbound Record File Error]', fileErr.message);

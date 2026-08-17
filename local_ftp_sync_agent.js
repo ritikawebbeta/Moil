@@ -47,16 +47,16 @@ async function runLocalFtpSync() {
       const jf = base + '.json', jp = path.join(LOCAL_TEMP_DIR, jf);
       fs.writeFileSync(jp, JSON.stringify(payload, null, 2));
       try { await ftpClient.uploadFrom(jp, FTP_OUTBOUND_DIR + '/' + jf); console.log('[FTP] JSON uploaded:', jf); } catch (e) { console.error('[FTP] JSON failed:', e.message); }
-      const xf = base + '.xlsx', xp = path.join(LOCAL_TEMP_DIR, xf);
+      const cf = base + '.csv', cp = path.join(LOCAL_TEMP_DIR, cf);
       try {
-        const wb = xlsx.utils.book_new();
-        xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet([row]), 'Sheet1');
-        fs.writeFileSync(xp, xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' }));
-        await ftpClient.uploadFrom(xp, FTP_OUTBOUND_DIR + '/' + xf);
-        console.log('[FTP] XLSX uploaded:', xf);
-      } catch (e) { console.error('[FTP] XLSX failed:', e.message); }
+        const ws = xlsx.utils.json_to_sheet([row]);
+        const csvContent = xlsx.utils.sheet_to_csv(ws);
+        fs.writeFileSync(cp, csvContent, 'utf8');
+        await ftpClient.uploadFrom(cp, FTP_OUTBOUND_DIR + '/' + cf);
+        console.log('[FTP] CSV uploaded:', cf);
+      } catch (e) { console.error('[FTP] CSV failed:', e.message); }
       syncedIds.push(record.id);
-      try { fs.unlinkSync(jp); fs.unlinkSync(xp); } catch (_) {}
+      try { fs.unlinkSync(jp); fs.unlinkSync(cp); } catch (_) {}
     }
     if (syncedIds.length > 0) {
       await db.execute('UPDATE app_outbound_changes SET is_synced=1, synced_at=NOW() WHERE id IN (' + syncedIds.map(() => '?').join(',') + ')', syncedIds);

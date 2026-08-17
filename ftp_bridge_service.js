@@ -109,7 +109,7 @@ function dateToExcelSerial(dateStr) {
   return dateStr;
 }
 
-function saveXlsx(record, filePath) {
+function saveCsv(record, filePath) {
   const cc = record.changed_columns || {};
   const rd = record.row_data || {};
   let rows = [];
@@ -212,9 +212,8 @@ function saveXlsx(record, filePath) {
   }
 
   const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, record.table_name.substring(0, 31));
-  XLSX.writeFile(wb, filePath);
+  const csvContent = XLSX.utils.sheet_to_csv(ws);
+  fs.writeFileSync(filePath, csvContent, 'utf8');
 }
 
 
@@ -280,22 +279,22 @@ async function doSync() {
     for (const record of pending) {
       const baseName  = buildFilename(record);
       const jsonPath  = path.join(CONFIG.tmpDir, `${baseName}.json`);
-      const xlsxPath  = path.join(CONFIG.tmpDir, `${baseName}.xlsx`);
+      const csvPath   = path.join(CONFIG.tmpDir, `${baseName}.csv`);
 
-      // 3. Write JSON + XLSX locally
+      // 3. Write JSON + CSV locally
       saveJson(record, jsonPath);
-      saveXlsx(record, xlsxPath);
+      saveCsv(record, csvPath);
 
       // 4. Upload both files to FTP
       try {
         await client.uploadFrom(jsonPath, `${CONFIG.ftpOutbound}/${baseName}.json`);
-        await client.uploadFrom(xlsxPath, `${CONFIG.ftpOutbound}/${baseName}.xlsx`);
+        await client.uploadFrom(csvPath, `${CONFIG.ftpOutbound}/${baseName}.csv`);
         log(`  ✅ Uploaded: ${baseName} (${record.table_name})`);
         syncedIds.push(record.id);
 
         // Archive copies locally on Mac
         fs.copyFileSync(jsonPath, path.join(CONFIG.archiveDir, `${baseName}.json`));
-        fs.copyFileSync(xlsxPath, path.join(CONFIG.archiveDir, `${baseName}.xlsx`));
+        fs.copyFileSync(csvPath, path.join(CONFIG.archiveDir, `${baseName}.csv`));
         log(`  📁 Archived locally: outbound_archive/${baseName}.json`);
       } catch (uploadErr) {
         log(`  ❌ Upload failed for ${record.record_id}: ${uploadErr.message}`);
@@ -303,7 +302,7 @@ async function doSync() {
 
       // Cleanup temp files
       try { fs.unlinkSync(jsonPath); } catch (_) {}
-      try { fs.unlinkSync(xlsxPath); } catch (_) {}
+      try { fs.unlinkSync(csvPath); } catch (_) {}
     }
   } catch (ftpErr) {
     log(`❌ FTP Error: ${ftpErr.message}`);
