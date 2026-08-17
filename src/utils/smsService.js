@@ -65,7 +65,7 @@ async function getAuthToken() {
 /**
  * Send SMS via MyVI Gateway (Server-side, like Postman)
  */
-async function sendSms({ mobileNumber, script, dltTemplateId }) {
+async function sendSms({ mobileNumber, script, dltTemplateId }, isRetry = false) {
   try {
     const phone = mobileNumber ? String(mobileNumber).trim().replace(/[^\d]/g, '').slice(-10) : DEFAULT_MOBILE;
     const targetPhone = (phone.length === 10) ? phone : DEFAULT_MOBILE;
@@ -97,8 +97,17 @@ async function sendSms({ mobileNumber, script, dltTemplateId }) {
       }, (res) => {
         let data = '';
         res.on('data', chunk => data += chunk);
-        res.on('end', () => {
+        res.on('end', async () => {
           console.log(`[SMS Proxy Dispatch] Target: ${targetPhone} | DLT: ${dltTemplateId} | Status: ${res.statusCode} | Response: ${data}`);
+          
+          if (res.statusCode === 401 && !isRetry) {
+            console.log('[SMS Proxy Dispatch] 401 Unauthorized received. Clearing token cache and retrying...');
+            cachedToken = null;
+            tokenExpiry = 0;
+            const retryResult = await sendSms({ mobileNumber, script, dltTemplateId }, true);
+            return resolve(retryResult);
+          }
+
           resolve({ success: res.statusCode === 200, statusCode: res.statusCode, body: data });
         });
       });
