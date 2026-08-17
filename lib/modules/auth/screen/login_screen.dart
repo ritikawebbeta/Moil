@@ -126,12 +126,12 @@ class _LoginScreenState extends State<LoginScreen>
       // _passwordController.text = "BLTPM3281J2";
 
       //B.C.N. Gautam
-         _employeeIdController.text = "4428";
-      _passwordController.text = "AIMPG8474A";
+      //    _employeeIdController.text = "4428";
+      // _passwordController.text = "AIMPG8474A2";
 
       //Rakesh Tumane
       //    _employeeIdController.text = "16194";
-      // _passwordController.text = "ACEPT4553B11";
+      // _passwordController.text = "ACEPT4553B2";
     }
     _animController = AnimationController(
       vsync: this,
