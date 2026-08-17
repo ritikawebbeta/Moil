@@ -1,6 +1,7 @@
 // lib/main.dart
 
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -35,8 +36,22 @@ import 'dart:convert';
 // Utilities
 import 'utils/app_colors.dart';
 
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) {
+        if (host == 'cts.myvi.in') return true;
+        return false;
+      };
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb) {
+    HttpOverrides.global = MyHttpOverrides();
+  }
 
   // Initialize raw employees list
   ProfileController.rawEmployees = [];
