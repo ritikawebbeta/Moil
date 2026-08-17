@@ -261,6 +261,46 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
     );
   }
 
+  Future<void> _withdrawLeave(LeaveModel leave) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBg,
+          title: const Text('Withdraw Leave Request', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
+          content: Text('Are you sure you want to withdraw your leave application for ${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)}?', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+              child: const Text('Withdraw'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      final auth = context.read<AuthController>();
+      final success = await context.read<LeaveController>().withdrawLeave(leave.id, auth.user?.employeeId ?? '');
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Leave request withdrawn successfully'), backgroundColor: AppColors.success),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to withdraw leave request'), backgroundColor: AppColors.error),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildDetailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -610,6 +650,14 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          if (leave.status == 'In Process') ...[
+                            IconButton(
+                              icon: const Icon(Icons.cancel_outlined, color: AppColors.error, size: 20),
+                              onPressed: () => _withdrawLeave(leave),
+                              tooltip: 'Withdraw Request',
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                           IconButton(
                             icon: const Icon(Icons.visibility_outlined, color: AppColors.primary, size: 20),
                             onPressed: () => _viewLeaveDetails(leave),
@@ -636,10 +684,10 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final totalWidth = constraints.maxWidth > 1600.0 ? constraints.maxWidth : 1600.0;
-        final extraWidth = totalWidth - 1600.0;
+        final totalWidth = constraints.maxWidth > 1630.0 ? constraints.maxWidth : 1630.0;
+        final extraWidth = totalWidth - 1630.0;
         
-        final actionsWidth = 80.0;
+        final actionsWidth = 110.0;
         final leaveIdWidth = 90.0;
         final empIdWidth = 110.0;
         final empNameWidth = 160.0 + extraWidth * 0.2;
@@ -728,6 +776,14 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                                           color: AppColors.primary,
                                           onTap: () => _printLeavePdf(leave),
                                         ),
+                                        if (leave.status == 'In Process') ...[
+                                          const SizedBox(width: 6),
+                                          _ActionIcon(
+                                            icon: Icons.cancel_outlined,
+                                            color: AppColors.error,
+                                            onTap: () => _withdrawLeave(leave),
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),

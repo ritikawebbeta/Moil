@@ -234,6 +234,29 @@ class LeaveController extends ChangeNotifier {
     }
   }
 
+  Future<bool> withdrawLeave(String leaveId, String employeeId) async {
+    try {
+      final token = await _getToken();
+      final response = await ApiClient.post(
+        Uri.parse('${AppConfig.baseUrl}/api/leaves/withdraw'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'leave_id': leaveId,
+        }),
+      );
+      if (response.statusCode == 200) {
+        await fetchLeaves(employeeId);
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   List<dynamic> _teamCalendar = [];
   List<dynamic> get teamCalendar => _teamCalendar;
 
