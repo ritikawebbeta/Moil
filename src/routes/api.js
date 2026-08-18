@@ -2408,6 +2408,62 @@ router.post('/leaves/withdraw', authenticateToken, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/dev/convert-outbound-to-csv
+ * Temporary dev utility to convert existing Outbound .xlsx files to .csv
+ */
+router.get('/dev/convert-outbound-to-csv', async (req, res) => {
+  const xlsxLib = require('xlsx');
+  const outboundDir = fs.existsSync('/home/u156958239/domains/acubeai.com/public_html/test/moil_hr_app/uploads/Outbound')
+    ? '/home/u156958239/domains/acubeai.com/public_html/test/moil_hr_app/uploads/Outbound'
+    : path.join(__dirname, '../../uploads/Outbound');
+
+  try {
+    if (!fs.existsSync(outboundDir)) {
+      return res.status(404).json({ error: 'Outbound directory not found', path: outboundDir });
+    }
+
+    const files = fs.readdirSync(outboundDir);
+    const converted = [];
+    const skipped = [];
+
+    for (const file of files) {
+      if (file.toLowerCase().endsWith('.xlsx')) {
+        const fullXlsxPath = path.join(outboundDir, file);
+        const csvFileName = file.substring(0, file.length - 5) + '.csv';
+        const fullCsvPath = path.join(outboundDir, csvFileName);
+
+        try {
+          const wb = xlsxLib.readFile(fullXlsxPath);
+          let bestSheet = wb.Sheets[wb.SheetNames[0]];
+          let maxRows = 0;
+          for (const sName of wb.SheetNames) {
+            const s = wb.Sheets[sName];
+            const r = xlsxLib.utils.sheet_to_json(s);
+            if (r.length > maxRows) {
+              maxRows = r.length;
+              bestSheet = s;
+            }
+          }
+          const csvContent = xlsxLib.utils.sheet_to_csv(bestSheet);
+          fs.writeFileSync(fullCsvPath, csvContent, 'utf8');
+          fs.unlinkSync(fullXlsxPath); // delete old xlsx file
+          converted.push({ xlsx: file, csv: csvFileName });
+        } catch (fileErr) {
+          console.error(`[Conversion Error for ${file}]`, fileErr.message);
+          skipped.push({ file, error: fileErr.message });
+        }
+      } else {
+        skipped.push({ file, reason: 'Not an .xlsx file' });
+      }
+    }
+
+    res.json({ message: 'Conversion completed', converted, skipped });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to convert files', message: error.message });
+  }
+});
+
+/**
  * @route   GET /api/tours
  */
 router.get('/tours', authenticateToken, async (req, res) => {
