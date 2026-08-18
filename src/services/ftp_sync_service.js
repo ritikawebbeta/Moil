@@ -392,6 +392,23 @@ async function syncPhotosFromFtp(client) {
 }
 
 /**
+ * Utility: Map MySQL table name to clean outbound filename (case-insensitive)
+ */
+function getOutboundFileName(tableName) {
+  const upper = (tableName || '').toUpperCase();
+  if (upper === 'PTREQ_ATTABSDATA_LEAVE_APPLY' || upper === 'PTREQ_ATTABSDATA_LEAVE_APPLY_1') {
+    return 'PTREQ_ATTABSDATA_Leave_Apply.csv';
+  }
+  if (upper === 'PTREQ_HEADER_LEAVE_APPROVED' || upper === 'PTREQ_HEADER_LEAVE_APPROVED_1') {
+    return 'PTREQ_HEADER_Leave_Approved.csv';
+  }
+  if (upper === 'TRAVEL') {
+    return "Travel From April'26 to till date.csv";
+  }
+  return `${upper}.csv`;
+}
+
+/**
  * Core FTP Sync Runner
  */
 async function runFtpSync() {
@@ -523,25 +540,49 @@ async function runFtpSync() {
       console.log(`[Upload Sync] Processing ${pendingOutbound.length} pending app outbound changes...`);
       const syncedIds = [];
 
+      // Group changes by their target file name
+      const groups = {};
       for (const change of pendingOutbound) {
-        const timestamp = Date.now();
-        const baseFileName = `outbound_${change.table_name}_${change.action_type}_${change.record_id}_${timestamp}`;
-        
-        // Use formatting helper to align columns exactly with inbound file layouts
-        const formattedDataObj = formatOutboundRow(change);
+        const fileName = getOutboundFileName(change.table_name);
+        if (!groups[fileName]) {
+          groups[fileName] = {
+            fileName,
+            changes: []
+          };
+        }
+        groups[fileName].changes.push(change);
+      }
 
-        const fileNameCsv = `${baseFileName}.csv`;
-        const destOutboundPath = path.join(UPLOADS_OUTBOUND_DIR, fileNameCsv);
+      // Process each file group
+      for (const group of Object.values(groups)) {
+        const destOutboundPath = path.join(UPLOADS_OUTBOUND_DIR, group.fileName);
         
         try {
-          const ws = xlsx.utils.json_to_sheet([formattedDataObj]);
+          let existingRows = [];
+          if (fs.existsSync(destOutboundPath)) {
+            try {
+              const wb = xlsx.readFile(destOutboundPath);
+              const ws = wb.Sheets[wb.SheetNames[0]];
+              existingRows = xlsx.utils.sheet_to_json(ws, { defval: "" });
+            } catch (readErr) {
+              console.warn(`[Upload Sync] Failed to read existing outbound file ${group.fileName}, starting fresh:`, readErr.message);
+            }
+          }
+
+          // Format and append all changes for this file
+          for (const change of group.changes) {
+            const formattedDataObj = formatOutboundRow(change);
+            existingRows.push(formattedDataObj);
+            syncedIds.push(change.id);
+          }
+
+          // Write all rows back to the file
+          const ws = xlsx.utils.json_to_sheet(existingRows);
           const csvContent = xlsx.utils.sheet_to_csv(ws);
           fs.writeFileSync(destOutboundPath, csvContent, 'utf8');
-
-          syncedIds.push(change.id);
-          console.log(`[Upload Sync] Exported outbound: ${fileNameCsv}`);
-        } catch (wrErr) {
-          console.error(`[Upload Sync Outbound File Error] ${wrErr.message}`);
+          console.log(`[Upload Sync] Appended ${group.changes.length} rows to outbound: ${group.fileName}`);
+        } catch (err) {
+          console.error(`[Upload Sync Group File Error] Failed to write to ${group.fileName}: ${err.message}`);
         }
       }
 
