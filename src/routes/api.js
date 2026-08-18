@@ -1137,6 +1137,8 @@ router.get('/leaves', authenticateToken, async (req, res) => {
         status = 'Rejected';
       } else if (statuses.includes('WITHDRAWN')) {
         status = 'Withdrawn';
+      } else if (statuses.includes('SENT_L2') || statuses.includes('L1_APPROVED') || row.lock_indicator === 'P2') {
+        status = 'Pending L2';
       } else {
         status = 'In Process';
       }
@@ -2286,8 +2288,8 @@ router.post('/leaves/withdraw', authenticateToken, async (req, res) => {
     const latestHeader = headerRows.length > 0 ? headerRows[0] : null;
     const currentStatus = latestHeader ? latestHeader.document_status : 'SENT';
 
-    if (['APPROVED', 'POSTED', 'REJECTED', 'WITHDRAWN', 'CANCELED'].includes(currentStatus)) {
-      return res.status(409).json({ error: 'Leave already processed or withdrawn', status: currentStatus });
+    if (['APPROVED', 'POSTED', 'REJECTED', 'WITHDRAWN', 'CANCELED', 'SENT_L2', 'L1_APPROVED'].includes(currentStatus) || appRow.lock_indicator === 'P2') {
+      return res.status(409).json({ error: 'Leave already approved by a reporting officer and cannot be withdrawn', status: currentStatus });
     }
 
     // 4. Format audit fields
