@@ -253,6 +253,18 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                     _printLeavePdf(leave);
                   },
                 ),
+                if (leave.status == 'In Process') ...[
+                  const SizedBox(height: 12),
+                  PrimaryButton(
+                    label: 'Withdraw Leave Request',
+                    icon: Icons.cancel_outlined,
+                    color: AppColors.error,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _withdrawLeave(leave);
+                    },
+                  ),
+                ],
               ],
             ),
           ),
@@ -267,17 +279,30 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.cardBg,
-          title: const Text('Withdraw Leave Request', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 24),
+              const SizedBox(width: 8),
+              const Text('Withdraw Leave Request', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
           content: Text('Are you sure you want to withdraw your leave application for ${DateFormat('dd-MM-yyyy').format(leave.startDate)} to ${DateFormat('dd-MM-yyyy').format(leave.endDate)}?', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-              child: const Text('Withdraw'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              child: const Text('Withdraw', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -650,14 +675,6 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          if (leave.status == 'In Process') ...[
-                            IconButton(
-                              icon: const Icon(Icons.cancel_outlined, color: AppColors.error, size: 20),
-                              onPressed: () => _withdrawLeave(leave),
-                              tooltip: 'Withdraw Request',
-                            ),
-                            const SizedBox(width: 8),
-                          ],
                           IconButton(
                             icon: const Icon(Icons.visibility_outlined, color: AppColors.primary, size: 20),
                             onPressed: () => _viewLeaveDetails(leave),
@@ -684,10 +701,10 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final totalWidth = constraints.maxWidth > 1630.0 ? constraints.maxWidth : 1630.0;
-        final extraWidth = totalWidth - 1630.0;
+        final totalWidth = constraints.maxWidth > 1600.0 ? constraints.maxWidth : 1600.0;
+        final extraWidth = totalWidth - 1600.0;
         
-        final actionsWidth = 110.0;
+        final actionsWidth = 80.0;
         final leaveIdWidth = 90.0;
         final empIdWidth = 110.0;
         final empNameWidth = 160.0 + extraWidth * 0.2;
@@ -765,25 +782,23 @@ class _LeaveStatusScreenState extends State<LeaveStatusScreen> {
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                                     child: Row(
                                       children: [
-                                        _ActionIcon(
-                                          icon: Icons.visibility_outlined,
-                                          color: AppColors.primary,
-                                          onTap: () => _viewLeaveDetails(leave),
+                                        Tooltip(
+                                          message: 'View Details',
+                                          child: _ActionIcon(
+                                            icon: Icons.visibility_outlined,
+                                            color: AppColors.primary,
+                                            onTap: () => _viewLeaveDetails(leave),
+                                          ),
                                         ),
                                         const SizedBox(width: 6),
-                                        _ActionIcon(
-                                          icon: Icons.print_outlined,
-                                          color: AppColors.primary,
-                                          onTap: () => _printLeavePdf(leave),
-                                        ),
-                                        if (leave.status == 'In Process') ...[
-                                          const SizedBox(width: 6),
-                                          _ActionIcon(
-                                            icon: Icons.cancel_outlined,
-                                            color: AppColors.error,
-                                            onTap: () => _withdrawLeave(leave),
+                                        Tooltip(
+                                          message: 'Print Requisition',
+                                          child: _ActionIcon(
+                                            icon: Icons.print_outlined,
+                                            color: AppColors.primary,
+                                            onTap: () => _printLeavePdf(leave),
                                           ),
-                                        ],
+                                        ),
                                       ],
                                     ),
                                   ),
