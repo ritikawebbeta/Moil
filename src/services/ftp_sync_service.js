@@ -1,6 +1,7 @@
 // src/services/ftp_sync_service.js
 const fs = require('fs');
 const path = require('path');
+const ftp = require('basic-ftp');
 const xlsx = require('xlsx');
 const { pool } = require('../config/db');
 
@@ -556,6 +557,61 @@ async function runFtpSync() {
   } catch (err) {
     console.error(`[Upload Sync Error] ${err.message}`);
   }
+
+  /*
+  // ─── ORIGINAL FTP SYNC LOGIC (COMMENTED OUT FOR FUTURE LAN REVERT) ───
+  //
+  // const client = new ftp.Client();
+  // client.ftp.verbose = false;
+  // try {
+  //   await client.access({
+  //     host: FTP_HOST,
+  //     port: FTP_PORT,
+  //     user: FTP_USER,
+  //     password: FTP_PASS,
+  //     secure: false
+  //   });
+  //   await syncPhotosFromFtp(client);
+  //   let inboundFiles = await client.list(FTP_INBOUND_DIR);
+  //   for (const file of inboundFiles) {
+  //     if (file.isDirectory) continue;
+  //     const lastModStr = file.modifiedAt ? file.modifiedAt.toISOString() : (file.rawModifiedAt || '');
+  //     const [regRows] = await pool.query('SELECT * FROM inbound_sync_registry WHERE file_name = ? AND file_size = ? AND last_modified = ?', [file.name, file.size, lastModStr]);
+  //     if (regRows.length > 0) continue;
+  //     const localFilePath = path.join(localInboundDir, file.name);
+  //     await client.downloadTo(localFilePath, `${FTP_INBOUND_DIR}/${file.name}`);
+  //     await client.uploadFrom(localFilePath, `${FTP_OUTBOUND_DIR}/${file.name}`);
+  //     const rows = parseDataFile(localFilePath);
+  //     if (rows.length > 0) {
+  //       const sampleKeys = Object.keys(rows[0]);
+  //       const tableName = detectTableFromHeaders(sampleKeys, file.name);
+  //       if (tableName) await importRowsToDatabase(tableName, rows, file.name);
+  //     }
+  //     await pool.query('INSERT INTO inbound_sync_registry (file_name, file_size, last_modified, processed_at) VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE file_size = VALUES(file_size), last_modified = VALUES(last_modified), processed_at = NOW()', [file.name, file.size, lastModStr]);
+  //   }
+  //   const [pendingOutbound] = await pool.query('SELECT * FROM app_outbound_changes WHERE is_synced = 0 ORDER BY id ASC LIMIT 500');
+  //   if (pendingOutbound.length > 0) {
+  //     const syncedIds = [];
+  //     for (const change of pendingOutbound) {
+  //       const baseFileName = `outbound_${change.table_name}_${change.action_type}_${change.record_id}_${Date.now()}`;
+  //       const formattedDataObj = formatOutboundRow(change);
+  //       const fileNameXlsx = `${baseFileName}.xlsx`;
+  //       const localXlsxPath = path.join(localOutboundDir, fileNameXlsx);
+  //       const wb = xlsx.utils.book_new();
+  //       const ws = xlsx.utils.json_to_sheet([formattedDataObj]);
+  //       xlsx.utils.book_append_sheet(wb, ws, 'Sheet1');
+  //       fs.writeFileSync(localXlsxPath, xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+  //       await client.uploadFrom(localXlsxPath, `${FTP_OUTBOUND_DIR}/${fileNameXlsx}`);
+  //       syncedIds.push(change.id);
+  //     }
+  //     if (syncedIds.length > 0) await pool.query('UPDATE app_outbound_changes SET is_synced = 1, synced_at = NOW() WHERE id IN (?)', [syncedIds]);
+  //   }
+  // } catch (err) {
+  //   console.error(`[FTP Sync Error] ${err.message}`);
+  // } finally {
+  //   client.close();
+  // }
+  */
 }
 
 module.exports = {
