@@ -490,15 +490,6 @@ async function runFtpSync() {
 
       console.log(`[Upload Sync] Processing updated inbound file: ${filename} (${stat.size} bytes)`);
 
-      // Step 2: Store copy of Inbound file to Outbound folder
-      const destOutboundPath = path.join(UPLOADS_OUTBOUND_DIR, filename);
-      console.log(`[Upload Sync] Storing copy of ${filename} to Outbound folder...`);
-      try {
-        fs.copyFileSync(fullInboundPath, destOutboundPath);
-      } catch (cpErr) {
-        console.warn(`[Upload Sync Copy Error] ${cpErr.message}`);
-      }
-
       // Step 3: Import parsed data from Inbound into Database
       const rows = parseDataFile(fullInboundPath);
       if (rows.length > 0) {
