@@ -1,8 +1,5 @@
 // lib/modules/approval/screen/approval_screen.dart
 // Multi-level approval screen for HOD, Reporting Officer, CMD
-
-import 'package:employee_management/modules/auth/controller/auth_controller.dart';
-import 'package:employee_management/modules/profile/controller/profile_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
