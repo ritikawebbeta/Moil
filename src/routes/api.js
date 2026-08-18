@@ -2246,6 +2246,168 @@ router.post('/leaves/reject', authenticateToken, async (req, res) => {
 });
 
 /**
+ * @route   POST /api/leaves/withdraw
+ */
+router.post('/leaves/withdraw', authenticateToken, async (req, res) => {
+  const { leave_id } = req.body;
+  const employeeId = req.user.employee_number;
+
+  try {
+    // 1. Fetch leave details
+    const [appRows] = await pool.query(
+      `SELECT * FROM ptreq_attabsdata_leave_apply_1 WHERE id_of_request_item = ? LIMIT 1`,
+      [leave_id]
+    );
+    if (appRows.length === 0) return res.status(404).json({ error: 'Leave request not found' });
+    const appRow = appRows[0];
+    const applicantId = appRow.personnel_number;
+
+    // Check ownership
+    if (parseInt(applicantId) !== parseInt(employeeId)) {
+      return res.status(403).json({ error: 'You are not authorized to withdraw this leave request' });
+    }
+
+    // 2. Get ptreq_items bridge row
+    const [itemRows] = await pool.query(
+      `SELECT * FROM ptreq_items WHERE guid_1 = ? LIMIT 1`,
+      [leave_id]
+    );
+    const itemRow = itemRows.length > 0 ? itemRows[0] : null;
+    const reqItemListId = itemRow ? itemRow.id_of_request_item_list : leave_id;
+
+    // 3. Get current header status
+    const [headerRows] = await pool.query(
+      `SELECT h.* FROM ptreq_header_leave_approved_1 h
+       JOIN ptreq_items pi ON pi.id_of_request_item_list = h.id_of_request_item_list
+       WHERE pi.guid_1 = ?
+       ORDER BY h.row_id DESC LIMIT 1`,
+      [leave_id]
+    );
+    const latestHeader = headerRows.length > 0 ? headerRows[0] : null;
+    const currentStatus = latestHeader ? latestHeader.document_status : 'SENT';
+
+    if (['APPROVED', 'POSTED', 'REJECTED', 'WITHDRAWN', 'CANCELED'].includes(currentStatus)) {
+      return res.status(409).json({ error: 'Leave already processed or withdrawn', status: currentStatus });
+    }
+
+    // 4. Format audit fields
+    const applicantPaddedPernr = applicantId.toString().trim().padStart(8, '0');
+    const changedByFormatted = `HR_app_${applicantPaddedPernr}`;
+    const nowTs = ((new Date() - new Date(1899, 11, 30)) / 86400000).toString();
+    const docVersion = latestHeader ? (parseInt(latestHeader.document_version || '1') + 1).toString() : '1';
+    const guid = latestHeader ? (latestHeader.guid || leave_id) : leave_id;
+    const docIdent = (latestHeader && latestHeader.document_identification) ? latestHeader.document_identification : reqItemListId;
+
+    // 5. Begin Transaction: Update status + Delete absence
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    try {
+      // Insert new header row with WITHDRAWN status
+      await conn.query(
+        `INSERT INTO ptreq_header_leave_approved_1
+         (document_identification, document_version, document_category, document_status,
+          guid, guid_1, guid_2, guid_3, guid_4, guid_5, guid_6, guid_7,
+          id_of_request_item_list, last_changed_by, time_stamp, time_zone, id)
+         VALUES (?, ?, 'ABSREQ', 'WITHDRAWN', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INDIA', ?)`,
+        [docIdent, docVersion,
+         guid, guid, guid, guid, guid, guid, guid, guid,
+         reqItemListId, changedByFormatted, nowTs, applicantId]
+      );
+
+      // Set lock_indicator to W (withdrawn)
+      await conn.query(
+        `UPDATE ptreq_attabsdata_leave_apply_1 SET lock_indicator = 'W' WHERE id_of_request_item = ?`,
+        [leave_id]
+      );
+
+      // Delete from absence table
+      await conn.query(
+        `DELETE FROM absence WHERE personnel_number = ? AND start_date = ?`,
+        [applicantPaddedPernr, appRow.start_date]
+      );
+
+      await conn.commit();
+    } catch (txErr) {
+      await conn.rollback();
+      throw txErr;
+    } finally {
+      conn.release();
+    }
+
+    // 6. Write to daily cumulative Excel for FTP outbound
+    const withdrawnHeaderData = {
+      document_identification: leave_id,
+      document_version: docVersion,
+      document_status: 'WITHDRAWN',
+      guid, guid_1: guid,
+      id_of_request_item_list: reqItemListId,
+      last_changed_by: changedByFormatted,
+      time_stamp: nowTs,
+    };
+    await writeLeaveCumulativeExcel({
+      leaveRow: { ...appRow, lock_indicator: 'W' },
+      headerRow: withdrawnHeaderData,
+      itemRow: itemRow || { id_of_request_item_list: reqItemListId, guid_1: leave_id },
+      quotaRow: null,
+    });
+
+    // 7. Record outbound change
+    await recordOutboundChange(
+      'PTREQ_HEADER_Leave_Approved', leave_id, 'UPDATE',
+      { document_status: 'WITHDRAWN', last_changed_by: changedByFormatted, req_item_list_id: reqItemListId },
+      withdrawnHeaderData
+    );
+
+    // 8. Trigger FTP sync
+    try {
+      const { runFtpSync } = require('../services/ftp_sync_service');
+      runFtpSync().catch(err => console.error('[Immediate FTP Sync Error]', err.message));
+    } catch (_) {}
+
+    // 9. Send notifications
+    await createNotification(
+      applicantId,
+      'Leave Application Withdrawn',
+      `Your leave application for ${appRow.start_date} has been withdrawn successfully.`,
+      'Leave'
+    );
+
+    // Notify Reporting Officers if applicable
+    const [agents] = await pool.query(
+      `SELECT reporting_officer, reporting_officer_1 FROM zhcm_lr_t_agents_03072026 WHERE personnel_number = ? LIMIT 1`,
+      [applicantId]
+    );
+    if (agents.length > 0) {
+      const ro = (agents[0].reporting_officer || '0').toString().trim();
+      const ro1 = (agents[0].reporting_officer_1 || '0').toString().trim();
+      const applicantName = await getEmployeeName(applicantId);
+      
+      if (ro && ro !== '0' && ro !== 'N/A') {
+        await createNotification(
+          ro,
+          'Leave Request Withdrawn',
+          `${applicantName} has withdrawn their leave request for ${appRow.start_date}.`,
+          'Leave'
+        );
+      }
+      if (ro1 && ro1 !== '0' && ro1 !== 'N/A' && ro1 !== ro) {
+        await createNotification(
+          ro1,
+          'Leave Request Withdrawn',
+          `${applicantName} has withdrawn their leave request for ${appRow.start_date}.`,
+          'Leave'
+        );
+      }
+    }
+
+    res.json({ message: 'Leave request withdrawn successfully' });
+  } catch (error) {
+    console.error('[Withdraw Leave Error]', error.message);
+    res.status(500).json({ error: 'Failed to withdraw leave', message: error.message });
+  }
+});
+
+/**
  * @route   GET /api/tours
  */
 router.get('/tours', authenticateToken, async (req, res) => {

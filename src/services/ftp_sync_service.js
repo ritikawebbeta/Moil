@@ -1,17 +1,130 @@
 // src/services/ftp_sync_service.js
 const fs = require('fs');
 const path = require('path');
-const ftp = require('basic-ftp');
 const xlsx = require('xlsx');
 const { pool } = require('../config/db');
 
-// Environment variables with fallbacks
-const FTP_HOST = process.env.FTP_HOST || '172.16.1.51';
-const FTP_PORT = parseInt(process.env.FTP_PORT || '21', 10);
-const FTP_USER = process.env.FTP_USER || 'ftpuser2';
-const FTP_PASS = process.env.FTP_PASSWORD || 'Ftppo16$';
-const FTP_INBOUND_DIR = process.env.FTP_INBOUND_DIR || '/HR_App/Inbound';
-const FTP_OUTBOUND_DIR = process.env.FTP_OUTBOUND_DIR || '/HR_App/Outbound';
+// Local uploads paths acting as local FTP replacement on Hostinger
+const UPLOADS_DIR = fs.existsSync('/home/u156958239/domains/acubeai.com/public_html/test/moil_hr_app/uploads')
+  ? '/home/u156958239/domains/acubeai.com/public_html/test/moil_hr_app/uploads'
+  : path.join(__dirname, '../../uploads');
+
+const UPLOADS_INBOUND_DIR = path.join(UPLOADS_DIR, 'Inbound');
+const UPLOADS_OUTBOUND_DIR = path.join(UPLOADS_DIR, 'Outbound');
+
+// Formatting helper: formats database changes into the exact column layouts/names of the Inbound SAP files
+function formatOutboundRow(change) {
+  const cc = change.changed_columns ? (typeof change.changed_columns === 'string' ? JSON.parse(change.changed_columns || '{}') : change.changed_columns) : {};
+  const rd = change.row_data ? (typeof change.row_data === 'string' ? JSON.parse(change.row_data || '{}') : change.row_data) : {};
+  
+  function dateToExcelSerial(dateStr) {
+    if (!dateStr) return '';
+    const parts = dateStr.split('.');
+    if (parts.length === 3) {
+      const d = new Date(parts[2], parts[1] - 1, parts[0]);
+      return Math.floor((d - new Date(1899, 11, 30)) / 86400000);
+    }
+    const iso = new Date(dateStr);
+    if (!isNaN(iso)) return Math.floor((iso - new Date(1899, 11, 30)) / 86400000);
+    return dateStr;
+  }
+
+  const tableNameUpper = (change.table_name || '').toUpperCase();
+
+  if (tableNameUpper === 'PTREQ_ATTABSDATA_LEAVE_APPLY' || tableNameUpper === 'PTREQ_ATTABSDATA_LEAVE_APPLY_1') {
+    const startDate = cc.start_date || rd.start_date || '';
+    const endDate   = cc.end_date   || rd.end_date   || '';
+    const days      = parseFloat(cc.days_count || rd.att__abs__days || rd.calendar_days || '1');
+    const hours     = days * 8.5;
+    return {
+      'ID of Request Item':       change.record_id,
+      'Infotype operation':       change.action_type === 'INSERT' ? 'INS' : 'MOD',
+      'Infotype':                 '2001',
+      'Start time':               0,
+      'End time':                 0,
+      'Absence hours':            hours,
+      'Personnel number':         cc.personnel_number || rd.personnel_number || '',
+      'Sub Type':                 cc.sub_type         || rd.sub_type         || '1000',
+      'Object ID':                '',
+      'Lock indicator':           rd.lock_indicator   || 'P',
+      'End Date':                 dateToExcelSerial(endDate),
+      'Start Date':               dateToExcelSerial(startDate),
+      'Infotype record no.':      '0',
+      'Customer Field':           '',
+      'Customer Field_1':         '',
+      'Customer Field_2':         '',
+      'Customer Field_3':         '',
+      'Customer Field_4':         '',
+      'Customer Field_5':         '',
+      'Customer Field_6':         '',
+      'Customer Field_7':         '',
+      'Customer Field_8':         '',
+      'Customer Field_9':         '',
+      'Prev. day indicator':      '',
+      'Att./abs. days':           days,
+      'Calendar days':            days,
+      'Set hours':                '',
+      'Full-day':                 'X',
+      'Payroll days':             days,
+      'Payroll hours':            hours,
+      'Desc. of illness':         '',
+      'Desc. of illness_1':       '',
+      'Days credited':            0,
+      'End of continued pay':     '',
+      'End of sick pay':          '',
+      'Certified start':          '',
+      'Confirmed on':             '',
+      'Subs.sickness ind.':       0,
+      'Ind. for repeated illness':0,
+    };
+  }
+  
+  if (tableNameUpper === 'PTREQ_HEADER_LEAVE_APPROVED' || tableNameUpper === 'PTREQ_HEADER_LEAVE_APPROVED_1') {
+    const now = new Date();
+    const excelTs = (now - new Date(1899, 11, 30)) / 86400000;
+    const status  = cc.document_status || rd.document_status || 'SENT';
+    const guid    = cc.document_identification || change.record_id || '';
+    return {
+      'Document Identification':    change.record_id,
+      'Document Version':           1,
+      'Document Category':          'ABSREQ',
+      'Document Status':            status,
+      'GUID':                       guid,
+      'GUID_1':                     guid,
+      'GUID_2':                     guid,
+      'GUID_3':                     guid,
+      'GUID_4':                     guid,
+      'GUID_5':                     guid,
+      'GUID_6':                     guid,
+      'GUID_7':                     guid,
+      'ID of Request Item List':    cc.req_item_list_id || rd.req_item_list_id || change.record_id,
+      'Last Changed By':            cc.last_changed_by || rd.last_changed_by || '',
+      'Time Stamp':                 excelTs,
+      'Time Zone':                  'INDIA',
+      'ID':                         cc.personnel_number || rd.personnel_number || cc.last_changed_by || '',
+    };
+  }
+
+  if (tableNameUpper === 'TRAVEL') {
+    return {
+      'Personnel Number':           cc.personnel_number || rd.personnel_number || '',
+      'Trip Number':                cc.trip_number      || rd.trip_number      || change.record_id,
+      'Plan/Request Indicator':     rd.plan_request_indicator || 'R',
+      'Trip Destination':           cc.trip_destination || rd.trip_destination || '',
+      'Country Key':                rd.country_key      || 'IN',
+      'Reason for Trip':            cc.reason_for_trip  || rd.reason_for_trip  || '',
+      'Beginning Date':             dateToExcelSerial(cc.beginning_date_of_trip_segment || rd.beginning_date_of_trip_segment || ''),
+      'End Date':                   dateToExcelSerial(cc.end_date_of_trip_segment       || rd.end_date_of_trip_segment       || ''),
+      'Planning Status':            rd.planning_status  || '1',
+      'Changed By':                 cc.changed_by       || rd.changed_by       || '',
+      'Created By':                 rd.created_by       || '',
+      'Approved By':                rd.approved_by      || '',
+    };
+  }
+
+  // Fallback
+  return rd;
+}
 
 /**
  * Utility: Convert Excel date numbers/strings into YYYY-MM-DD
@@ -281,29 +394,51 @@ async function syncPhotosFromFtp(client) {
  * Core FTP Sync Runner
  */
 async function runFtpSync() {
-  console.log(`\n[FTP Sync] Starting synchronization process... [${new Date().toISOString()}]`);
-  const localInboundDir = path.join(__dirname, '../../tmp_ftp_inbound');
-  const localOutboundDir = path.join(__dirname, '../../outbound');
-
-  if (!fs.existsSync(localInboundDir)) fs.mkdirSync(localInboundDir, { recursive: true });
-  if (!fs.existsSync(localOutboundDir)) fs.mkdirSync(localOutboundDir, { recursive: true });
-
-  const client = new ftp.Client();
-  client.ftp.verbose = false;
+  console.log(`\n[Local Upload Sync] Starting synchronization process... [${new Date().toISOString()}]`);
+  
+  if (!fs.existsSync(UPLOADS_INBOUND_DIR)) fs.mkdirSync(UPLOADS_INBOUND_DIR, { recursive: true });
+  if (!fs.existsSync(UPLOADS_OUTBOUND_DIR)) fs.mkdirSync(UPLOADS_OUTBOUND_DIR, { recursive: true });
 
   try {
-    // Connect to FTP
-    await client.access({
-      host: FTP_HOST,
-      port: FTP_PORT,
-      user: FTP_USER,
-      password: FTP_PASS,
-      secure: false
-    });
-    console.log(`[FTP Sync] Connected successfully to FTP server ${FTP_HOST}:${FTP_PORT} as ${FTP_USER}`);
+    // Step 0: Sync Photos from Inbound/Photo if they exist
+    const localPhotoDir = path.join(__dirname, '../../uploads/profiles/Photo');
+    const publicPhotoDir = path.join(UPLOADS_DIR, 'profiles/Photo');
+    if (!fs.existsSync(localPhotoDir)) fs.mkdirSync(localPhotoDir, { recursive: true });
+    if (!fs.existsSync(publicPhotoDir)) {
+      try { fs.mkdirSync(publicPhotoDir, { recursive: true }); } catch (_) {}
+    }
 
-    // Step 0: Sync Employee Photos from FTP folders to DB & Local uploads
-    await syncPhotosFromFtp(client);
+    const sourcePhotoDir = path.join(UPLOADS_INBOUND_DIR, 'Photo');
+    if (fs.existsSync(sourcePhotoDir)) {
+      const photos = fs.readdirSync(sourcePhotoDir);
+      for (const photo of photos) {
+        const ext = path.extname(photo).toLowerCase();
+        if (!['.jpg', '.jpeg', '.png'].includes(ext)) continue;
+        const srcPath = path.join(sourcePhotoDir, photo);
+        const destPath = path.join(localPhotoDir, photo);
+        const publicPath = path.join(publicPhotoDir, photo);
+        try {
+          fs.copyFileSync(srcPath, destPath);
+          fs.copyFileSync(srcPath, publicPath);
+
+          const cleanEmpNo = photo.split('.')[0].split('_')[0].trim().replace(/^0+/, '');
+          if (cleanEmpNo) {
+            const photoUrl = `https://acubeai.com/test/moil_hr_app/api/profile-photo/${cleanEmpNo}`;
+            await pool.query(`
+              INSERT INTO employee_photos (employee_number, file_name, file_size, photo_url, last_updated)
+              VALUES (?, ?, ?, ?, NOW())
+              ON DUPLICATE KEY UPDATE file_name = VALUES(file_name), file_size = VALUES(file_size), photo_url = VALUES(photo_url), last_updated = NOW()
+            `, [cleanEmpNo, photo, fs.statSync(srcPath).size, photoUrl]);
+
+            try {
+              await pool.query('UPDATE manpower SET photo_url = ? WHERE employee_number = ? OR CAST(employee_number AS UNSIGNED) = CAST(? AS UNSIGNED)', [photoUrl, cleanEmpNo, cleanEmpNo]);
+            } catch (_) {}
+          }
+        } catch (photoErr) {
+          console.warn(`[Photo Sync Error] ${photoErr.message}`);
+        }
+      }
+    }
 
     // Ensure registry table exists
     await pool.query(`
@@ -316,53 +451,45 @@ async function runFtpSync() {
       )
     `);
 
-    // Step 1: Fetch latest files from FTP Inbound (/HR_App/Inbound)
-    let inboundFiles = [];
-    try {
-      inboundFiles = await client.list(FTP_INBOUND_DIR);
-    } catch (e) {
-      console.warn(`[FTP Sync] Could not list ${FTP_INBOUND_DIR}: ${e.message}`);
-    }
+    // Step 1: List files in local Inbound directory
+    const inboundFiles = fs.readdirSync(UPLOADS_INBOUND_DIR);
+    for (const filename of inboundFiles) {
+      const fullInboundPath = path.join(UPLOADS_INBOUND_DIR, filename);
+      const stat = fs.statSync(fullInboundPath);
+      if (stat.isDirectory()) continue;
 
-    for (const file of inboundFiles) {
-      if (file.isDirectory) continue;
-
-      const lastModStr = file.modifiedAt ? file.modifiedAt.toISOString() : (file.rawModifiedAt || '');
+      const lastModStr = stat.mtime.toISOString();
 
       // Check if file is already processed and unchanged
       const [regRows] = await pool.query(
         'SELECT * FROM inbound_sync_registry WHERE file_name = ? AND file_size = ? AND last_modified = ?',
-        [file.name, file.size, lastModStr]
+        [filename, stat.size, lastModStr]
       );
 
       if (regRows.length > 0) {
-        console.log(`[FTP Sync] Skipping unchanged inbound file: ${file.name}`);
         continue;
       }
 
-      console.log(`[FTP Sync] Processing updated inbound file: ${file.name} (${file.size} bytes)`);
+      console.log(`[Upload Sync] Processing updated inbound file: ${filename} (${stat.size} bytes)`);
 
-      const remoteFilePath = `${FTP_INBOUND_DIR}/${file.name}`;
-      const localFilePath = path.join(localInboundDir, file.name);
+      // Step 2: Store copy of Inbound file to Outbound folder
+      const destOutboundPath = path.join(UPLOADS_OUTBOUND_DIR, filename);
+      console.log(`[Upload Sync] Storing copy of ${filename} to Outbound folder...`);
+      try {
+        fs.copyFileSync(fullInboundPath, destOutboundPath);
+      } catch (cpErr) {
+        console.warn(`[Upload Sync Copy Error] ${cpErr.message}`);
+      }
 
-      // Download file from FTP Inbound
-      console.log(`[FTP Sync] Downloading Inbound file: ${file.name}`);
-      await client.downloadTo(localFilePath, remoteFilePath);
-
-      // Step 2: Store copy of Inbound file to FTP Outbound (/HR_App/Outbound)
-      const remoteOutboundCopyPath = `${FTP_OUTBOUND_DIR}/${file.name}`;
-      console.log(`[FTP Sync] Storing copy of ${file.name} to FTP Outbound folder...`);
-      await client.uploadFrom(localFilePath, remoteOutboundCopyPath);
-
-      // Step 3: Import parsed data from FTP Inbound into Database
-      const rows = parseDataFile(localFilePath);
+      // Step 3: Import parsed data from Inbound into Database
+      const rows = parseDataFile(fullInboundPath);
       if (rows.length > 0) {
         const sampleKeys = Object.keys(rows[0]);
-        const tableName = detectTableFromHeaders(sampleKeys, file.name);
+        const tableName = detectTableFromHeaders(sampleKeys, filename);
         if (tableName) {
-          await importRowsToDatabase(tableName, rows, file.name);
+          await importRowsToDatabase(tableName, rows, filename);
         } else {
-          console.log(`[FTP Sync] Skipping unmapped file: ${file.name}`);
+          console.log(`[Upload Sync] Skipping unmapped file: ${filename}`);
         }
       }
 
@@ -371,7 +498,7 @@ async function runFtpSync() {
         INSERT INTO inbound_sync_registry (file_name, file_size, last_modified, processed_at)
         VALUES (?, ?, ?, NOW())
         ON DUPLICATE KEY UPDATE file_size = VALUES(file_size), last_modified = VALUES(last_modified), processed_at = NOW()
-      `, [file.name, file.size, lastModStr]);
+      `, [filename, stat.size, lastModStr]);
     }
 
     // Ensure app_outbound_changes table exists
@@ -389,62 +516,45 @@ async function runFtpSync() {
       )
     `);
 
-    // Step 4 & 5: Sync local App Outbound changes to FTP Outbound & DB
+    // Step 4 & 5: Sync local App Outbound changes to Outbound & DB
     const [pendingOutbound] = await pool.query('SELECT * FROM app_outbound_changes WHERE is_synced = 0 ORDER BY id ASC LIMIT 500');
     if (pendingOutbound.length > 0) {
-      console.log(`[FTP Sync] Processing ${pendingOutbound.length} pending app outbound changes...`);
+      console.log(`[Upload Sync] Processing ${pendingOutbound.length} pending app outbound changes...`);
       const syncedIds = [];
 
       for (const change of pendingOutbound) {
         const timestamp = Date.now();
         const baseFileName = `outbound_${change.table_name}_${change.action_type}_${change.record_id}_${timestamp}`;
-        const parsedRowData = typeof change.row_data === 'string' ? JSON.parse(change.row_data || '{}') : (change.row_data || {});
+        
+        // Use formatting helper to align columns exactly with inbound file layouts
+        const formattedDataObj = formatOutboundRow(change);
 
         const fileNameXlsx = `${baseFileName}.xlsx`;
-        const localXlsxPath = path.join(localOutboundDir, fileNameXlsx);
-        const wb = xlsx.utils.book_new();
-        const ws = xlsx.utils.json_to_sheet([parsedRowData]);
-        xlsx.utils.book_append_sheet(wb, ws, 'Sheet1');
-        const excelBuffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
-        fs.writeFileSync(localXlsxPath, excelBuffer);
+        const destOutboundPath = path.join(UPLOADS_OUTBOUND_DIR, fileNameXlsx);
+        
+        try {
+          const wb = xlsx.utils.book_new();
+          const ws = xlsx.utils.json_to_sheet([formattedDataObj]);
+          xlsx.utils.book_append_sheet(wb, ws, 'Sheet1');
+          const excelBuffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+          fs.writeFileSync(destOutboundPath, excelBuffer);
 
-        const remotePath = `${FTP_OUTBOUND_DIR}/${fileNameXlsx}`;
-        let xlsxUploaded = false;
-
-        // Retry loop for FTP upload with remote size verification
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            await client.uploadFrom(localXlsxPath, remotePath);
-            
-            // Remote verification: verify the file exists on remote FTP and size > 0
-            const remoteSize = await client.size(remotePath).catch(() => 0);
-            if (remoteSize > 0) {
-              xlsxUploaded = true;
-              console.log(`[FTP Sync Upload Verified] ${fileNameXlsx} (${remoteSize} bytes on remote FTP)`);
-              break;
-            }
-          } catch (e) {
-            console.warn(`[FTP Sync Attempt ${attempt}/3 Failed] Uploading ${fileNameXlsx}: ${e.message}`);
-            if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1000));
-          }
-        }
-
-        if (xlsxUploaded) {
           syncedIds.push(change.id);
+          console.log(`[Upload Sync] Exported outbound: ${fileNameXlsx}`);
+        } catch (wrErr) {
+          console.error(`[Upload Sync Outbound File Error] ${wrErr.message}`);
         }
       }
 
       if (syncedIds.length > 0) {
         await pool.query('UPDATE app_outbound_changes SET is_synced = 1, synced_at = NOW() WHERE id IN (?)', [syncedIds]);
-        console.log(`[FTP Sync] Marked ${syncedIds.length} app outbound records as synced in DB.`);
+        console.log(`[Upload Sync] Marked ${syncedIds.length} app outbound records as synced in DB.`);
       }
     }
 
-    console.log(`[FTP Sync] Synchronization process completed successfully.`);
+    console.log(`[Upload Sync] Synchronization process completed successfully.`);
   } catch (err) {
-    console.error(`[FTP Sync Error] ${err.message}`);
-  } finally {
-    client.close();
+    console.error(`[Upload Sync Error] ${err.message}`);
   }
 }
 
