@@ -530,18 +530,16 @@ async function runFtpSync() {
         // Use formatting helper to align columns exactly with inbound file layouts
         const formattedDataObj = formatOutboundRow(change);
 
-        const fileNameXlsx = `${baseFileName}.xlsx`;
-        const destOutboundPath = path.join(UPLOADS_OUTBOUND_DIR, fileNameXlsx);
+        const fileNameCsv = `${baseFileName}.csv`;
+        const destOutboundPath = path.join(UPLOADS_OUTBOUND_DIR, fileNameCsv);
         
         try {
-          const wb = xlsx.utils.book_new();
           const ws = xlsx.utils.json_to_sheet([formattedDataObj]);
-          xlsx.utils.book_append_sheet(wb, ws, 'Sheet1');
-          const excelBuffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
-          fs.writeFileSync(destOutboundPath, excelBuffer);
+          const csvContent = xlsx.utils.sheet_to_csv(ws);
+          fs.writeFileSync(destOutboundPath, csvContent, 'utf8');
 
           syncedIds.push(change.id);
-          console.log(`[Upload Sync] Exported outbound: ${fileNameXlsx}`);
+          console.log(`[Upload Sync] Exported outbound: ${fileNameCsv}`);
         } catch (wrErr) {
           console.error(`[Upload Sync Outbound File Error] ${wrErr.message}`);
         }
