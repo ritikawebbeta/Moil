@@ -1758,6 +1758,7 @@ async function writeTableOutboundCsv(fileName, sheetName, rowData) {
       process.env.FTP_OUTBOUND_DIR_LOCAL,
       path.join(__dirname, '../../outbound'),
       '/home/u156958239/moil_backend/outbound',
+      '/home/u156958239/domains/acubeai.com/public_html/test/moil_hr_app/uploads/Outbound',
       '/Users/apple/WebBeta/MOIL_PROJECT/Moil_employee_data/Outbound',
       path.join('/tmp', 'ftp_outbound')
     ].filter(Boolean);
@@ -3855,6 +3856,7 @@ async function recordOutboundChange(tableName, recordId, actionType, changedColu
     const outboundDirs = [
       process.env.FTP_OUTBOUND_DIR_LOCAL,
       path.join(__dirname, '../../outbound'),
+      '/home/u156958239/domains/acubeai.com/public_html/test/moil_hr_app/uploads/Outbound',
       '/Users/apple/WebBeta/MOIL_PROJECT/Moil_employee_data/Outbound',
       path.join('/tmp', 'ftp_outbound')
     ].filter(Boolean);
