@@ -106,6 +106,16 @@ function formatOutboundRow(change) {
     };
   }
 
+  if (tableNameUpper === 'PTREQ_ITEMS' || tableNameUpper === 'PTREQ_ITEMS_1') {
+    return {
+      'ID of Request Item List':  cc.id_of_request_item_list || rd.id_of_request_item_list || '',
+      'Request Item':             cc.request_item             || rd.request_item             || 1,
+      'GUID':                     cc.guid                     || rd.guid                     || '',
+      'GUID_1':                   cc.guid_1                   || rd.guid_1                   || cc.guid || rd.guid || '',
+      'Request Item Type':        cc.request_item_type        || rd.request_item_type        || 'ATTABS'
+    };
+  }
+
   if (tableNameUpper === 'TRAVEL') {
     return {
       'Personnel Number':           cc.personnel_number || rd.personnel_number || '',
@@ -401,6 +411,9 @@ function getOutboundFileName(tableName) {
   }
   if (upper === 'PTREQ_HEADER_LEAVE_APPROVED' || upper === 'PTREQ_HEADER_LEAVE_APPROVED_1') {
     return 'PTREQ_HEADER_Leave_Approved.csv';
+  }
+  if (upper === 'PTREQ_ITEMS' || upper === 'PTREQ_ITEMS_1') {
+    return 'PTREQ_ITEMS-Request Items.csv';
   }
   if (upper === 'TRAVEL') {
     return "Travel From April'26 to till date.csv";
