@@ -30,10 +30,11 @@ class _TourScreenState extends State<TourScreen>
   TourModel? _editingTour;
   bool _isApplying = false;
 
+  bool? _lastIsReportingOfficer;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 7, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthController>();
       final user = auth.user;
@@ -43,6 +44,19 @@ class _TourScreenState extends State<TourScreen>
         tourCtrl.fetchTeamCalendar();
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isRep = Provider.of<ProfileController>(context).employees.isNotEmpty;
+    if (_lastIsReportingOfficer == null || _lastIsReportingOfficer != isRep) {
+      if (_lastIsReportingOfficer != null) {
+        _tabController.dispose();
+      }
+      _lastIsReportingOfficer = isRep;
+      _tabController = TabController(length: isRep ? 7 : 6, vsync: this);
+    }
   }
 
   @override
@@ -90,6 +104,7 @@ class _TourScreenState extends State<TourScreen>
 
     final user = context.watch<AuthController>().user;
     final tourController = context.watch<TourController>();
+    final isReportingOfficer = context.watch<ProfileController>().employees.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -133,7 +148,7 @@ class _TourScreenState extends State<TourScreen>
                 const Tab(text: 'All My Expense Reports (0)'),
                 const Tab(text: 'Pending Exp. Reports (0)'),
                 const Tab(text: 'Credit Card Imports (0)'),
-                const Tab(text: 'Team Calendar'),
+                if (isReportingOfficer) const Tab(text: 'Team Calendar'),
               ],
             ),
           ),
@@ -224,7 +239,7 @@ class _TourScreenState extends State<TourScreen>
                 const _ExpenseReportsTab(),
                 const _PendingReportsTab(),
                 const _CreditCardImportsTab(),
-                const _TourCalendarTab(),
+                if (isReportingOfficer) const _TourCalendarTab(),
               ],
             ),
           ),
