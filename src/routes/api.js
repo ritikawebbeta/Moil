@@ -2203,6 +2203,13 @@ router.post('/leaves/reject', authenticateToken, async (req, res) => {
       [leave_id]
     );
 
+    // Delete from absence table since leave is rejected
+    const applicantPaddedPernr = applicantId.toString().trim().padStart(8, '0');
+    await pool.query(
+      `DELETE FROM absence WHERE personnel_number = ? AND start_date = ?`,
+      [applicantPaddedPernr, appRow.start_date]
+    );
+
     // 8. Write to daily cumulative Excel for FTP outbound
     const rejectedHeaderData = {
       document_identification: leave_id,
