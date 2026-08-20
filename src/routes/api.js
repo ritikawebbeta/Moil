@@ -358,7 +358,17 @@ function mapEmployeeRow(row) {
     aadhaarNo: row.aadhar_number || 'N/A',
     pranNo: (row.praan_no && row.praan_no.toString().trim() !== '' && row.praan_no.toString().trim().toUpperCase() !== 'NULL') ? row.praan_no.toString().trim() : 'N/A',
     pfNo: (row.employee_pf_number && row.employee_pf_number.toString().trim() !== '' && row.employee_pf_number.toString().trim().toUpperCase() !== 'NULL') ? row.employee_pf_number.toString().trim() : 'N/A',
-    pensionNo: (row.employee_pension_number && row.employee_pension_number.toString().trim() !== '' && row.employee_pension_number.toString().trim().toUpperCase() !== 'NULL') ? row.employee_pension_number.toString().trim() : 'N/A',
+    pensionNo: (() => {
+      const pId = (row.pension_id || '').toString().trim();
+      const pNo = (row.employee_pension_number || '').toString().trim();
+      if (pId && pId.toUpperCase() !== 'NULL' && pId !== '' && pId.toUpperCase() !== 'NPS OPTED') {
+        return pId;
+      }
+      if (pNo && pNo.toUpperCase() !== 'NULL' && pNo !== '') {
+        return pNo;
+      }
+      return pId || 'N/A';
+    })(),
     presentPostingDate: formatDate(row.dopp || row.act_doj_on_promt_dt),
     dopp: formatDate(row.dopp || row.act_doj_on_promt_dt),
     reportingOfficer: (row.reporting_officer || '0').toString(),
