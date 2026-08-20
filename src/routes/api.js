@@ -3030,9 +3030,13 @@ router.get('/holidays', authenticateToken, async (req, res) => {
     // 2. Resolve subarea and area code mapping
     const codes = getSubareaCodes(subareaText);
 
-    // 3. Query zhcm_opt_holiday filtered by area and subarea
+    // 3. Query zhcm_opt_holiday filtered by area and subarea, grouped to remove duplicates
     const [holidayRows] = await pool.query(
-      'SELECT * FROM zhcm_opt_holiday WHERE personnel_area = ? AND personnel_subarea = ? ORDER BY optional_holiday_date ASC',
+      `SELECT MIN(row_id) as row_id, personnel_area, personnel_subarea, optional_holiday_date, description 
+       FROM zhcm_opt_holiday 
+       WHERE personnel_area = ? AND personnel_subarea = ? 
+       GROUP BY personnel_area, personnel_subarea, optional_holiday_date, description 
+       ORDER BY optional_holiday_date ASC`,
       [codes.area, codes.subarea]
     );
 
